@@ -26,3 +26,9 @@ Here you can find an implementation of Kalman Filterss in R. The code comes with
 ## Example Notebooks
 
 Notebooks in _jupyter_ for the CRBMs, RBMs and Kalman Filter in R.
+
+## Datasets
+
+Example datasets for the here found tools:
+
+* motion.rds: version of the motion.mat dataset (Eugene Hsu http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat) in RDS format.
