@@ -4,11 +4,12 @@ Machine Learning tools and functions in R, for educational and academic purposes
 
 ## Tools
 
-### Deep Neural Network (FFANN)
+### Feed Forward Artificial Neural Networks (FFANN)
 
-Here you can find an implementation of a FFANN in R, based on the approach of Peng Zhao "R for Deep Learning" at: http://www.parallelr.com/r-deep-neural-network-from-scratch
+Here you can find an implementation of FFANNs in R, with single hidden layer and multiple hidden layers, based on the approach of Peng Zhao "R for Deep Learning" at: http://www.parallelr.com/r-deep-neural-network-from-scratch
 
-* dnn.R: Version in R.
+* ffann.R: Single hidden layer network for classification with softmax.
+* dnn.R: Multi-layer perceptron FFANN (Deep Neural Network).
 
 ### Conditional Restricted Boltzmann Machines
 
