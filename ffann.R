@@ -29,11 +29,11 @@ softmax <- function(score)
 }
 
 ###############################################################################
-# DNN FUNCTIONS                                                               #
+# FFANN FUNCTIONS                                                             #
 ###############################################################################
 
-## Deep Neural Network (DNN). Constructor
-create_dnn <- function(n_visible = 1, n_hidden = 6, n_output = 2, rand_seed = 1234)
+## Feed-Forward Artificial Neural Network (FFANN). Constructor
+create_ffann <- function(n_visible = 1, n_hidden = 6, n_output = 2, rand_seed = 1234)
 {
 	set.seed(rand_seed);
 
@@ -51,10 +51,10 @@ create_dnn <- function(n_visible = 1, n_hidden = 6, n_output = 2, rand_seed = 12
 }
 
 ## This function computes the input through the hidden layers, then throug softmax
-move_forward <- function (dnn, input)
+move_forward_ffann <- function (ffann, input)
 {
-	hidden.layer <- pmax(sweep(input %*% dnn$W1, 2, dnn$b1, '+'), 0);
-	score <- sweep(hidden.layer %*% dnn$W2, 2, dnn$b2, '+');
+	hidden.layer <- pmax(sweep(input %*% ffann$W1, 2, ffann$b1, '+'), 0);
+	score <- sweep(hidden.layer %*% ffann$W2, 2, ffann$b2, '+');
 
 	probs <- softmax(score);
 
@@ -62,7 +62,7 @@ move_forward <- function (dnn, input)
 }
 
 ## This function computes the output backwards the hidden layers
-move_backward <- function (dnn, input, y.idx, hidden.layer, probs)
+move_backward_ffann <- function (ffann, input, y.idx, hidden.layer, probs)
 {
 	dscores <- probs;
 	dscores[y.idx] <- dscores[y.idx] - 1;
@@ -71,7 +71,7 @@ move_backward <- function (dnn, input, y.idx, hidden.layer, probs)
 	Delta_W2 <- t(hidden.layer) %*% dscores;
 	Delta_b2 <- colSums(dscores);
 
-	dhidden <- dscores %*% t(dnn$W2);
+	dhidden <- dscores %*% t(ffann$W2);
 	dhidden[hidden.layer <= 0] <- 0;
 
 	Delta_W1 <- t(input) %*% dhidden;
@@ -83,40 +83,40 @@ move_backward <- function (dnn, input, y.idx, hidden.layer, probs)
 ## This functions implements an iteration over back-propagation
 ##	param input: matrix input from batch data (n_obs x features)
 ##	param y.idx: vector with indices towards the output label
-##	param lr: learning rate used to train the DNN
-##	param reg: regularization rate to train the DNN
+##	param lr: learning rate used to train the FFANN
+##	param reg: regularization rate to train the FFANN
 ##	We assume sigma = 1 when computing deltas
-get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
+get_cost_updates_ffann <- function(ffann, input, y.idx, lr, reg)
 {
 	# compute positive phase (forward)
-	ph <- move_forward(dnn, input);
+	ph <- move_forward_ffann(ffann, input);
 
 	# compute negative phase (backwards)
-	nh <- move_backward(dnn, input, y.idx, ph[["hidden.layer"]], ph[["probs"]]);
+	nh <- move_backward_ffann(ffann, input, y.idx, ph[["hidden.layer"]], ph[["probs"]]);
 
 	# compute the loss
 	data.loss  <- sum(-log(ph$probs[y.idx])) / nrow(input);
-	reg.loss   <- 0.5 * reg * (sum(dnn$W1 * dnn$W1) + sum(dnn$W2 * dnn$W2));
+	reg.loss   <- 0.5 * reg * (sum(ffann$W1 * ffann$W1) + sum(ffann$W2 * ffann$W2));
 	cost <- data.loss + reg.loss;
 
 	# update the network
-	dnn$W1 <- dnn$W1 - lr * (nh$Delta_W1  + reg * dnn$W1);
-	dnn$b1 <- dnn$b1 - lr * nh$Delta_b1;
+	ffann$W1 <- ffann$W1 - lr * (nh$Delta_W1  + reg * ffann$W1);
+	ffann$b1 <- ffann$b1 - lr * nh$Delta_b1;
 
-	dnn$W2 <- dnn$W2 - lr * (nh$Delta_W2 + reg * dnn$W2)
-	dnn$b2 <- dnn$b2 - lr * nh$Delta_b2;
+	ffann$W2 <- ffann$W2 - lr * (nh$Delta_W2 + reg * ffann$W2)
+	ffann$b2 <- ffann$b2 - lr * nh$Delta_b2;
 
-	list(dnn = dnn, cost = cost);
+	list(ffann = ffann, cost = cost);
 }
 
 
 ###############################################################################
-# HOW TO TRAIN YOUR DNN                                                       #
+# HOW TO TRAIN YOUR FFANN                                                     #
 ###############################################################################
 
 # Train: build and train a 2-layers neural network 
 
-## Function to train the DNN
+## Function to train the FFANN
 ##	param traindata: training dataset
 ##	param testdata: testing dataset
 ##	param varin: input variables (index or names)
@@ -127,7 +127,7 @@ get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
 ##	param lr: learning rate
 ##	param reg: regularization rate
 ##	param display: show results every 'display' step
-train.dnn <- function(traindata, varin, varout, testdata = NULL,
+train_ffann <- function(traindata, varin, varout, testdata = NULL,
 		n_hidden = c(6), maxit = 2000, abstol = 1e-2, lr = 1e-2,
 		reg = 1e-3, display = 100, rand_seed = 1234)
 {
@@ -146,21 +146,21 @@ train.dnn <- function(traindata, varin, varout, testdata = NULL,
 	n_dim <- ncol(batchdata);
 	n_classes <- length(unique(labels));
 
-	# create the DNN object
-	dnn <- create_dnn(n_visible = n_dim, n_hidden = n_hidden,
+	# create the FFANN object
+	ffann <- create_ffann(n_visible = n_dim, n_hidden = n_hidden,
 			  n_output = n_classes, rand_seed = rand_seed
 	);
 
-	# training the DNN
+	# training the FFANN
 	i <- 1;
 	cost <- 9e+15;
 	while(i <= maxit && cost > abstol)
 	{
 		# training: get cost and update model
-		aux <- get_cost_updates_dnn(dnn, batchdata, y.idx, lr, reg);
+		aux <- get_cost_updates_ffann(ffann, batchdata, y.idx, lr, reg);
 
 		# update network and loss
-		dnn <- aux$dnn;
+		ffann <- aux$ffann;
 		cost <- aux$cost;
 
 		# display results and update model
@@ -169,7 +169,7 @@ train.dnn <- function(traindata, varin, varout, testdata = NULL,
 			accuracy <- NULL;
 			if(!is.null(testdata))
 			{
-				labs <- predict_dnn(dnn, testdata[,-varout]);
+				labs <- predict_ffann(ffann, testdata[,-varout]);
 				accuracy <- mean(as.integer(testdata[,varout]) == y.set[labs]);
 			}
 			message(i, " ", cost, " ",accuracy);
@@ -178,7 +178,7 @@ train.dnn <- function(traindata, varin, varout, testdata = NULL,
  		i <- i + 1;
 	}
 
-	return(dnn);
+	return(ffann);
 }
 
 ###############################################################################
@@ -192,12 +192,12 @@ train.dnn <- function(traindata, varin, varout, testdata = NULL,
 ## - neurons : Rectified Linear
 ## - Loss Function: softmax
 ## - select max possiblity
-predict_dnn <- function(dnn, data)
+predict_ffann <- function(ffann, data)
 {
 	new.data <- data.matrix(data);
 
-	hidden.layer <- pmax(sweep(new.data %*% dnn$W1 ,2, dnn$b1, '+'), 0);
-	score <- sweep(hidden.layer %*% dnn$W2, 2, dnn$b2, '+');
+	hidden.layer <- pmax(sweep(new.data %*% ffann$W1 ,2, ffann$b1, '+'), 0);
+	score <- sweep(hidden.layer %*% ffann$W2, 2, ffann$b2, '+');
 	probs <- softmax(score);
 
 	labels.predicted <- max.col(probs);
@@ -218,7 +218,7 @@ main <- function()
 	samp <- c(sample(1:50,25), sample(51:100,25), sample(101:150,25));
 	 
 	# train model
-	ir.model <- train.dnn(varin = 1:4, varout = 5,
+	ir.model <- train_ffann(varin = 1:4, varout = 5,
 				traindata = iris[samp,],
 				testdata = iris[-samp,],
 				n_hidden = 6,
@@ -227,10 +227,10 @@ main <- function()
 	);
 	 
 	# prediction
-	labels.dnn <- predict_dnn(ir.model, iris[-samp, -5]);
+	labels.ffann <- predict_ffann(ir.model, iris[-samp, -5]);
 	 
 	# show results
-	print(table(iris[-samp,5], labels.dnn));
-	print(mean(as.integer(iris[-samp, 5]) == labels.dnn));
+	print(table(iris[-samp,5], labels.ffann));
+	print(mean(as.integer(iris[-samp, 5]) == labels.ffann));
 }
 
