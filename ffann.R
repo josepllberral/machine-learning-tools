@@ -1,5 +1,5 @@
 ###############################################################################
-# DEEP FEED-FORWARD ARTIFICIAL NEURAL NETWORK in R                            #
+# FEED-FORWARD ARTIFICIAL NEURAL NETWORK in R                                 #
 ###############################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
@@ -33,11 +33,10 @@ softmax <- function(score)
 ###############################################################################
 
 ## Deep Neural Network (DNN). Constructor
-create_dnn <- function(n_visible = 1, n_hidden = c(6), n_output = 2, rand_seed = 1234)
+create_dnn <- function(n_visible = 1, n_hidden = 6, n_output = 2, rand_seed = 1234)
 {
 	set.seed(rand_seed);
 
-	# TODO - Adapt to many hidden layers: Create as may pairs as hiddens + 1
 	W1 <- 0.01 * sample_normal(c(n_visible, n_hidden));
 	b1 <- array(0, c(1, n_hidden));
 
@@ -122,7 +121,7 @@ get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
 ##	param testdata: testing dataset
 ##	param varin: input variables (index or names)
 ##	param varout: output variable
-##	param hidden: set hidden layers and neurons. currently, only support 1 hidden layer
+##	param hidden: number of neurons in hidden layer
 ##	param maxit: max iteration steps
 ##	param abstol: delta loss 
 ##	param lr: learning rate
