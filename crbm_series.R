@@ -144,7 +144,7 @@ predict_series_crbm <- function(crbm, series, n_gibbs = 30, n_threads = 1)
       l <- parLapply(cl,series$batchdata, generate_serie);
       stopCluster(cl)
     } else {
-      lapply(series$batchdata, generate_serie);
+      l <- lapply(series$batchdata, generate_serie);
     }
     return(l)
 }
