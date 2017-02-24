@@ -1,10 +1,10 @@
 ###############################################################################
-# FEED-FORWARD ARTIFICIAL NEURAL NETWORK in R                                 #
+# DEEP FEED-FORWARD ARTIFICIAL NEURAL NETWORK in R                            #
 ###############################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
-## @date 24 February 2017
+## @date 24 February 2017 
 
 ## References:
 ## * Approach based on Peng Zhao's "R for Deep Learning":
@@ -31,110 +31,132 @@ softmax <- function(score)
 }
 
 ###############################################################################
-# FFANN FUNCTIONS                                                             #
+# DNN FUNCTIONS                                                               #
 ###############################################################################
 
-## Feed-Forward Artificial Neural Network (FFANN). Constructor
-create_ffann <- function(n_visible = 1, n_hidden = 6, n_output = 2, rand_seed = 1234)
+## Deep Neural Network (DNN). Constructor
+create_dnn <- function(n_visible = 1, n_hidden = c(6,5), n_output = 2, rand_seed = 1234)
 {
 	set.seed(rand_seed);
 
-	W1 <- 0.01 * sample_normal(c(n_visible, n_hidden));
-	b1 <- array(0, c(1, n_hidden));
+	layers <- length(n_hidden);
 
-	W2 <- 0.01 * sample_normal(c(n_hidden, n_output));
-	b2 <- array(0, c(1, n_output));
+	W.list <- list();
+	b.list <- list();
 
-	velocity <- list(W1 = array(0, dim(W1)), W2 = array(0, dim(W2)),
-		b1 = rep(0, length(b1)), b2 = rep(0, length(b2)));
+	prev_units <- n_visible;
+	for (i in 1:layers)
+	{
+		units <- n_hidden[i];
+
+		W.list[[i]] <- 0.01 * sample_normal(c(prev_units, units));
+		b.list[[i]] <- array(0, c(1, units));
+
+		prev_units <- units;
+	}
+	W.list[[layers + 1]] <- 0.01 * sample_normal(c(prev_units, n_output));
+	b.list[[layers + 1]] <- array(0, c(1, n_output));
 
 	list(n_visible = n_visible, n_hidden = n_hidden, n_output = n_output,
-		W1 = W1, W2 = W2, b1 = b1, b2 = b2, velocity = velocity);
+		W = W.list, b = b.list, layers = layers);
 }
 
 ## This function computes the input through the hidden layers, then throug softmax
-move_forward_ffann <- function (ffann, input)
+move_forward_dnn <- function (dnn, input)
 {
-	hidden.layer <- pmax(sweep(input %*% ffann$W1, 2, ffann$b1, '+'), 0);
-	score <- sweep(hidden.layer %*% ffann$W2, 2, ffann$b2, '+');
+	hl.list <- list();
+
+	data.input <- input;
+	for (i in 1:dnn$layers)
+	{
+		data.input <- pmax(sweep(data.input %*% dnn$W[[i]], 2, dnn$b[[i]], '+'), 0);		
+		hl.list[[i]] <- data.input;
+	}
+	score <- sweep(data.input %*% dnn$W[[dnn$layers + 1]], 2, dnn$b[[dnn$layers + 1]], '+');
 
 	probs <- softmax(score);
 
-	list(hidden.layer = hidden.layer, probs = probs);
+	list(hidden.layers = hl.list, probs = probs);
 }
 
 ## This function computes the output backwards the hidden layers
-move_backward_ffann <- function (ffann, input, y.idx, hidden.layer, probs)
+move_backward_dnn <- function (dnn, input, y.idx, hidden.layers, probs)
 {
+	Delta_W <- list();
+	Delta_b <- list();
+
 	dscores <- probs;
 	dscores[y.idx] <- dscores[y.idx] - 1;
-	dscores <- dscores / nrow(input);
+	dhidden <- dscores / nrow(input);
 
-	Delta_W2 <- t(hidden.layer) %*% dscores;
-	Delta_b2 <- colSums(dscores);
+	for (i in dnn$layers:1)
+	{
+		hidden.layer <- hidden.layers[[i]];
 
-	dhidden <- dscores %*% t(ffann$W2);
-	dhidden[hidden.layer <= 0] <- 0;
+		Delta_W[[i + 1]] <- t(hidden.layer) %*% dhidden;
+		Delta_b[[i + 1]] <- colSums(dhidden);
 
-	Delta_W1 <- t(input) %*% dhidden;
-	Delta_b1 <- colSums(dhidden);
+		dhidden <- dhidden %*% t(dnn$W[[i + 1]]);
+		dhidden[hidden.layer <= 0] <- 0;
+	}
 
-	list(Delta_W1 = Delta_W1, Delta_W2 = Delta_W2, Delta_b1 = Delta_b1, Delta_b2 = Delta_b2);
+	Delta_W[[1]] <- t(input) %*% dhidden;
+	Delta_b[[1]] <- colSums(dhidden);
+
+	list(Delta_W = Delta_W, Delta_b = Delta_b);
 }
 
 ## This functions implements an iteration over back-propagation
 ##	param input: matrix input from batch data (n_obs x features)
 ##	param y.idx: vector with indices towards the output label
-##	param lr: learning rate used to train the FFANN
-##	param reg: regularization rate to train the FFANN
+##	param lr: learning rate used to train the DNN
+##	param reg: regularization rate to train the DNN
 ##	We assume sigma = 1 when computing deltas
-get_cost_updates_ffann <- function(ffann, input, y.idx, lr, reg)
+get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
 {
 	# compute positive phase (forward)
-	ph <- move_forward_ffann(ffann, input);
+	ph <- move_forward_dnn(dnn, input);
 
 	# compute negative phase (backwards)
-	nh <- move_backward_ffann(ffann, input, y.idx, ph[["hidden.layer"]], ph[["probs"]]);
+	nh <- move_backward_dnn(dnn, input, y.idx, ph[["hidden.layers"]], ph[["probs"]]);
 
 	# compute the loss
 	data.loss  <- sum(-log(ph$probs[y.idx])) / nrow(input);
-	reg.loss   <- 0.5 * reg * (sum(ffann$W1 * ffann$W1) + sum(ffann$W2 * ffann$W2));
+	reg.loss   <- reg * mean(sapply(1:(dnn$layers + 1), function(x) sum(dnn$W[[x]] * dnn$W[[x]])));
 	cost <- data.loss + reg.loss;
 
 	# update the network
-	ffann$W1 <- ffann$W1 - lr * (nh$Delta_W1  + reg * ffann$W1);
-	ffann$b1 <- ffann$b1 - lr * nh$Delta_b1;
+	for (i in 1:(dnn$layers+1))
+	{
+		dnn$W[[i]] <- dnn$W[[i]] - lr * (nh$Delta_W[[i]]  + reg * dnn$W[[i]]);
+		dnn$b[[i]] <- dnn$b[[i]] - lr * nh$Delta_b[[i]];
+	}
 
-	ffann$W2 <- ffann$W2 - lr * (nh$Delta_W2 + reg * ffann$W2)
-	ffann$b2 <- ffann$b2 - lr * nh$Delta_b2;
-
-	list(ffann = ffann, cost = cost);
+	list(dnn = dnn, cost = cost);
 }
 
 
 ###############################################################################
-# HOW TO TRAIN YOUR FFANN                                                     #
+# HOW TO TRAIN YOUR DNN                                                       #
 ###############################################################################
 
-# Train: build and train a 2-layers neural network 
+# Train: build and train a N-layers neural network 
 
-## Function to train the FFANN
+## Function to train the DNN
 ##	param traindata: training dataset
 ##	param testdata: testing dataset
 ##	param varin: input variables (index or names)
 ##	param varout: output variable
-##	param hidden: number of neurons in hidden layer
+##	param hidden: vector of neurons per hidden layer
 ##	param maxit: max iteration steps
 ##	param abstol: delta loss 
 ##	param lr: learning rate
 ##	param reg: regularization rate
 ##	param display: show results every 'display' step
-train_ffann <- function(traindata, varin, varout, testdata = NULL,
-		n_hidden = c(6), maxit = 2000, abstol = 1e-2, lr = 1e-2,
+train_dnn <- function(traindata, varin, varout, testdata = NULL,
+		n_hidden = c(6, 5), maxit = 2000, abstol = 1e-2, lr = 1e-2,
 		reg = 1e-3, display = 100, rand_seed = 1234)
 {
-	set.seed(rand_seed);
- 
 	# Training Data
 	batchdata <- unname(data.matrix(traindata[,varin]));
 	labels <- traindata[,varout];
@@ -148,21 +170,21 @@ train_ffann <- function(traindata, varin, varout, testdata = NULL,
 	n_dim <- ncol(batchdata);
 	n_classes <- length(unique(labels));
 
-	# create the FFANN object
-	ffann <- create_ffann(n_visible = n_dim, n_hidden = n_hidden,
+	# create the DNN object
+	dnn <- create_dnn(n_visible = n_dim, n_hidden = n_hidden,
 			  n_output = n_classes, rand_seed = rand_seed
 	);
 
-	# training the FFANN
+	# training the DNN
 	i <- 1;
 	cost <- 9e+15;
 	while(i <= maxit && cost > abstol)
 	{
 		# training: get cost and update model
-		aux <- get_cost_updates_ffann(ffann, batchdata, y.idx, lr, reg);
+		aux <- get_cost_updates_dnn(dnn, batchdata, y.idx, lr, reg);
 
 		# update network and loss
-		ffann <- aux$ffann;
+		dnn <- aux$dnn;
 		cost <- aux$cost;
 
 		# display results and update model
@@ -171,7 +193,7 @@ train_ffann <- function(traindata, varin, varout, testdata = NULL,
 			accuracy <- NULL;
 			if(!is.null(testdata))
 			{
-				labs <- predict_ffann(ffann, testdata[,-varout]);
+				labs <- predict_dnn(dnn, testdata[,-varout]);
 				accuracy <- mean(as.integer(testdata[,varout]) == y.set[labs]);
 			}
 			message(i, " ", cost, " ",accuracy);
@@ -180,7 +202,7 @@ train_ffann <- function(traindata, varin, varout, testdata = NULL,
  		i <- i + 1;
 	}
 
-	return(ffann);
+	return(dnn);
 }
 
 ###############################################################################
@@ -194,12 +216,14 @@ train_ffann <- function(traindata, varin, varout, testdata = NULL,
 ## - neurons : Rectified Linear
 ## - Loss Function: softmax
 ## - select max possiblity
-predict_ffann <- function(ffann, data)
+predict_dnn <- function(dnn, data)
 {
-	new.data <- data.matrix(data);
-
-	hidden.layer <- pmax(sweep(new.data %*% ffann$W1 ,2, ffann$b1, '+'), 0);
-	score <- sweep(hidden.layer %*% ffann$W2, 2, ffann$b2, '+');
+	data.input <- data.matrix(data);
+	for (i in 1:dnn$layers)
+	{
+		data.input <- pmax(sweep(data.input %*% dnn$W[[i]] ,2, dnn$b[[i]], '+'), 0);	
+	}
+	score <- sweep(data.input %*% dnn$W[[dnn$layers + 1]], 2, dnn$b[[dnn$layers + 1]], '+');
 	probs <- softmax(score);
 
 	labels.predicted <- max.col(probs);
@@ -220,19 +244,19 @@ main <- function()
 	samp <- c(sample(1:50,25), sample(51:100,25), sample(101:150,25));
 	 
 	# train model
-	ir.model <- train_ffann(varin = 1:4, varout = 5,
+	ir.model <- train_dnn(varin = 1:4, varout = 5,
 				traindata = iris[samp,],
 				testdata = iris[-samp,],
-				n_hidden = 6,
-				maxit = 2000,
-				display = 50
+				n_hidden = c(6,6),
+				maxit = 12000,
+				display = 500
 	);
 	 
 	# prediction
-	labels.ffann <- predict_ffann(ir.model, iris[-samp, -5]);
+	labels.dnn <- predict_dnn(ir.model, iris[-samp, -5]);
 	 
 	# show results
-	print(table(iris[-samp,5], labels.ffann));
-	print(mean(as.integer(iris[-samp, 5]) == labels.ffann));
+	print(table(iris[-samp,5], labels.dnn));
+	print(mean(as.integer(iris[-samp, 5]) == labels.dnn));
 }
 
