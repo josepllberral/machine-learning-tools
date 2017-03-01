@@ -111,17 +111,17 @@ train_series_crbm <- function (dataset, learning_rate = 1e-4, momentum = 0.5, tr
 ## Perform predict_crbm for a list of series
 ##      series : list of [batchdata, seqlen, means, stdevs]
 ##	n_gibbs : int, number of alternating Gibbs steps per iteration
-predict_series_crbm <- function(crbm, series, n_gibbs = 30)
+predict_series_crbm <- function(crbm, series, n_gibbs = 30, n_threads = 1)
 {
-    list_gen_series <- list();
-    for (i in 1:length(series$batchdata))
+    generate_serie <- function(batchdata)
+
     {
-        batchdata <- series$batchdata[[i]];
-        if (nrow(batchdata) < crbm$delay) 
-        {
-            list_gen_series[[i]] <- NULL;
-            next;
-        }
+        if (nrow(batchdata) < crbm$delay) return(NULL);
+
+
+
+
+
 
         samples.aux <- nrow(batchdata) - crbm$delay;
 
@@ -134,10 +134,19 @@ predict_series_crbm <- function(crbm, series, n_gibbs = 30)
         generated_series.aux <- predict_crbm(crbm, orig_data, orig_history, n_samples = samples.aux, n_gibbs = n_gibbs);
 
         oh.temp <- aperm(array(as.vector(orig_history), c(length(data_idx), crbm$n_visible, crbm$delay)),c(1,3,2));
-        list_gen_series[[i]] <- abind(oh.temp[,crbm$delay:1,], generated_series.aux, along = 2);
+        abind(oh.temp[,crbm$delay:1,], generated_series.aux, along = 2);
     }
-
-    list_gen_series;
+    
+    if (n_threads > 1) { # Parallel
+      library(parallel) #Is a good idea having this here?
+      
+      cl <- makeCluster(n_threads, type='FORK')
+      l <- parLapply(cl,series$batchdata, generate_serie);
+      stopCluster(cl)
+    } else {
+      l <- lapply(series$batchdata, generate_serie);
+    }
+    return(l)
 }
 
 ###############################################################################
