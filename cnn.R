@@ -1,4 +1,4 @@
-## Convolutiona Layers for DNN
+## Convolutional Layers for DNN
 
 ## Reference: http://deeplearning.net/tutorial/lenet.html
 ## Reference: https://github.com/dustinstansbury/medal/blob/master/models/crbm.m
@@ -49,7 +49,7 @@ approx_fprime <- function(x, f, eps = NULL, ...)
 	grad;
 }
 
-check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NULL)
+check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NULL, ...)
 {
 	forward <- layer$forward;
 	backward <- layer$backward;
@@ -57,25 +57,25 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 	gnames <- layer$gnames;
 
 	# Check input gradient
-	fun <- function(x)
+	fun <- function(x, ...)
 	{
-		y <- forward(layer, x)[["y"]];
+		y <- forward(layer, x, ...)[["y"]];
 		sum(y);
 	}
 
-	fun_grad <- function(x)
+	fun_grad <- function(x, ...)
 	{
-		aux <- forward(layer, x);
+		aux <- forward(layer, x, ...);
 		y <- aux$y;
 		laux <- aux$layer;
 
 		y_grad <- array(1, dim(y));
-		x_grad <- backward(laux, y_grad)[["dx"]];
+		x_grad <- backward(laux, y_grad, ...)[["dx"]];
 		x_grad;
 	}
 
-	g_approx <- approx_fprime(x0, fun, eps);
-	g_true <- fun_grad(x0);
+	g_approx <- approx_fprime(x0, fun, eps, ...);
+	g_true <- fun_grad(x0, ...);
 
 	if (!gradclose(g_approx, g_true, rtol, atol))
 	{
@@ -84,18 +84,18 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 	}
 
 	# Check parameter gradients
-	fun <- function(x, p_idx)
+	fun <- function(x, p_idx, ...)
 	{
 		ns <- pnames(layer)[[p_idx]];
 		param_array <- layer[[ns]];
 		param_array <- param_array * 0;
 		param_array <- param_array + x;
 		layer[[ns]] <- param_array;
-		y <- forward(layer, x0)[["y"]];
+		y <- forward(layer, x0, ...)[["y"]];
 		sum(y);
 	}
 
-	fun_grad <- function(x, p_idx)
+	fun_grad <- function(x, p_idx, ...)
 	{
 		ns <- pnames(layer)[[p_idx]];
 		param_array <- layer[[ns]];
@@ -103,12 +103,12 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 		param_array <- param_array + x;
 		layer[[ns]] <- param_array;
 
-		aux <- forward(layer, x0);
+		aux <- forward(layer, x0, ...);
 		out <- aux$y;
 		laux <- aux$layer;
 
 		y_grad <- array(1, dim(out));
-		laux <- backward(laux, y_grad)[["layer"]];
+		laux <- backward(laux, y_grad, ...)[["layer"]];
 
 		ns <- gnames(laux)[[p_idx]];
 		param_grad <- laux[[ns]];
@@ -120,8 +120,8 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 	for (i in 1:length(params))
 	{
 		x <- layer[[params[i]]];
-		g_true <- fun_grad(x, i);
-		g_approx <- approx_fprime(x, fun, eps, i);
+		g_true <- fun_grad(x, i, ...);
+		g_approx <- approx_fprime(x, fun, eps, i, ...);
 
 		if (!gradclose(g_approx, g_true, rtol, atol))
 		{
@@ -134,15 +134,50 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 # AUXILIAR FUNCTIONS                                                          #
 ###############################################################################
 
-conv2D <- function(mat, k, mode = 'valid')
+## Function to produce Normal Samples
+sample_normal <- function(dims, mean = 0, sd = 1)
+{
+    array(rnorm(n = prod(dims), mean = mean, sd = sd), dims);
+}
+
+## Function to produce Bernoulli Samples
+sample_bernoulli <- function(mat)
+{
+    dims <- dim(mat);
+    array(rbinom(n = prod(dims), size = 1, prob = c(mat)), dims);
+}
+
+## Function to produce the Sigmoid
+sigmoid_func <- function(mat)
+{
+    1 / (1 + exp(-mat));
+}
+
+## Operator to add dimension-wise vectors to matrices
+`%+%` <- function(mat, vec)
+{
+    retval <- NULL;
+    tryCatch(
+        expr = { retval <- if (dim(mat)[1] == length(vec)) t(t(mat) + vec) else mat + vec; },
+        warning = function(w) { print(paste("WARNING: ", w, sep = "")); },
+        error = function(e) { print(paste("ERROR: Cannot sum mat and vec", e, sep = "\n")); }
+    );
+    retval;
+}
+
+## Performs the Convolution of mat (4D) using filter k (1,f,1,1)
+conv2D <- function(mat, k, mode = 'valid', dims = NULL) #FIXME - Optimize loops
 {
 	krow <- nrow(k);
 	kcol <- ncol(k);
 
+	krow_h <- krow %/% 2;
+	kcol_h <- kcol %/% 2;
+
 	mrow <- nrow(mat);
 	mcol <- ncol(mat);
 
-	out <- array(0, dim(mat));
+	out <- array(0, c(mrow,mcol));
 	for(i in 1:mrow)
 	{
 		for(j in 1:mcol)
@@ -150,12 +185,11 @@ conv2D <- function(mat, k, mode = 'valid')
 			for(m in 1:krow)
 			{
 				mm <- krow - m + 1;
+				ii <- i + m - krow_h - 1;
 				for(n in 1:kcol)
 				{
 					nn <- kcol - n + 1;
-
-					ii <- i + (m - (krow %/% 2)) - 1;
-					jj <- j + (n - (kcol %/% 2)) - 1;
+					jj <- j + n - kcol_h - 1;
 
 					if( ii > 0 && ii <= mrow && jj > 0 && jj <= mcol)
 						out[i,j] <- out[i,j] + mat[ii,jj] * k[mm,nn];
@@ -166,14 +200,19 @@ conv2D <- function(mat, k, mode = 'valid')
 
 	if (mode == 'valid')
 	{
-		cut_y <- nrow(k) %/% 2;
-		cut_x <- ncol(k) %/% 2;
-		out <- out[(cut_y + 1):(nrow(out) - cut_y), (cut_x + 1):(ncol(out) - cut_x)];
+		cut_y <- krow %/% 2 + 1;
+		cut_x <- kcol %/% 2 + 1;
+
+		len_y <- max(krow,mrow) - min(krow,mrow) + 1;
+		len_x <- max(kcol,mcol) - min(kcol,mcol) + 1;
+
+		out <- out[cut_y:(cut_y + len_y - 1),cut_x:(cut_x + len_x - 1)];
 	}
 
 	out;
 }
 
+## Adds padding to image
 img_padding <- function(img, pad_x, pad_y)
 {
 	dims <- dim(img);
@@ -184,6 +223,13 @@ img_padding <- function(img, pad_x, pad_y)
 	aux <- rbind(aux, array(0, c(pad_y, ncol(aux))));
 	aux <- rbind(array(0, c(pad_y, ncol(aux))), aux);
 	aux;
+}
+
+binarization <- function(vec)
+{
+	result <- array(0, c(length(vec),length(unique(vec))));
+	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
+	result;
 }
 
 ###############################################################################
@@ -224,7 +270,7 @@ conv_bc01 <- function(imgs, filters, padding)
 	out_shape <- c(batch_size, n_filters, out_h, out_w);
 	out_1 <- array(0, out_shape);
 
-	# Pad input images
+	# Pad input images  #FIXME - Optimize with apply
 	imgs_pad <- array(0, dim(imgs) + c(0, 0, 2*(pad_x), 2*(pad_y)));
 	for (i in 1:dim(imgs)[1])
 		for (j in 1:dim(imgs)[2])
@@ -234,10 +280,7 @@ conv_bc01 <- function(imgs, filters, padding)
 	for (b in 1:batch_size)
 		for (f in 1:n_filters)
 			for (c in 1:n_channels)
-			{
-				cnv <- conv2D(imgs_pad[b,c,,], filters[f,c,,]);
-				out_1[b,f,,] <- out_1[b,f,,] + cnv;
-			}
+				out_1[b,f,,] <- out_1[b,f,,] + conv2D(imgs_pad[b,c,,], filters[f,c,,],  mode='valid');
 	return(out_1);
 }
 
@@ -273,13 +316,13 @@ backward_conv <- function(conv, dy)
         dx <- conv_bc01(dy, w, conv$padding)
 
         # Propagate gradients to weights and gradients to bias
-	x_pad <- array(0, dim(conv$x) + c(0, 0, 2 * conv$padding));
+	x_pad <- array(0, dim(conv$x) + c(0, 0, 2 * conv$padding)); #FIXME - Optimize with Apply
 	for (i in 1:dim(x_pad)[1])
 		for (j in 1:dim(x_pad)[2])
 			x_pad[i,j,,] <- img_padding(conv$x[i,j,,], conv$padding[1], conv$padding[2]);
 
 	grad_W <- array(0, dim(conv$W));
-	for (b in 1:dim(dy)[1])
+	for (b in 1:dim(dy)[1])	#FIXME - Optimize with Apply
 		for (f in 1:dim(conv$W)[1])
 			for (c in 1:dim(conv$W)[2])
 				grad_W[f,c,,] <- grad_W[f,c,,] + conv2D(x_pad[b,c,,], dy[b,f,,]);
@@ -367,7 +410,7 @@ forward_pool <- function(pool, imgs)
 
         # Perform average pooling
         imgs <- imgs / (pool$win_size)^2;
-	for (b in 1:batch_size)
+	for (b in 1:batch_size)	#FIXME - Optimize with Apply
 		for (c in 1:n_channels)
 			for (y in 1:out_h)
 			{
@@ -397,7 +440,7 @@ backward_pool <- function(pool, dy)
 	dx_h <- dim(dx)[3];
 	dx_w <- dim(dx)[4];
 
-	for (i in 1:(dim(dx)[1]))
+	for (i in 1:(dim(dx)[1]))	#FIXME - Optimize with Apply
 		for (c in 1:(dim(dx)[2]))
 			for (y in 1:(dim(dy)[3]))
 			{
@@ -453,8 +496,13 @@ main_pool <- function()
 ##	updates :	flat_layer
 forward_flat <- function(flat, x)
 {
-	flat[["shape"]] <- dim(x);
-	y <- array(x,prod(dim(x)))
+	dims <- dim(x);
+	flat[["shape"]] <- dims;
+
+	batch_size <- dims[1];
+	flat_dim <- prod(dims[-1]);
+
+	y <- array(x,c(batch_size, flat_dim));
 	list(layer = flat, y = y);
 }
 
@@ -462,9 +510,9 @@ forward_flat <- function(flat, x)
 ##	param dy :	Array of shape (batch_size, n_channels * img_height * img_width)
 ##	return   :	Array of shape (batch_size, n_channels, img_height, img_width)
 ##	updates  :	flat_layer (does nothing)
-backward_flat <- function(flat, delta_in)
+backward_flat <- function(flat, dy)
 {
-	dx <- array(delta_in, flat$shape);
+	dx <- array(dy, flat$shape);
 	list(layer = flat, dx = dx);
 }
 
@@ -496,25 +544,369 @@ main_flat <- function()
 	print('Gradient check passed');
 }
 
+###############################################################################
+# RELU ACTIVATION LAYER                                                       #
+###############################################################################
+
+## Forwards x by setting max_0
+##	param x :	Array
+##	returns :	Array applied max_0
+##	updates :	relu_layer
+forward_relu <- function(relu, x)
+{
+	x[x < 0] <- 0;
+	relu[["a"]] <- x;
+	list(layer = relu, y = x);
+}
+
+## Returns a value activated
+##	param dy :	Array
+##	return   :	Array passed through (max_0)
+##	updates  :	relu_layer (does nothing)
+backward_relu <- function(relu, dy)
+{
+	dx <- dy * as.numeric(relu$a > 0);
+	list(layer = relu, dx = dx);
+}
+
+## Updates the ReLU Layer (Does Nothing)
+get_updates_relu <- function(relu, lr) { relu; }
+
+## Get names of parameters and gradients (for testing functions)
+pnames_relu <- function(relu) { character(0); }
+gnames_relu <- function(relu) { character(0); }
+
+create_relu <- function()
+{
+	list(pnames = pnames_relu, gnames = gnames_relu, forward = forward_relu,
+		backward = backward_relu, get_updates = get_updates_relu);
+}
 
 ###############################################################################
-# CNN FUNCTIONS                                                               #
+# LINEAR LAYER                                                                #
 ###############################################################################
 
-source("dnn.R");
+library(abind);
 
-## Convolutional Neural Network (CNN). Constructor
-create_cnn <- function(n_visible = 1, rand_seed = 1234, ...)
+forward_line <- function(line, x)
+{
+	line[["x"]] <- x;
+	y <- (x %*% t(line$W)) %+% as.vector(line$b);
+
+	list(layer = line, y = y);
+}
+
+backward_line <- function(line, dy)
+{
+	dx <- dy %*% line$W;
+
+	line[["grad_W"]] <- t(dy) %*% line$x
+	line[["grad_b"]] <- array(colSums(dy),c(1,ncol(dy)));
+	
+	list(layer = line, dx = dx);
+}
+
+## Updates the Linear Layer
+get_updates_line <- function(line, lr)
+{
+        line[["W"]] = line$W - line$grad_W * lr;
+        line[["b"]] = line$b - line$grad_b * lr;
+	line;
+}
+
+## Get names of parameters and gradients (for testing functions)
+pnames_line <- function(line) { c("W","b"); }
+gnames_line <- function(line) { c("grad_W","grad_b"); }
+
+create_line <- function(n_visible = 4, n_hidden = 10, scale = 0.01)
+{   
+	W <- scale * sample_normal(c(n_hidden, n_visible));
+	b <- array(0, c(1, n_hidden));
+
+	list(	W = W, b = b, n_visible = n_visible, n_hidden = n_hidden,
+		pnames = pnames_line, gnames = gnames_line, forward = forward_line,
+		backward = backward_line, get_updates = get_updates_line);
+}
+
+## Driver for Linear Layer
+main_line <- function()
+{
+	batch_size <- 2;
+	img_shape <- 100;
+
+	x <- sample_normal(c(batch_size, img_shape));
+	layer <- create_line(n_visible = 100, n_hidden = 64, scale = 0.01);
+
+	check_grad(layer, x);
+	print('Gradient check passed');
+}
+
+
+###############################################################################
+# SOFTMAX LAYER                                                               #
+###############################################################################
+
+forward_soft <- function(soft, x)
+{
+	soft[["a"]] <- 1.0 / (1 + exp(-x));
+	list(layer = soft, y = soft$a);
+}
+
+backward_soft <- function(soft, dy)
+{
+	dx <- soft$a * (1 - soft$a) * dy;
+	list(layer = soft, dx = dx);
+}
+
+## Updates the ReLU Layer (Does Nothing)
+get_updates_soft <- function(soft, lr) { soft; }
+
+## Get names of parameters and gradients (for testing functions)
+pnames_soft <- function(soft) { character(0); }
+gnames_soft <- function(soft) { character(0); }
+
+create_soft <- function()
+{
+	list(	pnames = pnames_soft, gnames = gnames_soft, forward = forward_soft,
+		backward = backward_soft, get_updates = get_updates_soft);
+}
+
+
+###############################################################################
+# CROSS-ENTROPY LOSS LAYER                                                    #
+###############################################################################
+
+forward_cell <- function(cell, x, targets)
+{
+	l <- -targets * log(x + 1e-08);
+	l <- mean(apply(l, MARGIN = 1, sum));
+	list(layer = cell, y = x, loss = l);
+}
+
+backward_cell <- function(cell, dy, targets)
+{
+	num_batches <- dim(dy)[1];
+	dx <- (1.0 / num_batches) * (dy - targets);
+	list(layer = cell, dx = dx);
+}
+
+## Updates the C-E Loss Layer (Does Nothing)
+get_updates_cell <- function(cell, lr) { cell; }
+
+## Get names of parameters and gradients (for testing functions)
+pnames_cell <- function(cell) { character(0); }
+gnames_cell <- function(cell) { character(0); }
+
+create_cell <- function()
+{
+	list(	pnames = pnames_cell, gnames = gnames_cell, forward = forward_cell,
+		backward = backward_cell, get_updates = get_updates_cell);
+}
+        
+###############################################################################
+# HOW TO TRAIN YOUR CNN                                                       #
+###############################################################################
+
+## Function to train the CNN
+##  param training_x      : loaded dataset (rows = examples, cols = features)
+##  param training_y      : loaded labels (binarized vector into rows = examples, cols = labels)
+##  param training_epochs : number of epochs used for training
+##  param batch_size      : size of a batch used to train the CNN
+##  param learning_rate   : learning rate used for training the CNN
+##  param momentum        : momentum rate used for training the CNN (Currently not used)
+##  param rand_seed       : random seed for training
+train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
+			batch_size = 4, learning_rate = 1e-4, momentum = NULL,
+			rand_seed = 1234)
 {
 	set.seed(rand_seed);
 
-	# Posterior MLP
-	dnn <- create_dnn(n_visible = 1, ...);
+	num_samples <- nrow(train$x)
+	num_batches <- num_samples %/% batch_size;
 
-	list(dnn = dnn);
+	loss_layer <- create_cell();
+
+	start_time <- Sys.time();
+
+	for (epoch in 1:training_epochs)
+	{
+		#confusion = ConfusionMatrix(num_classes)
+		acc_loss <- NULL;		
+		for (j in 1:num_batches)
+		{
+			# Select mini-batch
+			idx <- ((j - 1) * batch_size + 1):(j * batch_size);
+			batchdata <- training_x[idx,,,,drop = FALSE];		# [batch_size x n_channel x img_h x img_w]
+			targets <- training_y[idx];				# [batch_size]
+
+			# Forward
+			for (i in 1:length(layers))
+			{
+#print(paste("Passing through Layer", i, sep = " "))
+#print(dim(batchdata))
+
+				layer <- layers[[i]];
+				forward <- layer$forward;
+
+				aux <- forward(layer, batchdata);
+
+				layers[[i]] <- aux$layer;
+				batchdata <- aux$y;
+#print(dim(batchdata))
+			}
+			output <- batchdata;	# a.k.a. y_probs
+
+			# Calculate Forward Loss
+			aux <- loss_layer$forward(loss_layer, output, targets);
+			loss_layer <- aux$layer;
+			loss <- aux$loss;
+
+			# Calculate negdata
+			aux <- loss_layer$backward(loss_layer, output, targets);
+			loss_layer <- aux$layer;
+			negdata <- aux$dx;			
+
+			# Backward
+			for (i in length(layers):1)
+			{
+#print(paste("Backing through Layer", i, sep = " "))
+#print(dim(negdata))
+				layer <- layers[[i]];
+				backward <- layer$backward;
+
+				aux <- backward(layer, negdata);
+
+				layers[[i]] <- aux$layer;
+				negdata <- aux$dx;
+#print(dim(negdata))
+			}
+
+			# Update layers
+			for (i in 1:length(layers))
+			{
+#print(paste("Updating Layer", i, sep = " "))
+				layer <- layers[[i]];
+				get_updates <- layer$get_updates;
+
+				layers[[i]] <- get_updates(layer, learning_rate);
+#print(paste("END Updating Layer", i, sep = " "))
+			}
+
+#			confusion.batch_add(target_batch.argmax(-1), y_probs.argmax(-1))
+
+			acc_loss <- c(acc_loss, loss);
+		}
+		if (epoch %% 1 == 0)
+		{
+#			curr_acc = confusion.accuracy()
+			curr_acc <- NULL; # TODO
+			print(paste("Epoch ", epoch, " : Mean Loss ", mean(acc_loss), " Train acc ", curr_acc, "" , sep = " "));
+		}
+	}
+
+	end_time <- Sys.time();
+	print(paste('Training took', (end_time - start_time),'minutes',sep=" "));
+
+	list(create_cnn(layers, loss_layer), loss = mean(acc_loss));
 }
 
-## Network description:
-##
-##	(Conv -> Pool -> Relu)+ -> Flat -> MLP
+## Convolutional Neural Network (CNN). Constructor
+create_cnn <- function(layers, loss_layer)
+{
+	list(layers = layers, loss_layer = loss_layer);
+}
+
+###############################################################################
+# EXPERIMENTS: THE MNIST EXAMPLE                                              #
+###############################################################################
+
+# Load the MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
+# into R. Assume you have all 4 files and gunzip'd them creates train$n,
+# train$x, train$y and test$n, test$x, test$y e.g. train$x is a 60000 x 784
+# matrix, each row is one digit (28x28) call: show_digit(train$x[5,]) to see a
+# digit.
+#
+# Snippet authory: Brendan O'Connor https://gist.github.com/39760 - anyall.org
+#
+# Note: Put the MNIST data files in "./datasets/" folder
+
+load_mnist <- function()
+{
+	load_image_file <- function(filename)
+	{
+		ret <- list();
+		f <- file(filename, 'rb');
+		readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		ret$n <- readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		nrow <- readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		ncol <- readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		x <- readBin(f, 'integer', n = ret$n * nrow * ncol, size = 1, signed = FALSE);
+		ret$x <- matrix(x, ncol = nrow * ncol, byrow = TRUE);
+		close(f);
+		ret;
+	}
+	load_label_file <- function(filename)
+	{
+		f <- file(filename, 'rb');
+		readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		n <- readBin(f, 'integer', n = 1, size = 4, endian = 'big');
+		y <- readBin(f, 'integer', n = n, size = 1, signed = FALSE);
+		close(f);
+		y;
+	}
+	train <- load_image_file('./datasets/train-images.idx3-ubyte');
+	test <- load_image_file('./datasets/t10k-images.idx3-ubyte');
+
+	train$y <- load_label_file('./datasets/train-labels.idx1-ubyte');
+	test$y <- load_label_file('./datasets/t10k-labels.idx1-ubyte');
+
+	list(train = train, test = test);
+}
+
+show_digit <- function(arr784, col=gray(12:1/12), ...)
+{
+    image(matrix(arr784, nrow=28)[,28:1], col=col, ...);
+}
+
+main <- function()
+{
+	# Load the MNIST dataset
+	aux <- load_mnist();
+	img_size <- c(28,28);
+
+	# Set up Data as 4D matrix (batch_size, channels, H, W)
+	train <- aux$train;
+#	aux_x <- (train$x - mean(train$x)) / sd(train$x);
+#	aux_y <- (train$y - mean(train$y)) / sd(train$y);
+	training_x <- array(train$x, c(nrow(train$x), 1, img_size)) / 255;	# a.k.a. x_train
+	training_y <- binarization(train$y);					# a.k.a. targets_train
+
+	test <- aux$test;
+#	aux_x <- (test$x - mean(test$x)) / sd(test$x);
+#	aux_y <- (test$y - mean(test$y)) / sd(test$y);
+	testing_x <- array(test$x, c(nrow(test$x), 1, img_size)) / 255;		# a.k.a. x_test
+	testing_y <- binarization(test$y);					# a.k.a. targets_test
+
+	# Prepare CNN
+	layers <- list(
+		create_conv(n_channels = 1, n_filters = 4, filter_size = 5, scale = 0.1), 	# 1
+		create_pool(win_size = 3, stride = 2),						# 2
+		create_relu(),									# 3
+		create_conv(n_channels = 4, n_filters = 16, filter_size = 5, scale = 0.1),
+		create_pool(win_size = 3, stride = 2),
+		create_relu(),
+		create_flat(),									# 4
+		create_line(n_visible = 784, n_hidden = 64, scale = 0.01),			# 5
+		create_relu(),									# 6
+		create_line(n_visible = 64, n_hidden = 10, scale = 0.1),			# 7
+		create_soft()									# 8
+	);
+
+	# Train a CNN to learn MNIST
+	cnn <- train_cnn(training_x, training_y, layers,
+			 training_epochs = 50,
+			 batch_size = 4,
+			 learning_rate = 5e-2
+	);
+}
 
