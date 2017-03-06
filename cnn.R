@@ -15,9 +15,9 @@
 ## Mocap data:
 ## The MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
 
-
-## Libraries: We'll use fome Rcpp for speeding-up convolutions
+## Libraries: We'll some speed-up for convolutions
 library("Rcpp");
+library("compiler")
 
 ## Functions for checking gradient correctness
 source("grad_check.R");
@@ -43,6 +43,18 @@ sample_bernoulli <- function(mat)
 sigmoid_func <- function(mat)
 {
     1 / (1 + exp(-mat));
+}
+
+## Operator to add dimension-wise vectors to matrices
+`%+%` <- function(mat, vec)
+{
+	retval <- NULL;
+	tryCatch(
+		expr = { retval <- if (dim(mat)[1] == length(vec)) t(t(mat) + vec) else mat + vec; },
+		warning = function(w) { print(paste("WARNING: ", w, sep = "")); },
+		error = function(e) { print(paste("ERROR: Cannot sum mat and vec", e, sep = "\n")); }
+	);
+	retval;
 }
 
 ## Performs the Convolution of mat (4D) using filter k (1,f,1,1)
@@ -177,6 +189,8 @@ binarization <- function(vec)
 	result <- array(0, c(length(vec),length(unique(vec))));
 	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
 	result;
+
+#	t(sapply(1:length(a), function(x) { j <- rep(0,max(a)); j[a[x]] <- 1; j}))
 }
 
 ###############################################################################
@@ -187,7 +201,7 @@ binarization <- function(vec)
 ##	param imgs: <batch_size, img_n_channels, img_height, img_width>
 ##	param filters: <n_filters, n_channels, win_height, win_width>
 ##	param padding: <padding_y, padding_x>
-conv_bc01 <- function(imgs, filters, padding)
+conv_bc01_orig <- function(imgs, filters, padding)
 {
 	# Compute shapes
 	imgs.shape <- dim(imgs);
@@ -231,29 +245,31 @@ conv_bc01 <- function(imgs, filters, padding)
 
 	return(out_1);
 }
+conv_bc01 <- cmpfun(conv_bc01_orig);
 
 ## Performs Forward Propagation
 ##	param x :	Array of shape (batch_size, n_channels, img_height, img_width)
 ##	return  :	Array of shape (batch_size, n_filters, out_height, out_width)
 ##	updates :	conv_layer
-forward_conv <- function(conv, x)
+forward_conv_orig <- function(conv, x)
 {      
 	# Save "x" for back-propagation
 	conv[["x"]] <- x;
 
         # Performs convolution
 	y <- conv_bc01(x, conv$W, conv$padding);
+
 	for (b in 1:dim(y)[1]) y[b,,,] <- y[b,,,] + conv$b[1,,1,1];
 
 	list(layer = conv, y = y);
 }
-
+forward_conv <- cmpfun(forward_conv_orig);
 
 ## Performs Backward Propagation
 ##	param dy :	4D-image
 ##	return   :	image
 ##	updates  :	conv_layer
-backward_conv <- function(conv, dy)
+backward_conv_orig <- function(conv, dy)
 {
         # Flip weights
 	w <- conv$W[,, (conv$w_shape[3]:1), (conv$w_shape[4]:1), drop = FALSE];
@@ -282,14 +298,16 @@ backward_conv <- function(conv, dy)
 
 	list(layer = conv, dx = dx);
 }
+backward_conv <- cmpfun(backward_conv_orig);
 
 ## Updates the Convolutional Layer
-get_updates_conv <- function(conv, lr)
+get_updates_conv_orig <- function(conv, lr)
 {
 	conv[["W"]] = conv$W - conv$grad_W * lr;
 	conv[["b"]] = conv$b - conv$grad_b * lr;
 	conv;
 }
+get_updates_conv <- cmpfun(get_updates_conv_orig);
 
 ## Get names of parameters and gradients (for testing functions)
 pnames_conv <- function(conv) { c("W","b"); }
@@ -341,7 +359,7 @@ main_conv <- function()
 ##	param x :	Array of shape (batch_size, n_channels, img_height, img_width)
 ##	returns :	Array of shape (batch_size, n_channels, out_height, out_width)
 ##	updates :	pool_layer
-forward_pool <- function(pool, imgs)
+forward_pool_orig <- function(pool, imgs)
 {
 	# Compute shapes
 	imgs.shape <- dim(imgs);
@@ -376,12 +394,13 @@ forward_pool <- function(pool, imgs)
 
 	list(layer = pool, y = out);
 }
+forward_pool <- cmpfun(forward_pool_orig);
 
 ## Backwards a Pooling Matrix (4D) to a Convolutional Matrix (4D)
 ##	param dy :	Array of shape (batch_size, n_channels, out_height, out_width)
 ##	return   :	Array of shape (batch_size, n_channels, img_height, img_width)
 ##	updates  :	pool_layer
-backward_pool <- function(pool, dy)
+backward_pool_orig <- function(pool, dy)
 {
 	dx <- array(0, dim(pool$imgs));
 	dy <- dy / pool$win_size^2;
@@ -404,6 +423,7 @@ backward_pool <- function(pool, dy)
 			}
 	list(layer = pool, dx = dx);
 }
+backward_pool <- cmpfun(backward_pool_orig);
 
 ## Updates the Pool Layer (Does nothing)
 get_updates_pool <- function(pool, lr) { pool; }
@@ -758,13 +778,13 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 
 			acc_loss <- c(acc_loss, loss);
 		}
-		if (epoch %% 10 == 0)
+		if (epoch %% 1 == 0)
 		{
 #			curr_acc = confusion.accuracy() # TODO
-			print(paste("Epoch ", epoch, " : Mean Loss ", mean(acc_loss), sep = " ");
+			print(paste("Epoch", epoch, ": Mean Loss", mean(acc_loss), sep = " "));
 		}
 		end_time <- Sys.time();
-		print(paste('Epoch', epoch, 'took', difftime(start_time, end_time, units = "mins"),sep=" "));
+		print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
 	}
 
 	list(create_cnn(layers, loss_layer), loss = mean(acc_loss));
@@ -783,8 +803,7 @@ create_cnn <- function(layers, loss_layer)
 # Load the MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
 # into R. Assume you have all 4 files and gunzip'd them creates train$n,
 # train$x, train$y and test$n, test$x, test$y e.g. train$x is a 60000 x 784
-# matrix, each row is one digit (28x28) call: show_digit(train$x[5,]) to see a
-# digit.
+# matrix, each row is one digit (28x28)
 #
 # Snippet authory: Brendan O'Connor https://gist.github.com/39760 - anyall.org
 #
@@ -823,11 +842,6 @@ load_mnist <- function()
 	list(train = train, test = test);
 }
 
-show_digit <- function(arr784, col=gray(12:1/12), ...)
-{
-    image(matrix(arr784, nrow=28)[,28:1], col=col, ...);
-}
-
 main <- function()
 {
 	# Load the MNIST dataset
@@ -864,9 +878,9 @@ main <- function()
 
 	# Train a CNN to learn MNIST
 	cnn <- train_cnn(training_x, training_y, layers,
-			 training_epochs = 100,
+			 training_epochs = 10,
 			 batch_size = 10,
-			 learning_rate = 5e-2
+			 learning_rate = 5e-3
 	);
 }
 
