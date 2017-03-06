@@ -9,7 +9,13 @@ Machine Learning tools and functions in R, for educational and academic purposes
 Here you can find an implementation of FFANNs in R, with single hidden layer and multiple hidden layers, based on the approach of Peng Zhao "R for Deep Learning" at: http://www.parallelr.com/r-deep-neural-network-from-scratch
 
 * ffann.R: Single hidden layer network for classification with softmax.
-* dnn.R: Multi-layer perceptron FFANN (Deep Neural Network).
+* mlp.R: Multi-layer perceptron FFANN.
+
+### Convolutional Neural Networks (CNN)
+
+Here you can find an implementation of CNNs in R, including Convolutional, pooling, ReLU, linear and softmax layers.
+
+* cnn.R: Version in R.
 
 ### Conditional Restricted Boltzmann Machines
 
@@ -17,8 +23,6 @@ Here you can find an implementation of CRBMs in R, based on the approach of Grah
 
 * crbm.R: Version in R, with some improvements.
 * crbm_series.R: Extension of crbm.R, allowing training from sets of series instead a single one.
-
-* crbm_gt.R: Version directly translated from G.Taylor's, with indications to compare against the original version at https://gist.github.com/gwtaylor/2505670
 
 ### Restricted Boltzmann Machines
 

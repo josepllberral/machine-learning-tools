@@ -1,8 +1,23 @@
-## Convolutional Layers for DNN
+###############################################################################
+# CONVOLUTIONAL NEURAL NETWORKS in R                                          #
+###############################################################################
 
-## Reference: http://deeplearning.net/tutorial/lenet.html
-## Reference: https://github.com/dustinstansbury/medal/blob/master/models/crbm.m
-## Reference: https://github.com/davidbp/day2-Conv/blob/master/convnet_exercise_solution.ipynb
+## @author Josep Ll. Berral (Barcelona Supercomputing Center)
+
+## @date 3rd March 2017
+
+## References:
+## * Approach based on Lars Maaloee's:
+##   https://github.com/davidbp/day2-Conv
+## * Also from LeNet (deeplearning.net)
+##   http://deeplearning.net/tutorial/lenet.html
+
+## Mocap data:
+## The MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
+
+
+## Libraries: We'll use fome Rcpp for speeding-up convolutions
+library("Rcpp");
 
 ###############################################################################
 # DRIVERS FOR CHECKING LAYERS                                                 #
@@ -153,77 +168,132 @@ sigmoid_func <- function(mat)
     1 / (1 + exp(-mat));
 }
 
-## Operator to add dimension-wise vectors to matrices
-`%+%` <- function(mat, vec)
-{
-    retval <- NULL;
-    tryCatch(
-        expr = { retval <- if (dim(mat)[1] == length(vec)) t(t(mat) + vec) else mat + vec; },
-        warning = function(w) { print(paste("WARNING: ", w, sep = "")); },
-        error = function(e) { print(paste("ERROR: Cannot sum mat and vec", e, sep = "\n")); }
-    );
-    retval;
-}
-
 ## Performs the Convolution of mat (4D) using filter k (1,f,1,1)
-conv2D <- function(mat, k, mode = 'valid', dims = NULL) #FIXME - Optimize loops
+cppFunction('
+NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 {
-	krow <- nrow(k);
-	kcol <- ncol(k);
+	int krow = k.nrow();
+	int kcol = k.ncol();
 
-	krow_h <- krow %/% 2;
-	kcol_h <- kcol %/% 2;
+	int krow_h = krow / 2;
+	int kcol_h = kcol / 2;
 
-	mrow <- nrow(mat);
-	mcol <- ncol(mat);
+	int mrow = mat.nrow();
+	int mcol = mat.ncol();
 
-	out <- array(0, c(mrow,mcol));
-	for(i in 1:mrow)
+	NumericMatrix out(mrow, mcol);
+
+	for(int i = 0; i < mrow; ++i)
 	{
-		for(j in 1:mcol)
+		for(int j = 0; j < mcol; ++j)
 		{
-			for(m in 1:krow)
+			double acc = 0;
+			for(int m = 0; m < krow; ++m)
 			{
-				mm <- krow - m + 1;
-				ii <- i + m - krow_h - 1;
-				for(n in 1:kcol)
-				{
-					nn <- kcol - n + 1;
-					jj <- j + n - kcol_h - 1;
+				int mm = krow - 1 - m;
+				int ii = i + (m - krow_h);
 
-					if( ii > 0 && ii <= mrow && jj > 0 && jj <= mcol)
-						out[i,j] <- out[i,j] + mat[ii,jj] * k[mm,nn];
+				for(int n = 0; n < kcol; ++n)
+				{
+					int nn = kcol - 1 - n;
+					int jj = j + (n - kcol_h);
+
+					if( ii >= 0 && ii < mrow && jj >= 0 && jj < mcol )
+						acc += mat(ii,jj) * k(mm,nn);
 				}
 			}
+			out(i,j) = acc;
 		}
 	}
 
-	if (mode == 'valid')
+	if (mode == "valid")
 	{
-		cut_y <- krow %/% 2 + 1;
-		cut_x <- kcol %/% 2 + 1;
+		int cut_y = krow_h;
+		int cut_x = kcol_h;
 
-		len_y <- max(krow,mrow) - min(krow,mrow) + 1;
-		len_x <- max(kcol,mcol) - min(kcol,mcol) + 1;
-
-		out <- out[cut_y:(cut_y + len_y - 1),cut_x:(cut_x + len_x - 1)];
+		int len_y = std::max(krow,mrow) - std::min(krow,mrow);
+		int len_x = std::max(kcol,mcol) - std::min(kcol,mcol);
+		out = out(Rcpp::Range(cut_y, cut_y + len_y), Rcpp::Range(cut_x, cut_x + len_x));
 	}
 
-	out;
+	return out;
 }
+')
+
+## Convolution - Old Version in "Native R"
+#conv2D_legacy <- function(mat, k, mode = 'valid')
+#{
+#	out <- conv2D_sub(mat, k);
+#	krow <- nrow(k);
+#	kcol <- ncol(k);
+#
+#	krow_h <- krow %/% 2;
+#	kcol_h <- kcol %/% 2;
+#
+#	mrow <- nrow(mat);
+#	mcol <- ncol(mat);
+#
+#	out <- array(0, c(mrow,mcol));
+#	for(i in 1:mrow)
+#	{
+#		for(j in 1:mcol)
+#		{
+#			acc <- 0;
+#			for(m in 1:krow)
+#			{
+#				mm <- krow - m + 1;
+#				ii <- i + m - krow_h - 1;
+#				for(n in 1:kcol)
+#				{
+#					nn <- kcol - n + 1;
+#					jj <- j + n - kcol_h - 1;
+#
+#					if( ii > 0 && ii <= mrow && jj > 0 && jj <= mcol)
+#						acc <- acc + mat[ii,jj] * k[mm,nn];
+#				}
+#			}
+#			out[i,j] <- acc;
+#		}
+#	}
+#
+#	if (mode == 'valid')
+#	{
+#		cut_y <- krow_h + 1;
+#		cut_x <- kcol_h + 1;
+#
+#		len_y <- max(krow,mrow) - min(krow,mrow) + 1;
+#		len_x <- max(kcol,mcol) - min(kcol,mcol) + 1;
+#
+#		out <- out[cut_y:(cut_y + len_y - 1),cut_x:(cut_x + len_x - 1)];
+#	}
+#
+#	out;
+#}
 
 ## Adds padding to image
-img_padding <- function(img, pad_x, pad_y)
+cppFunction('
+NumericMatrix img_padding (NumericMatrix img, int pad_x, int pad_y)
 {
-	dims <- dim(img);
-	imgs_pad <- array(0, c(dims[1] + 2 * pad_x, dims[2] + 2 * pad_y));
-
-	aux <- cbind(img, array(0, c(nrow(img), pad_x)));
-	aux <- cbind(array(0, c(nrow(aux), pad_x)), aux);
-	aux <- rbind(aux, array(0, c(pad_y, ncol(aux))));
-	aux <- rbind(array(0, c(pad_y, ncol(aux))), aux);
-	aux;
+	NumericMatrix out (img.nrow() + 2 * pad_x, img.ncol() + 2 * pad_y);
+	for(int i = pad_x; i < img.nrow() - pad_x; i++)
+		for(int j = pad_y; j < img.ncol() - pad_y; j++)
+			out(i,j) = img(i - pad_x, j - pad_y);
+	return out;
 }
+')
+
+## Image Padding - Old Version in "Native R"
+#img_padding <- function(img, pad_x, pad_y)
+#{
+#	dims <- dim(img);
+#	imgs_pad <- array(0, c(dims[1] + 2 * pad_x, dims[2] + 2 * pad_y));
+#
+#	aux <- cbind(img, array(0, c(nrow(img), pad_x)));
+#	aux <- cbind(array(0, c(nrow(aux), pad_x)), aux);
+#	aux <- rbind(aux, array(0, c(pad_y, ncol(aux))));
+#	aux <- rbind(array(0, c(pad_y, ncol(aux))), aux);
+#	aux;
+#}
 
 binarization <- function(vec)
 {
@@ -270,17 +340,18 @@ conv_bc01 <- function(imgs, filters, padding)
 	out_shape <- c(batch_size, n_filters, out_h, out_w);
 	out_1 <- array(0, out_shape);
 
-	# Pad input images  #FIXME - Optimize with apply
+	# Prepares padded image for convolution
 	imgs_pad <- array(0, dim(imgs) + c(0, 0, 2*(pad_x), 2*(pad_y)));
 	for (i in 1:dim(imgs)[1])
 		for (j in 1:dim(imgs)[2])
 			imgs_pad[i,j,,] <- img_padding(imgs[i,j,,], pad_x, pad_y);
 
-	# Perform convolution #FIXME - Optimize with apply
+	# Perform convolution
 	for (b in 1:batch_size)
 		for (f in 1:n_filters)
-			for (c in 1:n_channels)
-				out_1[b,f,,] <- out_1[b,f,,] + conv2D(imgs_pad[b,c,,], filters[f,c,,],  mode='valid');
+			out_1[b,f,,] <- Reduce('+', lapply(1:n_channels, function(c) conv2D(imgs_pad[b,c,,], filters[f,c,,])))
+#			for (c in 1:n_channels)	out_1[b,f,,] <- out_1[b,f,,] + conv2D(imgs_pad[b,c,,], filters[f,c,,]);
+
 	return(out_1);
 }
 
@@ -295,10 +366,11 @@ forward_conv <- function(conv, x)
 
         # Performs convolution
 	y <- conv_bc01(x, conv$W, conv$padding);
-
 	for (b in 1:dim(y)[1]) y[b,,,] <- y[b,,,] + conv$b[1,,1,1];
+
 	list(layer = conv, y = y);
 }
+
 
 ## Performs Backward Propagation
 ##	param dy :	4D-image
@@ -315,17 +387,18 @@ backward_conv <- function(conv, dy)
         # Propagate gradients to x
         dx <- conv_bc01(dy, w, conv$padding)
 
-        # Propagate gradients to weights and gradients to bias
-	x_pad <- array(0, dim(conv$x) + c(0, 0, 2 * conv$padding)); #FIXME - Optimize with Apply
+	# Prepares padded image for convolution
+	x_pad <- array(0, dim(conv$x) + c(0, 0, 2 * conv$padding));
 	for (i in 1:dim(x_pad)[1])
 		for (j in 1:dim(x_pad)[2])
 			x_pad[i,j,,] <- img_padding(conv$x[i,j,,], conv$padding[1], conv$padding[2]);
 
+        # Propagate gradients to weights and gradients to bias
 	grad_W <- array(0, dim(conv$W));
-	for (b in 1:dim(dy)[1])	#FIXME - Optimize with Apply
-		for (f in 1:dim(conv$W)[1])
-			for (c in 1:dim(conv$W)[2])
-				grad_W[f,c,,] <- grad_W[f,c,,] + conv2D(x_pad[b,c,,], dy[b,f,,]);
+	for (f in 1:dim(conv$W)[1])
+		for (c in 1:dim(conv$W)[2])
+			grad_W[f,c,,] <- Reduce('+', lapply(1:dim(dy)[1], function(b) conv2D(x_pad[b,c,,], dy[b,f,,])))
+#			for (b in 1:dim(dy)[1])	grad_W[f,c,,] <- grad_W[f,c,,] + conv2D(x_pad[b,c,,], dy[b,f,,]);
 
 	conv[["grad_W"]] <- grad_W[,, (conv$w_shape[3]:1), (conv$w_shape[4]:1), drop = FALSE];
 	conv[["grad_b"]] <- array(apply(dy, MARGIN = 2, sum), dim(conv$b));
@@ -410,18 +483,17 @@ forward_pool <- function(pool, imgs)
 
         # Perform average pooling
         imgs <- imgs / (pool$win_size)^2;
-	for (b in 1:batch_size)	#FIXME - Optimize with Apply
+	for (b in 1:batch_size)
 		for (c in 1:n_channels)
 			for (y in 1:out_h)
 			{
 				yaux <- y * pool$stride - 1;
+				pa <- max(yaux,1):min((yaux + pool$win_size - 1), img_h);
 				for (x in 1:out_w)
 				{
 					xaux <- x * pool$stride - 1;
-					pa <- max(yaux,1):min((yaux + pool$win_size - 1), img_h);
 					pb <- max(xaux,1):min((xaux + pool$win_size - 1), img_w);
-					win <- imgs[b, c, pa, pb];
-					out[b, c, y, x] <- sum(win);
+					out[b, c, y, x] <- sum(imgs[b, c, pa, pb]);
 				}
 			}
 
@@ -440,15 +512,15 @@ backward_pool <- function(pool, dy)
 	dx_h <- dim(dx)[3];
 	dx_w <- dim(dx)[4];
 
-	for (i in 1:(dim(dx)[1]))	#FIXME - Optimize with Apply
+	for (i in 1:(dim(dx)[1]))
 		for (c in 1:(dim(dx)[2]))
 			for (y in 1:(dim(dy)[3]))
 			{
 				yaux <- y * pool$stride - 1;
+				pa <- yaux:min((yaux + pool$win_size - 1), dx_h);
 				for (x in 1:(dim(dy)[4]))
 				{
 					xaux <- x * pool$stride - 1;
-					pa <- yaux:min((yaux + pool$win_size - 1), dx_h);
 					pb <- xaux:min((xaux + pool$win_size - 1), dx_w);
 					dx[i, c, pa, pb] <- dx[i, c, pa, pb] + dy[i, c, y, x];
 				}
@@ -576,6 +648,7 @@ get_updates_relu <- function(relu, lr) { relu; }
 pnames_relu <- function(relu) { character(0); }
 gnames_relu <- function(relu) { character(0); }
 
+## Returns a ReLU layer
 create_relu <- function()
 {
 	list(pnames = pnames_relu, gnames = gnames_relu, forward = forward_relu,
@@ -586,8 +659,10 @@ create_relu <- function()
 # LINEAR LAYER                                                                #
 ###############################################################################
 
-library(abind);
-
+## Forward for a linear layer
+##	param x :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_hidden>
+##	updates :	linear_layer
 forward_line <- function(line, x)
 {
 	line[["x"]] <- x;
@@ -596,6 +671,10 @@ forward_line <- function(line, x)
 	list(layer = line, y = y);
 }
 
+## Backpropagation for a linear layer
+##	param dy :	Numeric vector <n_hidden>
+##	returns  :	Numeric vector <n_visible>
+##	updates  :	linear_layer
 backward_line <- function(line, dy)
 {
 	dx <- dy %*% line$W;
@@ -618,6 +697,7 @@ get_updates_line <- function(line, lr)
 pnames_line <- function(line) { c("W","b"); }
 gnames_line <- function(line) { c("grad_W","grad_b"); }
 
+## Returns a linear layer
 create_line <- function(n_visible = 4, n_hidden = 10, scale = 0.01)
 {   
 	W <- scale * sample_normal(c(n_hidden, n_visible));
@@ -641,17 +721,23 @@ main_line <- function()
 	print('Gradient check passed');
 }
 
-
 ###############################################################################
 # SOFTMAX LAYER                                                               #
 ###############################################################################
 
+## Forward through a sigmoid function
+##	param x :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_hidden>
+##	updates :	softmax_layer
 forward_soft <- function(soft, x)
 {
-	soft[["a"]] <- 1.0 / (1 + exp(-x));
+	soft[["a"]] <- sigmoid_func(x);
 	list(layer = soft, y = soft$a);
 }
 
+## Backward through the softmax layer
+##	param x :	Numeric vector <n_hidden>
+##	returns :	Numeric vector <n_visible>
 backward_soft <- function(soft, dy)
 {
 	dx <- soft$a * (1 - soft$a) * dy;
@@ -665,6 +751,7 @@ get_updates_soft <- function(soft, lr) { soft; }
 pnames_soft <- function(soft) { character(0); }
 gnames_soft <- function(soft) { character(0); }
 
+## Returns a SoftMax layer
 create_soft <- function()
 {
 	list(	pnames = pnames_soft, gnames = gnames_soft, forward = forward_soft,
@@ -676,6 +763,9 @@ create_soft <- function()
 # CROSS-ENTROPY LOSS LAYER                                                    #
 ###############################################################################
 
+## Computes the cross-entriopy for input and labels
+##	param x :	Numeric vector
+##	returns :	Numeric vector, Loss
 forward_cell <- function(cell, x, targets)
 {
 	l <- -targets * log(x + 1e-08);
@@ -683,6 +773,9 @@ forward_cell <- function(cell, x, targets)
 	list(layer = cell, y = x, loss = l);
 }
 
+## Backpropagation of Cross-Entropy Layer
+##	param x :	Numeric vector
+##	returns :	Numeric vector, Loss
 backward_cell <- function(cell, dy, targets)
 {
 	num_batches <- dim(dy)[1];
@@ -697,12 +790,13 @@ get_updates_cell <- function(cell, lr) { cell; }
 pnames_cell <- function(cell) { character(0); }
 gnames_cell <- function(cell) { character(0); }
 
+## Returns a CrossEntropy Loss layer
 create_cell <- function()
 {
 	list(	pnames = pnames_cell, gnames = gnames_cell, forward = forward_cell,
 		backward = backward_cell, get_updates = get_updates_cell);
 }
-        
+
 ###############################################################################
 # HOW TO TRAIN YOUR CNN                                                       #
 ###############################################################################
@@ -721,15 +815,15 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 {
 	set.seed(rand_seed);
 
-	num_samples <- nrow(train$x)
+	num_samples <- nrow(training_x)
 	num_batches <- num_samples %/% batch_size;
 
 	loss_layer <- create_cell();
 
-	start_time <- Sys.time();
-
 	for (epoch in 1:training_epochs)
 	{
+		start_time <- Sys.time();
+
 		#confusion = ConfusionMatrix(num_classes)
 		acc_loss <- NULL;		
 		for (j in 1:num_batches)
@@ -742,9 +836,6 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 			# Forward
 			for (i in 1:length(layers))
 			{
-#print(paste("Passing through Layer", i, sep = " "))
-#print(dim(batchdata))
-
 				layer <- layers[[i]];
 				forward <- layer$forward;
 
@@ -752,9 +843,8 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 
 				layers[[i]] <- aux$layer;
 				batchdata <- aux$y;
-#print(dim(batchdata))
 			}
-			output <- batchdata;	# a.k.a. y_probs
+			output <- batchdata;
 
 			# Calculate Forward Loss
 			aux <- loss_layer$forward(loss_layer, output, targets);
@@ -769,8 +859,6 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 			# Backward
 			for (i in length(layers):1)
 			{
-#print(paste("Backing through Layer", i, sep = " "))
-#print(dim(negdata))
 				layer <- layers[[i]];
 				backward <- layer$backward;
 
@@ -778,34 +866,31 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 
 				layers[[i]] <- aux$layer;
 				negdata <- aux$dx;
-#print(dim(negdata))
 			}
 
 			# Update layers
 			for (i in 1:length(layers))
 			{
-#print(paste("Updating Layer", i, sep = " "))
 				layer <- layers[[i]];
 				get_updates <- layer$get_updates;
 
 				layers[[i]] <- get_updates(layer, learning_rate);
-#print(paste("END Updating Layer", i, sep = " "))
 			}
 
 #			confusion.batch_add(target_batch.argmax(-1), y_probs.argmax(-1))
 
 			acc_loss <- c(acc_loss, loss);
+#			print(paste("Update ", j, " : Mean Loss ", loss, sep = " "));
 		}
-		if (epoch %% 1 == 0)
+		if (epoch %% 10 == 0)
 		{
 #			curr_acc = confusion.accuracy()
 			curr_acc <- NULL; # TODO
 			print(paste("Epoch ", epoch, " : Mean Loss ", mean(acc_loss), " Train acc ", curr_acc, "" , sep = " "));
 		}
+		end_time <- Sys.time();
+		print(paste('Epoch', epoch, 'took', (end_time - start_time), 'seconds',sep=" "));
 	}
-
-	end_time <- Sys.time();
-	print(paste('Training took', (end_time - start_time),'minutes',sep=" "));
 
 	list(create_cnn(layers, loss_layer), loss = mean(acc_loss));
 }
@@ -904,8 +989,8 @@ main <- function()
 
 	# Train a CNN to learn MNIST
 	cnn <- train_cnn(training_x, training_y, layers,
-			 training_epochs = 50,
-			 batch_size = 4,
+			 training_epochs = 100,
+			 batch_size = 10,
 			 learning_rate = 5e-2
 	);
 }

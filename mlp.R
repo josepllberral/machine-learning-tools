@@ -1,5 +1,5 @@
 ###############################################################################
-# DEEP FEED-FORWARD ARTIFICIAL NEURAL NETWORK in R                            #
+# MULTI-LAYER PERCEPTRON ARTIFICIAL NEURAL NETWORK in R                       #
 ###############################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
@@ -31,11 +31,11 @@ softmax <- function(score)
 }
 
 ###############################################################################
-# DNN FUNCTIONS                                                               #
+# MLP FUNCTIONS                                                               #
 ###############################################################################
 
-## Deep Neural Network (DNN). Constructor
-create_dnn <- function(n_visible = 1, n_hidden = c(6,5), n_output = 2, rand_seed = 1234)
+## Multi-Layer Perceptron (MLP). Constructor
+create_mlp <- function(n_visible = 1, n_hidden = c(6,5), n_output = 2, rand_seed = 1234)
 {
 	set.seed(rand_seed);
 
@@ -62,17 +62,17 @@ create_dnn <- function(n_visible = 1, n_hidden = c(6,5), n_output = 2, rand_seed
 }
 
 ## This function computes the input through the hidden layers, then throug softmax
-move_forward_dnn <- function (dnn, input)
+move_forward_mlp <- function (mlp, input)
 {
 	hl.list <- list();
 
 	data.input <- input;
-	for (i in 1:dnn$layers)
+	for (i in 1:mlp$layers)
 	{
-		data.input <- pmax(sweep(data.input %*% dnn$W[[i]], 2, dnn$b[[i]], '+'), 0);		
+		data.input <- pmax(sweep(data.input %*% mlp$W[[i]], 2, mlp$b[[i]], '+'), 0);		
 		hl.list[[i]] <- data.input;
 	}
-	score <- sweep(data.input %*% dnn$W[[dnn$layers + 1]], 2, dnn$b[[dnn$layers + 1]], '+');
+	score <- sweep(data.input %*% mlp$W[[mlp$layers + 1]], 2, mlp$b[[mlp$layers + 1]], '+');
 
 	probs <- softmax(score);
 
@@ -80,7 +80,7 @@ move_forward_dnn <- function (dnn, input)
 }
 
 ## This function computes the output backwards the hidden layers
-move_backward_dnn <- function (dnn, input, y.idx, hidden.layers, probs)
+move_backward_mlp <- function (mlp, input, y.idx, hidden.layers, probs)
 {
 	Delta_W <- list();
 	Delta_b <- list();
@@ -89,14 +89,14 @@ move_backward_dnn <- function (dnn, input, y.idx, hidden.layers, probs)
 	dscores[y.idx] <- dscores[y.idx] - 1;
 	dhidden <- dscores / nrow(input);
 
-	for (i in dnn$layers:1)
+	for (i in mlp$layers:1)
 	{
 		hidden.layer <- hidden.layers[[i]];
 
 		Delta_W[[i + 1]] <- t(hidden.layer) %*% dhidden;
 		Delta_b[[i + 1]] <- colSums(dhidden);
 
-		dhidden <- dhidden %*% t(dnn$W[[i + 1]]);
+		dhidden <- dhidden %*% t(mlp$W[[i + 1]]);
 		dhidden[hidden.layer <= 0] <- 0;
 	}
 
@@ -109,40 +109,40 @@ move_backward_dnn <- function (dnn, input, y.idx, hidden.layers, probs)
 ## This functions implements an iteration over back-propagation
 ##	param input: matrix input from batch data (n_obs x features)
 ##	param y.idx: vector with indices towards the output label
-##	param lr: learning rate used to train the DNN
-##	param reg: regularization rate to train the DNN
+##	param lr: learning rate used to train the MLP
+##	param reg: regularization rate to train the MLP
 ##	We assume sigma = 1 when computing deltas
-get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
+get_cost_updates_mlp <- function(mlp, input, y.idx, lr, reg)
 {
 	# compute positive phase (forward)
-	ph <- move_forward_dnn(dnn, input);
+	ph <- move_forward_mlp(mlp, input);
 
 	# compute negative phase (backwards)
-	nh <- move_backward_dnn(dnn, input, y.idx, ph[["hidden.layers"]], ph[["probs"]]);
+	nh <- move_backward_mlp(mlp, input, y.idx, ph[["hidden.layers"]], ph[["probs"]]);
 
 	# compute the loss
 	data.loss  <- sum(-log(ph$probs[y.idx])) / nrow(input);
-	reg.loss   <- reg * mean(sapply(1:(dnn$layers + 1), function(x) sum(dnn$W[[x]] * dnn$W[[x]])));
+	reg.loss   <- reg * mean(sapply(1:(mlp$layers + 1), function(x) sum(mlp$W[[x]] * mlp$W[[x]])));
 	cost <- data.loss + reg.loss;
 
 	# update the network
-	for (i in 1:(dnn$layers+1))
+	for (i in 1:(mlp$layers+1))
 	{
-		dnn$W[[i]] <- dnn$W[[i]] - lr * (nh$Delta_W[[i]]  + reg * dnn$W[[i]]);
-		dnn$b[[i]] <- dnn$b[[i]] - lr * nh$Delta_b[[i]];
+		mlp$W[[i]] <- mlp$W[[i]] - lr * (nh$Delta_W[[i]]  + reg * mlp$W[[i]]);
+		mlp$b[[i]] <- mlp$b[[i]] - lr * nh$Delta_b[[i]];
 	}
 
-	list(dnn = dnn, cost = cost);
+	list(mlp = mlp, cost = cost);
 }
 
 
 ###############################################################################
-# HOW TO TRAIN YOUR DNN                                                       #
+# HOW TO TRAIN YOUR MLP                                                       #
 ###############################################################################
 
 # Train: build and train a N-layers neural network 
 
-## Function to train the DNN
+## Function to train the MLP
 ##	param traindata: training dataset
 ##	param testdata: testing dataset
 ##	param varin: input variables (index or names)
@@ -153,7 +153,7 @@ get_cost_updates_dnn <- function(dnn, input, y.idx, lr, reg)
 ##	param lr: learning rate
 ##	param reg: regularization rate
 ##	param display: show results every 'display' step
-train_dnn <- function(traindata, varin, varout, testdata = NULL,
+train_mlp <- function(traindata, varin, varout, testdata = NULL,
 		n_hidden = c(6, 5), maxit = 2000, abstol = 1e-2, lr = 1e-2,
 		reg = 1e-3, display = 100, rand_seed = 1234)
 {
@@ -170,21 +170,21 @@ train_dnn <- function(traindata, varin, varout, testdata = NULL,
 	n_dim <- ncol(batchdata);
 	n_classes <- length(unique(labels));
 
-	# create the DNN object
-	dnn <- create_dnn(n_visible = n_dim, n_hidden = n_hidden,
+	# create the MLP object
+	mlp <- create_mlp(n_visible = n_dim, n_hidden = n_hidden,
 			  n_output = n_classes, rand_seed = rand_seed
 	);
 
-	# training the DNN
+	# training the MLP
 	i <- 1;
 	cost <- 9e+15;
 	while(i <= maxit && cost > abstol)
 	{
 		# training: get cost and update model
-		aux <- get_cost_updates_dnn(dnn, batchdata, y.idx, lr, reg);
+		aux <- get_cost_updates_mlp(mlp, batchdata, y.idx, lr, reg);
 
 		# update network and loss
-		dnn <- aux$dnn;
+		mlp <- aux$mlp;
 		cost <- aux$cost;
 
 		# display results and update model
@@ -193,7 +193,7 @@ train_dnn <- function(traindata, varin, varout, testdata = NULL,
 			accuracy <- NULL;
 			if(!is.null(testdata))
 			{
-				labs <- predict_dnn(dnn, testdata[,-varout]);
+				labs <- predict_mlp(mlp, testdata[,-varout]);
 				accuracy <- mean(as.integer(testdata[,varout]) == y.set[labs]);
 			}
 			message(i, " ", cost, " ",accuracy);
@@ -202,7 +202,7 @@ train_dnn <- function(traindata, varin, varout, testdata = NULL,
  		i <- i + 1;
 	}
 
-	return(dnn);
+	return(mlp);
 }
 
 ###############################################################################
@@ -216,14 +216,14 @@ train_dnn <- function(traindata, varin, varout, testdata = NULL,
 ## - neurons : Rectified Linear
 ## - Loss Function: softmax
 ## - select max possiblity
-predict_dnn <- function(dnn, data)
+predict_mlp <- function(mlp, data)
 {
 	data.input <- data.matrix(data);
-	for (i in 1:dnn$layers)
+	for (i in 1:mlp$layers)
 	{
-		data.input <- pmax(sweep(data.input %*% dnn$W[[i]] ,2, dnn$b[[i]], '+'), 0);	
+		data.input <- pmax(sweep(data.input %*% mlp$W[[i]] ,2, mlp$b[[i]], '+'), 0);	
 	}
-	score <- sweep(data.input %*% dnn$W[[dnn$layers + 1]], 2, dnn$b[[dnn$layers + 1]], '+');
+	score <- sweep(data.input %*% mlp$W[[mlp$layers + 1]], 2, mlp$b[[mlp$layers + 1]], '+');
 	probs <- softmax(score);
 
 	labels.predicted <- max.col(probs);
@@ -244,7 +244,7 @@ main <- function()
 	samp <- c(sample(1:50,25), sample(51:100,25), sample(101:150,25));
 	 
 	# train model
-	ir.model <- train_dnn(varin = 1:4, varout = 5,
+	ir.model <- train_mlp(varin = 1:4, varout = 5,
 				traindata = iris[samp,],
 				testdata = iris[-samp,],
 				n_hidden = c(6,6),
@@ -253,10 +253,10 @@ main <- function()
 	);
 	 
 	# prediction
-	labels.dnn <- predict_dnn(ir.model, iris[-samp, -5]);
+	labels.mlp <- predict_mlp(ir.model, iris[-samp, -5]);
 	 
 	# show results
-	print(table(iris[-samp,5], labels.dnn));
-	print(mean(as.integer(iris[-samp, 5]) == labels.dnn));
+	print(table(iris[-samp,5], labels.mlp));
+	print(mean(as.integer(iris[-samp, 5]) == labels.mlp));
 }
 
