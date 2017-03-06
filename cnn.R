@@ -70,14 +70,14 @@ NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 				int mm = krow - 1 - m;
 				int ii = i + (m - krow_h);
 
-				for(int n = 0; n < kcol; ++n)
-				{
-					int nn = kcol - 1 - n;
-					int jj = j + (n - kcol_h);
+				if (ii >= 0 || ii < mrow)
+					for(int n = 0; n < kcol; ++n)
+					{
+						int nn = kcol - 1 - n;
+						int jj = j + (n - kcol_h);
 
-					if( ii >= 0 && ii < mrow && jj >= 0 && jj < mcol )
-						acc += mat(ii,jj) * k(mm,nn);
-				}
+						if (jj >= 0 && jj < mcol) acc += mat(ii,jj) * k(mm,nn);
+					}
 			}
 			out(i,j) = acc;
 		}
@@ -757,16 +757,14 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 #			confusion.batch_add(target_batch.argmax(-1), y_probs.argmax(-1))
 
 			acc_loss <- c(acc_loss, loss);
-#			print(paste("Update ", j, " : Mean Loss ", loss, sep = " "));
 		}
 		if (epoch %% 10 == 0)
 		{
-#			curr_acc = confusion.accuracy()
-			curr_acc <- NULL; # TODO
-			print(paste("Epoch ", epoch, " : Mean Loss ", mean(acc_loss), " Train acc ", curr_acc, "" , sep = " "));
+#			curr_acc = confusion.accuracy() # TODO
+			print(paste("Epoch ", epoch, " : Mean Loss ", mean(acc_loss), sep = " ");
 		}
 		end_time <- Sys.time();
-		print(paste('Epoch', epoch, 'took', (end_time - start_time), 'seconds',sep=" "));
+		print(paste('Epoch', epoch, 'took', difftime(start_time, end_time, units = "mins"),sep=" "));
 	}
 
 	list(create_cnn(layers, loss_layer), loss = mean(acc_loss));
@@ -840,28 +838,28 @@ main <- function()
 	train <- aux$train;
 #	aux_x <- (train$x - mean(train$x)) / sd(train$x);
 #	aux_y <- (train$y - mean(train$y)) / sd(train$y);
-	training_x <- array(train$x, c(nrow(train$x), 1, img_size)) / 255;	# a.k.a. x_train
-	training_y <- binarization(train$y);					# a.k.a. targets_train
+	training_x <- array(train$x, c(nrow(train$x), 1, img_size)) / 255;
+	training_y <- binarization(train$y);
 
 	test <- aux$test;
 #	aux_x <- (test$x - mean(test$x)) / sd(test$x);
 #	aux_y <- (test$y - mean(test$y)) / sd(test$y);
-	testing_x <- array(test$x, c(nrow(test$x), 1, img_size)) / 255;		# a.k.a. x_test
-	testing_y <- binarization(test$y);					# a.k.a. targets_test
+	testing_x <- array(test$x, c(nrow(test$x), 1, img_size)) / 255;
+	testing_y <- binarization(test$y);
 
 	# Prepare CNN
 	layers <- list(
-		create_conv(n_channels = 1, n_filters = 4, filter_size = 5, scale = 0.1), 	# 1
-		create_pool(win_size = 3, stride = 2),						# 2
-		create_relu(),									# 3
+		create_conv(n_channels = 1, n_filters = 4, filter_size = 5, scale = 0.1),
+		create_pool(win_size = 3, stride = 2),
+		create_relu(),
 		create_conv(n_channels = 4, n_filters = 16, filter_size = 5, scale = 0.1),
 		create_pool(win_size = 3, stride = 2),
 		create_relu(),
-		create_flat(),									# 4
-		create_line(n_visible = 784, n_hidden = 64, scale = 0.01),			# 5
-		create_relu(),									# 6
-		create_line(n_visible = 64, n_hidden = 10, scale = 0.1),			# 7
-		create_soft()									# 8
+		create_flat(),
+		create_line(n_visible = 784, n_hidden = 64, scale = 0.01),
+		create_relu(),
+		create_line(n_visible = 64, n_hidden = 10, scale = 0.1),
+		create_soft()
 	);
 
 	# Train a CNN to learn MNIST
