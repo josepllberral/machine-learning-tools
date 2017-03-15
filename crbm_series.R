@@ -2,7 +2,8 @@
 # CONDITIONAL RESTRICTED BOLTZMANN MACHINES in R for SERIES                   #
 ###############################################################################
 
-## @author Josep Ll. Berral (Barcelona Supercomputing Center)
+## @author Josep Ll. Berral + Alberto Gutiérrez Torre
+##         (Barcelona Supercomputing Center)
 
 ## This file extends the CRBMs, by training it from N series, instead of a
 ## single one. Each epoch iterates over the N series, splitting each in

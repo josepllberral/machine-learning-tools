@@ -132,14 +132,13 @@ void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, double** W, doubl
 
 	// Initialize Velocity for Momentum
 	rbm->vel_W = (double**) malloc(sizeof(double*) * n_hidden);
+	rbm->vel_h = (double*) malloc(sizeof(double) * n_hidden);
 	for(int i = 0; i < n_hidden; i++)
 	{
 		rbm->vel_W[i] = (double*) malloc(sizeof(double) * n_visible);
 		for(int j = 0; j < n_visible; j++) rbm->vel_W[i][j] = 0;
+		rbm->vel_h[i] = 0;
 	}
-
-	rbm->vel_h = (double*) malloc(sizeof(double) * n_hidden);
-	for(int i = 0; i < n_hidden; i++) rbm->vel_h[i] = 0;
 
 	rbm->vel_v = (double*) malloc(sizeof(double) * n_visible);
 	for(int i = 0; i < n_visible; i++) rbm->vel_v[i] = 0;
@@ -229,19 +228,15 @@ double cdk_RBM (RBM* rbm, double* input, double lr, double momentum, int k)
 		visible_state_to_hidden_probabilities (rbm, nv_sample, nh_means, nh_sample);
 	}
 
-	// determine gradients on RMB: Delta_W
+	// determine gradients on RMB: Delta_W, Delta_h
 	for (int i = 0; i < rbm->n_hidden; i++)
+	{
 		for(int j = 0; j < rbm->n_visible; j++)
 		{
 			double delta = (ph_mean[i] * input[j] - nh_means[i] * nv_sample[j]) / rbm->N;
 			rbm->vel_W[i][j] = rbm->vel_W[i][j] * momentum + lr * delta;
 			rbm->W[i][j] += rbm->vel_W[i][j];
 		}
-
-
-	// determine gradients on RMB: Delta_h
-	for (int i = 0; i < rbm->n_hidden; i++)
-	{
 		double delta = (ph_sample[i] - nh_means[i]) / rbm->N;
 		rbm->vel_h[i] = rbm->vel_h[i] * momentum + lr * delta;
 		rbm->hbias[i] += rbm->vel_h[i];
@@ -276,10 +271,12 @@ double cdk_RBM (RBM* rbm, double* input, double lr, double momentum, int k)
 /*---------------------------------------------------------------------------*/
 
 // Function to train the RBM
-//   param dataset         : loaded dataset (rows = examples, cols = features)
-//   param learning_rate   : learning rate used for training the RBM
-//   param training_epochs : number of epochs used for training
+//   param batchdata       : loaded dataset (rows = examples, cols = features)
 //   param batch_size      : size of a batch used to train the RBM
+//   param n_hidden        : number of hidden units in the RBM
+//   param training_epochs : number of epochs used for training the RBM
+//   param learning_rate   : learning rate used for training the RBM
+//   param momentum        : momentum weight used for training the RBM
 void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size,
                 int n_hidden, int training_epochs, double learning_rate,
 		double momentum, int rand_seed)
@@ -369,15 +366,8 @@ double* reconstruct_vector_RBM (RBM* rbm, double* v)
 {
 	double* reconstructed = (double*) malloc(sizeof(double) * rbm->n_visible);
 	double* h = activation_vector_RBM (rbm, v);
-	double pre_sigmoid_activation;
 	for (int i = 0; i < rbm->n_visible; i++)
-	{
-		pre_sigmoid_activation = 0.0;
-		for (int j = 0; j < rbm->n_hidden; j++)
-			pre_sigmoid_activation += rbm->W[j][i] * h[j];
-		pre_sigmoid_activation += rbm->vbias[i];
-		reconstructed[i] = sigmoid(pre_sigmoid_activation);
-	}
+		reconstructed[i] = RBM_propdown(rbm, h, i, rbm->vbias[i]);
 	free(h);
 	return reconstructed;
 }
@@ -438,30 +428,27 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	INTEGER(VECTOR_ELT(retval, 2))[0] = rbm.n_hidden;
 
 	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, nhid, ncol));
-	for (int i = 0; i < nhid; i++)
-		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 3))[i * ncol + j] = rbm.W[i][j];
-
 	SET_VECTOR_ELT(retval, 4, allocVector(REALSXP, nhid));
-	for (int i = 0; i < nrow; i++)
-		REAL(VECTOR_ELT(retval, 4))[i] = rbm.hbias[i];
-
-	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, ncol));
-	for (int i = 0; i < ncol; i++)
-		REAL(VECTOR_ELT(retval, 5))[i] = rbm.vbias[i];
-
 	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nhid, ncol));
-	for (int i = 0; i < nhid; i++)
-		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 6))[i * ncol + j] = rbm.vel_W[i][j];
-
 	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, nhid));
 	for (int i = 0; i < nhid; i++)
+	{
+		for (int j = 0; j < ncol; j++)
+		{
+			REAL(VECTOR_ELT(retval, 3))[i * ncol + j] = rbm.W[i][j];
+			REAL(VECTOR_ELT(retval, 6))[i * ncol + j] = rbm.vel_W[i][j];
+		}
+		REAL(VECTOR_ELT(retval, 4))[i] = rbm.hbias[i];
 		REAL(VECTOR_ELT(retval, 7))[i] = rbm.vel_h[i];
+	}
 
+	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, ncol));
 	SET_VECTOR_ELT(retval, 8, allocVector(REALSXP, ncol));
 	for (int i = 0; i < ncol; i++)
+	{
+		REAL(VECTOR_ELT(retval, 5))[i] = rbm.vbias[i];
 		REAL(VECTOR_ELT(retval, 8))[i] = rbm.vel_v[i];
+	}
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 9));
 	SET_STRING_ELT(nms, 0, mkChar("N"));
@@ -530,21 +517,17 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	SEXP retval = PROTECT(allocVector(VECSXP, 2));
 
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
+	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nhid, ncol));
 	for (int i = 0; i < nrow; i++)
 	{
 		for (int j = 0; j < ncol; j++)
 			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = reconstruct_p[i][j];
-		free(reconstruct_p[i]);
-	}
-	free(reconstruct_p);
-
-	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nhid, ncol));
-	for (int i = 0; i < nrow; i++)
-	{
 		for (int j = 0; j < nhid; j++)
 			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = activation_p[i][j];
+		free(reconstruct_p[i]);
 		free(activation_p[i]);
 	}
+	free(reconstruct_p);
 	free(activation_p);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 2));
@@ -604,8 +587,8 @@ int main (void)
 		{1, 1, 0, 0, 0, 0},
 		{0, 0, 0, 1, 1, 0}
 	};
-	double** test_X_p = malloc(sizeof(double*) * 6);
-	for (int i = 0; i < 6; i++) test_X_p[i] = test_X[i];
+	double** test_X_p = malloc(sizeof(double*) * 2);
+	for (int i = 0; i < 2; i++) test_X_p[i] = test_X[i];
 
 	int test_N = 2;
 
