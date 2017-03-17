@@ -57,15 +57,15 @@ double** matrix_subtract (double** A, double** B, int nrow, int ncol)
 // Function for Matrix Sum with Vector
 //   param A      : Matrix to Sum (pointer)
 //   param B      : Vector to Sum (pointer)
-//   param nrow   : 1st dimension of A and length of B
-//   param ncol   : 2nd dimension of A
+//   param nrow   : 1st dimension of A
+//   param ncol   : 2nd dimension of A and length of B
 double** matrix_sumvec (double** A, double* B, int nrow, int ncol)
 {
 	double** C = (double**) malloc(sizeof(double*) * nrow);
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] + B[a];
+		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] + B[b]; //FIXME
 	}
 	return C;
 }
@@ -147,7 +147,7 @@ double** matrix_bernoulli (double** A, int nrow, int ncol)
 		{
 			B[a][b] = 0;
 			double r = rand() / (RAND_MAX + 1.0);
-			if (A[a][b] >= 0 && A[a][b] <= 1 && r < A[a][b]) B[a][b] = 1;
+			if (A[a][b] >= 0 && A[a][b] <= 1 && r <= A[a][b]) B[a][b] = 1;
 		}
 	}
 	return B;
@@ -218,7 +218,7 @@ double* matrix_meancols (double** A, int nrow, int ncol)
 //   param ncol   : 2nd dimension of new Matrix
 //   param mean   : Mean for Distribution
 //   param stdev  : Standard Deviation for Distribution
-double** matrix_normal(int nrow, int ncol, double mean, double stdev) 
+double** matrix_normal(int nrow, int ncol, double mean, double stdev, double scale)
 {
 	double** N = (double**) malloc(sizeof(double*) * nrow);
 	for (int i = 0; i < nrow; i++)
@@ -226,9 +226,11 @@ double** matrix_normal(int nrow, int ncol, double mean, double stdev)
 		N[i] = (double*) malloc(sizeof(double) * ncol);
 		for (int j = 0; j < ncol; j++)
 		{
-			double rnd1 = (rand() + 1.0)/(RAND_MAX + 1.0);
-			double rnd2 = (rand() + 1.0)/(RAND_MAX + 1.0);
-			N[i][j] = mean + sqrt(-2 * log(rnd1)) * cos( 2 * M_PI * rnd2) / stdev;
+			double rnd1 = (double) rand() / RAND_MAX;
+			double rnd2 = (double) rand() / RAND_MAX;
+			double rnum = mean + sqrt(-2 * log(rnd1)) * cos( 2 * M_PI * rnd2) * stdev;
+
+			N[i][j] =  rnum * scale;
 		}
 	}
 	return N;
@@ -355,5 +357,31 @@ double vector_mean (double* V, int npos)
 	double sum = 0;
 	for (int i = 0; i < npos; i++) sum += V[i];
 	return sum / npos;
+}
+
+// Function to produce a sequence from 1 to limit
+//   param limit  : length of the vector
+int* sequence (int offset, int limit)
+{
+	int* vec = (int*) malloc(sizeof(int) * limit);
+	for (int i = 0; i < limit; i++) vec[i] = offset + i;
+	return vec;
+}
+
+// Function to produce a random shuffle from 1 to limit
+//   param limit  : length of the vector
+int* shuffle (int limit)
+{
+	int* vec = sequence(0, limit);
+	if (limit > 1)
+		for (int i = limit - 1; i > 0; i--)
+		{
+			int j = (int) (rand() / (RAND_MAX + 1.0) * i);
+			int t = vec[j];
+			vec[j] = vec[i];
+			vec[i] = t;
+		}
+
+	return vec;
 }
 

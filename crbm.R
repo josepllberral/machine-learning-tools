@@ -54,10 +54,8 @@ sigmoid_func <- function(mat)
 
 ## Conditional Restricted Boltzmann Machine (CRBM). Constructor
 create_crbm <- function (n_visible = 49, n_hidden = 100, delay = 6, A = NULL, B = NULL, W = NULL,
-			 hbias = NULL, vbias = NULL, rand_seed = 1234)
-{
-	set.seed(rand_seed);
-	
+			 hbias = NULL, vbias = NULL, batch_size = 100)
+{	
 	if (is.null(W)) W <- 0.01 * sample_normal(c(n_visible, n_hidden)); #/ (n_visible + n_hidden);
 	if (is.null(A)) A <- 0.01 * sample_normal(c(n_visible * delay, n_visible)); #/ (n_visible + n_hidden);
 	if (is.null(B)) B <- 0.01 * sample_normal(c(n_visible * delay, n_hidden)); #/ (n_visible + n_hidden);
@@ -69,7 +67,8 @@ create_crbm <- function (n_visible = 49, n_hidden = 100, delay = 6, A = NULL, B 
 		v = rep(0, length(vbias)), h = rep(0, length(hbias)));
 
 	list(n_visible = n_visible, n_hidden = n_hidden, delay = delay, W = W,
-		A = A, B = B, hbias = hbias, vbias = vbias, velocity = velocity);
+		A = A, B = B, hbias = hbias, vbias = vbias, velocity = velocity,
+		batch_size = batch_size);
 }
 
 ## Function to compute the free energy of a sample conditional on the history
@@ -95,8 +94,8 @@ sample_h_given_v_crbm <- function(crbm, visible_state, v_history)
 ## This function infers state of visible units given hidden units
 sample_v_given_h_crbm <- function(crbm, hidden_state, v_history)
 {
-	##v.mean <- sigmoid_func((hidden_state %*% t(crbm$W) + v_history %*% crbm$A) %+% crbm$vbias);
-	##v.sample <- sample_bernoulli(v.mean);
+#	v.mean <- sigmoid_func((hidden_state %*% t(crbm$W) + v_history %*% crbm$A) %+% crbm$vbias);
+#	v.sample <- sample_bernoulli(v.mean);
 
 	v.mean <- (hidden_state %*% t(crbm$W) + v_history %*% crbm$A) %+% crbm$vbias;
         v.sample <- v.mean;
@@ -111,7 +110,7 @@ sample_v_given_h_crbm <- function(crbm, hidden_state, v_history)
 ##	param k: number of Gibbs steps to do in CD-k
 ##	param momentum: value for momentum coefficient on learning
 ##	We assume sigma = 1 when computing deltas
-get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentum = 0.1)
+get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentum = 0.5)
 {
 	# compute positive phase (awake)
 	ph <- sample_h_given_v_crbm(crbm, input, input_history);
@@ -129,16 +128,16 @@ get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentu
 
 	# determine gradients on CRBM parameters
 	Delta_W <- t(input) %*% ph[["mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
-	Delta_v	<- colMeans(input - nv[["sample"]]);
-	Delta_h <- colMeans(ph[["mean"]] - nh[["mean"]]);
+	Delta_v	<- colSums(input - nv[["sample"]]);
+	Delta_h <- colSums(ph[["mean"]] - nh[["mean"]]);
 	Delta_A <- t(input_history) %*% input - t(input_history) %*% nv[["sample"]];
 	Delta_B <- t(input_history) %*% ph[["mean"]] - t(input_history) %*% nh[["mean"]];
 
-	crbm$velocity[["W"]] <- crbm$velocity[["W"]] * momentum + lr * Delta_W;
-	crbm$velocity[["A"]] <- crbm$velocity[["A"]] * momentum + lr * Delta_A;
-	crbm$velocity[["B"]] <- crbm$velocity[["B"]] * momentum + lr * Delta_B;
-	crbm$velocity[["v"]] <- crbm$velocity[["v"]] * momentum + lr * Delta_v;
-	crbm$velocity[["h"]] <- crbm$velocity[["h"]] * momentum + lr * Delta_h;
+	crbm$velocity[["W"]] <- crbm$velocity[["W"]] * momentum + lr * Delta_W / crbm$batch_size;
+	crbm$velocity[["A"]] <- crbm$velocity[["A"]] * momentum + lr * Delta_A / crbm$batch_size;
+	crbm$velocity[["B"]] <- crbm$velocity[["B"]] * momentum + lr * Delta_B / crbm$batch_size;
+	crbm$velocity[["v"]] <- crbm$velocity[["v"]] * momentum + lr * Delta_v / crbm$batch_size;
+	crbm$velocity[["h"]] <- crbm$velocity[["h"]] * momentum + lr * Delta_h / crbm$batch_size;
 
 	# update weights
 	crbm$W <- crbm$W + crbm$velocity[["W"]];
@@ -160,10 +159,10 @@ get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentu
 ##	param training_epochs: number of epochs used for training
 ##	param dataset: loaded dataset <batchdata, seqlen, data_mean, data_std> for Motion
 ##	param batch_size: size of a batch used to train the CRBM
-train_crbm <- function (dataset, learning_rate = 1e-4, momentum = 0.5, training_epochs = 300,
-			batch_size = 100, n_hidden = 100, delay = 6)
+train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_epochs = 300,
+			batch_size = 100, n_hidden = 100, delay = 6, rand_seed = 1234)
 {
-	set.seed(123);
+	set.seed(rand_seed);
 
 	# prepare indexes for dataset
 	batchdata <- dataset$batchdata;
@@ -184,7 +183,7 @@ train_crbm <- function (dataset, learning_rate = 1e-4, momentum = 0.5, training_
 	permindex <- batchdataindex[sample(1:length(batchdataindex),length(batchdataindex))];
 
 	# construct the CRBM object
-	crbm <- create_crbm(n_visible = n_dim, n_hidden = n_hidden, delay = delay, rand_seed = 123);
+	crbm <- create_crbm(n_visible = n_dim, n_hidden = n_hidden, delay = delay, batch_size = batch_size);
 
 	start_time <- Sys.time();
 

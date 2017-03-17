@@ -64,7 +64,7 @@ testing.rbm <- function()
 dyn.load("library/crbm.so");
 
 ## Function to Train a CRBM. Returns a CRBM in list form
-train.crbm <- function (dataset, batch_size = 1, n_hidden = 3, delay = 6,
+train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6,
 			training_epochs = 1000, learning_rate = 0.1,
 			momentum = 0.8, rand_seed = 1234)
 {
@@ -74,10 +74,11 @@ train.crbm <- function (dataset, batch_size = 1, n_hidden = 3, delay = 6,
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
 
-	retval <- .Call("_C_CRBM_train", as.matrix(dataset),
-		as.integer(batch_size),	as.integer(n_hidden),
-		as.integer(training_epochs), as.double(learning_rate),
-		as.double(momentum), as.integer(delay), as.integer(rand_seed));
+	retval <- .Call("_C_CRBM_train", as.matrix(dataset), as.integer(seqlen),
+		as.integer(length(seqlen)), as.integer(batch_size),
+		as.integer(n_hidden), as.integer(training_epochs),
+		as.double(learning_rate), as.double(momentum), as.integer(delay),
+		as.integer(rand_seed));
 	class(retval) <- c("crbm", class(retval));
 
 	retval;
@@ -115,7 +116,8 @@ testing.crbm <- function()
 {
 	dataset <- load_data('./datasets/motion.rds');
 
-	crbm <- train.crbm (dataset$batchdata, batch_size = 1, n_hidden = 100, delay = 6, training_epochs = 300, learning_rate = 0.001, momentum = 0.8, rand_seed = 1234);
+#	crbm <- train.crbm (dataset$batchdata, batch_size = 1, n_hidden = 100, delay = 6, training_epochs = 300, learning_rate = 0.001, momentum = 0.8, rand_seed = 1234);
+	crbm <- train.crbm (dataset$batchdata, dataset$seqlen, batch_size = 100, n_hidden = 100, delay = 6, training_epochs = 200, learning_rate = 1e-3, momentum = 0.5, rand_seed = 1234);
 
 	res <- predict(crbm, dataset$batchdata);
 	res;

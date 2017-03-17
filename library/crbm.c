@@ -52,96 +52,35 @@ typedef struct {
 /*---------------------------------------------------------------------------*/
 /* AUXILIAR FUNCTIONS                                                        */
 /*---------------------------------------------------------------------------*/
-/*
-// Function to produce Uniform Samples
-double uniform (double min, double max)
-{
-	return rand() / (RAND_MAX + 1.0) * (max - min) + min;  
-}
 
-// Function to produce Normal Samples
-double normal(double mean, double stdev) 
-{
-	double rnd1 = (rand() + 1.0)/(RAND_MAX + 1.0);
-	double rnd2 = (rand() + 1.0)/(RAND_MAX + 1.0);
-	return mean + sqrt(-2 * log(rnd1)) * cos( 2 * M_PI * rnd2) / stdev;
-}
-
-// Function to produce Bernoulli Samples
-int binomial (int n, double p)
-{
-	if (p < 0 || p > 1) return 0;
-
-	int c = 0;
-	double r;
-
-	for(int i = 0; i < n; i++)
-	{
-		r = rand() / (RAND_MAX + 1.0);
-		if (r < p) c++;
-	}
-
-	return c;
-}*/
-
-// Function to produce the Sigmoid
 double sigmoid (double x)
 {
 	return 1.0 / (1.0 + exp(-x));
 }
 
-// Function to produce a random shuffle from 1 to limit
-int* shuffle (int limit)
-{
-	int* vec = (int*) malloc(sizeof(int) * limit);
-	for (int i = 0; i < limit; i++) vec[i] = i;
-
-	if (limit > 1)
-		for (int i = limit - 1; i > 0; i--)
-		{
-			int j = (int) (rand() / (RAND_MAX + 1.0) * i);
-			int t = vec[j];
-			vec[j] = vec[i];
-			vec[i] = t;
-		}
-
-	return vec;
-}
-
 // This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
-double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int nrow, int common, int ncol)
+double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
 {
-	double** t_A1 = matrix_transpose(A1, common, nrow);
-	double** t_B1 = matrix_transpose(B1, common, nrow);
-	double** aux1 = matrix_product(t_A1, A2, nrow, common, ncol); 
-	double** aux2 = matrix_product(t_B1, B2, nrow, common, ncol);
-	double** delta = matrix_subtract(aux1, aux2, nrow, ncol);
-	matrix_free(t_A1, nrow);
-	matrix_free(t_B1, nrow);
-	matrix_free(aux1, nrow);
-	matrix_free(aux2, nrow);
-	return  delta;
+	double** delta = (double**) malloc(sizeof(double*) * acol);
+	for(int j = 0; j < acol; j++)
+	{
+		delta[j] = (double*) malloc(sizeof(double) * bcol);
+		for(int k = 0; k < bcol; k++)
+		{
+			delta[j][k] = 0;
+			for(int i = 0; i < arow; i++)
+				delta[j][k] += A1[i][j] * A2[i][k] - B1[i][j] * B2[i][k];
+		}
+	}
+	return delta;
 }
 
-// This function implements the operation: t(A1) %*% A2 - t(A1) %*% B2
-double** delta_function_2(double** A1, double** A2, double** B2, int nrow, int common, int ncol)
+// This function implements the operation: colmeans(A - B)
+double* delta_function_2(double** A, double** B, int nrow, int ncol)
 {
-	double** t_A1 = matrix_transpose(A1, common, nrow);
-	double** aux1 = matrix_product(t_A1, A2, nrow, common, ncol);
-	double** aux2 = matrix_product(t_A1, B2, nrow, common, ncol);
-	double** delta = matrix_subtract(aux1, aux2, nrow, ncol);
-	matrix_free(t_A1, nrow);
-	matrix_free(aux1, nrow);
-	matrix_free(aux2, nrow);
-	return  delta;
-}
-
-// This function implements the operation: colmeans(A1 - A2)
-double* delta_function_3(double** A1, double** A2, int nrow, int ncol)
-{
-	double** aux1 = matrix_subtract(A1, A2, nrow, ncol);
-	double* delta = matrix_meancols(aux1, nrow, ncol);
-	matrix_free(aux1, nrow);
+	double* delta = (double*) malloc(sizeof(double) * ncol);
+	for(int j = 0; j < ncol; j++)
+		for(int i = 0; i < nrow; i++) delta[j] += A[i][j] - B[i][j];
 	return delta;
 }
 
@@ -161,13 +100,13 @@ void create_CRBM (CRBM* crbm, int N, int n_visible, int n_hidden, int delay, int
 	crbm->batch_size = batch_size;
 
 	// Initialize Matrices and Vectors
-	if (W == NULL) crbm->W = matrix_normal(n_visible, n_hidden, 0, 0.01);
+	if (W == NULL) crbm->W = matrix_normal(n_visible, n_hidden, 0, 1, 0.01);
 	else crbm->W = W;
 
-	if (B == NULL) crbm->B = matrix_normal(n_visible * delay, n_hidden, 0, 0.01);
+	if (B == NULL) crbm->B = matrix_normal(n_visible * delay, n_hidden, 0, 1, 0.01);
 	else crbm->B = B;
 
-	if (A == NULL) crbm->A = matrix_normal(n_visible * delay, n_visible, 0, 0.01);
+	if (A == NULL) crbm->A = matrix_normal(n_visible * delay, n_visible, 0, 1, 0.01);
 	else crbm->A = A;
 
 	if (hbias == NULL) crbm->hbias = vector_zeros(n_hidden);
@@ -208,17 +147,18 @@ void free_CRBM (CRBM* crbm)
 //   returns retval : batch_size x hidden
 double** CRBM_propup (CRBM* crbm, double** v_sample, double** v_history)
 {
-	double** aux1 = matrix_product(v_sample, crbm->W, crbm->batch_size, crbm->n_visible, crbm->n_hidden);
-	double** aux2 = matrix_product(v_history, crbm->B, crbm->batch_size, crbm->n_visible * crbm->delay, crbm->n_hidden);
-	double** aux3 = matrix_summat(aux1, aux2, crbm->batch_size, crbm->n_hidden);
-	double** pre_sigmoid = matrix_sumvec(aux3, crbm->hbias, crbm->batch_size, crbm->n_hidden);
-	double** retval = matrix_sigma(pre_sigmoid, crbm->batch_size, crbm->n_hidden);
-
-	matrix_free(aux1, crbm->batch_size);
-	matrix_free(aux2, crbm->batch_size);
-	matrix_free(aux3, crbm->batch_size);
-	matrix_free(pre_sigmoid, crbm->batch_size);
-
+	double** retval = (double**) malloc(sizeof(double*) * crbm->batch_size);
+	for(int i = 0; i < crbm->batch_size; i++)
+	{
+		retval[i] = (double*) malloc(sizeof(double) * crbm->n_hidden);
+		for(int k = 0; k < crbm->n_hidden; k++)
+		{
+			retval[i][k] = crbm->hbias[k];
+			for(int j = 0; j < crbm->n_visible; j++) retval[i][k] += v_sample[i][j] * crbm->W[j][k];
+			for(int j = 0; j < crbm->n_visible * crbm->delay; j++) retval[i][k] += v_history[i][j] * crbm->B[j][k];
+			retval[i][k] = sigmoid(retval[i][k]);
+		}
+	}
 	return retval;
 }
 
@@ -230,21 +170,18 @@ double** CRBM_propup (CRBM* crbm, double** v_sample, double** v_history)
 //   returns retval : batch_size x visible
 double** CRBM_propdown (CRBM* crbm, double** h_sample, double** v_history)
 {
-	double** t_W = matrix_transpose(crbm->W, crbm->n_hidden, crbm->n_visible);
-
-	double** aux1 = matrix_product(h_sample, t_W, crbm->batch_size, crbm->n_hidden, crbm->n_visible);
-	double** aux2 = matrix_product(v_history, crbm->A, crbm->batch_size, crbm->n_visible * crbm->delay, crbm->n_visible);
-	double** aux3 = matrix_summat(aux1, aux2, crbm->batch_size, crbm->n_visible);
-	double** retval = matrix_sumvec(aux3, crbm->vbias, crbm->batch_size, crbm->n_visible);
-//	double** pre_sigmoid = matrix_sumvec(aux3, crbm->vbias, crbm->batch_size, crbm->n_visible);
-//	double** retval = matrix_sigma(pre_sigmoid, crbm->batch_size, crbm->n_visible);
-
-	matrix_free(t_W, crbm->n_visible);
-	matrix_free(aux1, crbm->batch_size);
-	matrix_free(aux2, crbm->batch_size);
-	matrix_free(aux3, crbm->batch_size);
-//	matrix_free(pre_sigmoid, crbm->batch_size);
-
+	double** retval = (double**) malloc(sizeof(double*) * crbm->batch_size);
+	for(int i = 0; i < crbm->batch_size; i++)
+	{
+		retval[i] = (double*) malloc(sizeof(double) * crbm->n_visible);
+		for(int k = 0; k < crbm->n_visible; k++)
+		{
+			retval[i][k] = crbm->vbias[k];
+			for(int j = 0; j < crbm->n_hidden; j++) retval[i][k] += h_sample[i][j] * crbm->W[k][j];
+			for(int j = 0; j < crbm->n_visible * crbm->delay; j++) retval[i][k] += v_history[i][j] * crbm->A[j][k];
+//			retval[i][k] = sigmoid(retval[i][k]); // In R, remove
+		}
+	}
 	return retval;
 }
 
@@ -262,7 +199,7 @@ void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, doubl
 //   returns v_sample : batch_size x visible
 void hidden_state_to_visible_probabilities (CRBM* crbm, double** h_sample, double** v_history, double*** v_mean, double*** v_sample)
 {
-	*v_mean = CRBM_propup(crbm, h_sample, v_history);
+	*v_mean = CRBM_propdown(crbm, h_sample, v_history);
 	*v_sample = matrix_copy(*v_mean, crbm->batch_size, crbm->n_visible);
 }
 
@@ -275,9 +212,9 @@ void hidden_state_to_visible_probabilities (CRBM* crbm, double** h_sample, doubl
 double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, double momentum, int k)
 {
 	// compute positive phase (awake)
-	double** ph_mean = NULL;
+	double** ph_means = NULL;
 	double** ph_sample = NULL;
-	visible_state_to_hidden_probabilities (crbm, input, input_history, &ph_mean, &ph_sample);
+	visible_state_to_hidden_probabilities (crbm, input, input_history, &ph_means, &ph_sample);
 
 	// perform negative phase (asleep)
 	double** nv_means = matrix_zeros(crbm->batch_size, crbm->n_visible);
@@ -293,43 +230,52 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 	}
 
 	// applies gradients on CRBM: Delta_W, Delta_A, Delta_B, Delta_h, Delta_v
-	double** inertia_W = matrix_scale(crbm->vel_W, momentum, crbm->n_visible, crbm->n_hidden);
-	double** delta_W = delta_function_1(input, ph_mean, nv_sample, nh_means, crbm->n_visible, crbm->batch_size, crbm->n_hidden);
-	matrix_replace(&delta_W, matrix_scale(delta_W, lr, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
-	matrix_replace(&crbm->vel_W, matrix_summat(inertia_W, delta_W, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
-	matrix_replace(&crbm->W, matrix_summat(crbm->W, crbm->vel_W, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
+	double** delta_W = delta_function_1(input, ph_means, nv_sample, nh_means, crbm->n_visible, crbm->batch_size, crbm->n_hidden);
+	double** delta_B = delta_function_1(input_history, ph_means, input_history, nh_means, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_hidden);
+	double** delta_A = delta_function_1(input_history, input, input_history, nv_sample, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_visible);
+	double* delta_h = delta_function_2(ph_means, nh_means, crbm->batch_size, crbm->n_visible);
+	double* delta_v = delta_function_2(input, nv_sample, crbm->batch_size, crbm->n_visible);
 
-	double** inertia_A = matrix_scale(crbm->vel_A, momentum, crbm->n_visible * crbm->delay, crbm->n_visible);
-	double** delta_A = delta_function_2(input_history, input, nv_sample, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_visible);
-	matrix_replace(&delta_A, matrix_scale(delta_A, lr, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
-	matrix_replace(&crbm->vel_A, matrix_summat(inertia_A, delta_A, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
-	matrix_replace(&crbm->A, matrix_summat(crbm->A, crbm->vel_A, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
+	for(int i = 0; i < crbm->n_visible; i++)
+	{
+		for(int j = 0; j < crbm->n_hidden; j++)
+		{
+			crbm->vel_W[i][j] = crbm->vel_W[i][j] * momentum + delta_W[i][j] * lr / crbm->batch_size;
+			crbm->W[i][j] += crbm->vel_W[i][j];
+		}
+		crbm->vel_v[i] = crbm->vel_v[i] * momentum + delta_v[i] * lr / crbm->batch_size;
+		crbm->vbias[i] += crbm->vel_v[i];
+	}
 
-	double** inertia_B = matrix_scale(crbm->vel_B, momentum, crbm->n_visible * crbm->delay, crbm->n_hidden);
-	double** delta_B = delta_function_2(input_history, ph_mean, nh_means, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_hidden);
-	matrix_replace(&delta_B, matrix_scale(delta_B, lr, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
-	matrix_replace(&crbm->vel_B, matrix_summat(inertia_B, delta_B, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
-	matrix_replace(&crbm->B, matrix_summat(crbm->B, crbm->vel_B, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
+	for(int i = 0; i < crbm->n_visible * crbm->delay; i++)
+	{
+		for(int j = 0; j < crbm->n_hidden; j++)
+		{
+			crbm->vel_B[i][j] = crbm->vel_B[i][j] * momentum + delta_B[i][j] * lr / crbm->batch_size;
+			crbm->B[i][j] += crbm->vel_B[i][j];
+		}
+		for(int j = 0; j < crbm->n_visible; j++)
+		{
+			crbm->vel_A[i][j] = crbm->vel_A[i][j] * momentum + delta_A[i][j] * lr / crbm->batch_size;
+			crbm->A[i][j] += crbm->vel_A[i][j];
+		}
+	}
 
-	double* inertia_v = vector_scale(crbm->vel_v, momentum, crbm->n_visible);
-	double* delta_v = delta_function_3(input, nv_sample, crbm->batch_size, crbm->n_visible);
-	vector_replace(&delta_v, vector_scale(delta_v, lr, crbm->n_visible));
-	vector_replace(&crbm->vel_v, vector_sumvec(inertia_v, delta_v, crbm->n_visible));
-	vector_replace(&crbm->vbias, vector_sumvec(crbm->vbias, crbm->vel_v, crbm->n_visible));
-
-	double* inertia_h = vector_scale(crbm->vel_h, momentum, crbm->n_hidden);
-	double* delta_h = delta_function_3(ph_mean, nh_means, crbm->batch_size, crbm->n_visible);
-	vector_replace(&delta_h, vector_scale(delta_h, lr, crbm->n_hidden));
-	vector_replace(&crbm->vel_h, vector_sumvec(inertia_h, delta_h, crbm->n_hidden));
-	vector_replace(&crbm->hbias, vector_sumvec(crbm->hbias, crbm->vel_h, crbm->n_hidden));
+	for(int i = 0; i < crbm->n_hidden; i++)
+	{
+		crbm->vel_h[i] = crbm->vel_h[i] * momentum + delta_h[i] * lr / crbm->batch_size;
+		crbm->hbias[i] += crbm->vel_h[i];
+	}
 
 	// approximation to the reconstruction error: sum over dimensions, mean over cases
-	double** aux1 = matrix_sqdiff(input, nv_means, crbm->batch_size, crbm->n_visible);
-	double* aux2 = matrix_sumrows(aux1, crbm->batch_size, crbm->n_visible);
-	double recon = vector_mean(aux2, crbm->batch_size);
+	double recon = 0;
+	for(int i = 0; i < crbm->batch_size; i++)
+		for(int j = 0; j < crbm->n_visible; j++)
+			recon += pow(input[i][j] - nv_means[i][j],2);
+	recon /= crbm->batch_size;
 
 	// free the used space
-	matrix_free(ph_mean, crbm->batch_size);
+	matrix_free(ph_means, crbm->batch_size);
 	matrix_free(ph_sample, crbm->batch_size);
 	matrix_free(nv_means, crbm->batch_size);
 	matrix_free(nv_sample, crbm->batch_size);
@@ -339,14 +285,8 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 	matrix_free(delta_W, crbm->n_visible);
 	matrix_free(delta_B, crbm->n_visible * crbm->delay);
 	matrix_free(delta_A, crbm->n_visible * crbm->delay);
-	matrix_free(inertia_W, crbm->n_visible);
-	matrix_free(inertia_B, crbm->n_visible * crbm->delay);
-	matrix_free(inertia_A, crbm->n_visible * crbm->delay);
-	free(inertia_v); free(delta_v);
-	free(inertia_h); free(delta_h);
-
-	matrix_free(aux1, crbm->batch_size);
-	free(aux2);
+	free(delta_v);
+	free(delta_h);
 
 	return recon;
 }
@@ -363,19 +303,38 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 //   param learning_rate   : learning rate used for training the CRBM
 //   param momentum        : momentum weight used for training the CRBM
 //   param delay           : number of observations in history window
-void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
-		int batch_size, int n_hidden, int training_epochs,
-		double learning_rate, double momentum, int delay,
-		int rand_seed)
+void train_crbm (CRBM* crbm, double** batchdata, int* seqlen, int nseq,
+		int nrow, int ncol, int batch_size, int n_hidden,
+		int training_epochs, double learning_rate, double momentum,
+		int delay, int rand_seed)
 {
 	srand(rand_seed);
 
-	int n_train_batches = nrow / batch_size;
-	int n_visible = ncol;
+	// Shuffle indices having sequences into account
+	int bdi_len = 0;
+	for(int i = 0; i < nseq; i++) bdi_len += seqlen[i] - delay;
+	int* batchdataindex = (int*) malloc(sizeof(int) * bdi_len);
 
-	// Shuffle Indices
-	int* permindex = shuffle(nrow - delay);
-	for (int i = 0; i < nrow - delay; i++) permindex[i] = permindex[i] + delay;
+	int last = 0;
+	int bdi_count = 0;
+	for (int s = 0; s < nseq; s++)
+	{
+		int slen = seqlen[s];
+		int* bdi = sequence(last + delay, last + slen);
+		for (int i = 0; i < slen - delay; i++) batchdataindex[bdi_count + i] = bdi[i];
+		last += slen;
+		bdi_count += slen - delay;
+	}
+
+	int* permute = shuffle(bdi_len);
+	int* permindex = (int*) malloc(sizeof(int) * bdi_len);
+	for (int i = 0; i < bdi_len; i++) permindex[i] = batchdataindex[permute[i]];
+
+	free(batchdataindex);
+	free(permute);
+
+	int n_train_batches = bdi_len / batch_size;
+	int n_visible = ncol;
 
 	// construct RBM
 	create_CRBM (crbm, nrow, n_visible, n_hidden, delay, batch_size, NULL, NULL, NULL, NULL, NULL);
@@ -390,7 +349,7 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 			int idx_aux_ini = batch_index * batch_size;
 			int idx_aux_fin = idx_aux_ini + batch_size;
 
-			if (idx_aux_fin >= nrow - delay) break;
+			if (idx_aux_fin >= bdi_len) break;
 
 			double** input = (double**) malloc(sizeof(double*) * batch_size);
 			double** input_hist = (double**) malloc(sizeof(double) * batch_size);
@@ -417,7 +376,7 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 			free(input);
 			free(input_hist);
 		}
-		mean_cost /= batch_size;
+		mean_cost /= n_train_batches;
 		if (epoch % 25 == 0) printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
 	}
 	free(permindex);
@@ -442,7 +401,7 @@ double* activation_vector_CRBM (CRBM* crbm, double* v, double* v_hist)
 		for(int j = 0; j < crbm->n_visible; j++) pre_sigmoid_activation += crbm->W[j][i] * v[j];
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->B[j][i] * v_hist[j];
 		pre_sigmoid_activation += crbm->hbias[i];
-		activation[i] = sigmoid(pre_sigmoid_activation);
+		activation[i] = 1.0 / (1.0 + exp(pre_sigmoid_activation));
 	}
 	return activation;
 }
@@ -478,7 +437,7 @@ double* reconstruct_vector_CRBM (CRBM* crbm, double* h, double* v_hist)
 		for(int j = 0; j < crbm->n_hidden; j++) pre_sigmoid_activation += crbm->W[i][j] * h[j];
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->A[j][i] * v_hist[j];
 		pre_sigmoid_activation += crbm->vbias[i];
-		reconstructed[i] = sigmoid(pre_sigmoid_activation);
+		reconstructed[i] = 1.0 / (1.0 + exp(pre_sigmoid_activation));
 	}
 	return reconstructed;
 }
@@ -521,13 +480,17 @@ double** generate_samples(CRBM* crbm, double** orig_data, double** orig_hist,
 
 #define RMATRIX(m,i,j) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(j)+(i) ])
 #define RVECTOR(v,i) (REAL(v)[(i)])
+#define RVECTORI(v,i) (INTEGER(v)[(i)])
 
 // Interface for Training a CRBM
-SEXP _C_CRBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_epochs,
-           SEXP learning_rate, SEXP momentum, SEXP delay, SEXP rand_seed)
+SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
+	SEXP n_hidden, SEXP training_epochs, SEXP learning_rate, SEXP momentum,
+	SEXP delay, SEXP rand_seed)
 {
  	int nrow = INTEGER(GET_DIM(dataset))[0];
  	int ncol = INTEGER(GET_DIM(dataset))[1];
+
+ 	int nseq = INTEGER_VALUE(n_seq);
 
  	int basi = INTEGER_VALUE(batch_size);
 	int nhid = INTEGER_VALUE(n_hidden);
@@ -545,9 +508,12 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_e
 		for (int j = 0; j < ncol; j++) train_X_p[i][j] = RMATRIX(dataset,i,j);
 	}
 
+	int* seq_len_p = malloc(sizeof(int) * nseq);
+	for (int i = 0; i < nseq; i++) seq_len_p[i] = RVECTORI(seqlen,i);
+
 	// Perform Training
 	CRBM crbm;
-	train_crbm (&crbm, train_X_p, nrow, ncol, basi, nhid, trep, lera, mome, dely, rase);
+	train_crbm (&crbm, train_X_p, seq_len_p, nseq, nrow, ncol, basi, nhid, trep, lera, mome, dely, rase);
 
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 14));
@@ -627,6 +593,7 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_e
 	// Free Dataset Structure
 	for (int i = 0; i < nrow; i++) free(train_X_p[i]);
 	free(train_X_p);
+	free(seq_len_p);
 
 	free_CRBM(&crbm);
 
@@ -767,8 +734,13 @@ int main (void)
 	int batch_size = 100;
 	int delay = 2;
 
+	int* seqlen = (int*) malloc(sizeof(int));
+	seqlen[0] = 1;
+	int nseq = 1;
+
+
 	CRBM crbm;
-	train_crbm (&crbm, train_X_p, train_N, n_visible, batch_size,
+	train_crbm (&crbm, train_X_p, seqlen, nseq, train_N, n_visible, batch_size,
 			n_hidden, training_epochs, learning_rate,
 			momentum, delay, 1234);
 
