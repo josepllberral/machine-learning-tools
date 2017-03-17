@@ -117,7 +117,7 @@ testing.crbm <- function()
 
 	crbm <- train.crbm (dataset$batchdata, batch_size = 1, n_hidden = 100, delay = 6, training_epochs = 300, learning_rate = 0.001, momentum = 0.8, rand_seed = 1234);
 
-	res <- predict(crbm, dataset);
+	res <- predict(crbm, dataset$batchdata);
 	res;
 }
 

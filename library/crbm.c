@@ -29,6 +29,8 @@
 #include <Rdefines.h>
 #include <Rinternals.h>
 
+#include "matrix_ops.h"
+
 typedef struct {
 	int N;
 	int n_visible;
@@ -44,12 +46,13 @@ typedef struct {
 	double* vel_v;
 	double* vel_h;
 	int delay;
+	int batch_size;
 } CRBM;
 
 /*---------------------------------------------------------------------------*/
 /* AUXILIAR FUNCTIONS                                                        */
 /*---------------------------------------------------------------------------*/
-
+/*
 // Function to produce Uniform Samples
 double uniform (double min, double max)
 {
@@ -79,22 +82,12 @@ int binomial (int n, double p)
 	}
 
 	return c;
-}
+}*/
 
 // Function to produce the Sigmoid
 double sigmoid (double x)
 {
 	return 1.0 / (1.0 + exp(-x));
-}
-
-// Function to transpose a matrix
-double** transpose (double** mat, int nrow, int ncol)
-{
-	double** retval = (double**) malloc(sizeof(double) * nrow * ncol);
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			retval[i * ncol + j] = mat[j * nrow + i];
-	return retval;
 }
 
 // Function to produce a random shuffle from 1 to limit
@@ -106,7 +99,7 @@ int* shuffle (int limit)
 	if (limit > 1)
 		for (int i = limit - 1; i > 0; i--)
 		{
-			int j = (int) uniform(0, i); //(unsigned int) (drand48()*(i + 1));
+			int j = (int) (rand() / (RAND_MAX + 1.0) * i);
 			int t = vec[j];
 			vec[j] = vec[i];
 			vec[i] = t;
@@ -115,231 +108,245 @@ int* shuffle (int limit)
 	return vec;
 }
 
+// This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
+double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int nrow, int common, int ncol)
+{
+	double** t_A1 = matrix_transpose(A1, common, nrow);
+	double** t_B1 = matrix_transpose(B1, common, nrow);
+	double** aux1 = matrix_product(t_A1, A2, nrow, common, ncol); 
+	double** aux2 = matrix_product(t_B1, B2, nrow, common, ncol);
+	double** delta = matrix_subtract(aux1, aux2, nrow, ncol);
+	matrix_free(t_A1, nrow);
+	matrix_free(t_B1, nrow);
+	matrix_free(aux1, nrow);
+	matrix_free(aux2, nrow);
+	return  delta;
+}
+
+// This function implements the operation: t(A1) %*% A2 - t(A1) %*% B2
+double** delta_function_2(double** A1, double** A2, double** B2, int nrow, int common, int ncol)
+{
+	double** t_A1 = matrix_transpose(A1, common, nrow);
+	double** aux1 = matrix_product(t_A1, A2, nrow, common, ncol);
+	double** aux2 = matrix_product(t_A1, B2, nrow, common, ncol);
+	double** delta = matrix_subtract(aux1, aux2, nrow, ncol);
+	matrix_free(t_A1, nrow);
+	matrix_free(aux1, nrow);
+	matrix_free(aux2, nrow);
+	return  delta;
+}
+
+// This function implements the operation: colmeans(A1 - A2)
+double* delta_function_3(double** A1, double** A2, int nrow, int ncol)
+{
+	double** aux1 = matrix_subtract(A1, A2, nrow, ncol);
+	double* delta = matrix_meancols(aux1, nrow, ncol);
+	matrix_free(aux1, nrow);
+	return delta;
+}
+
 /*---------------------------------------------------------------------------*/
 /* CRBM FUNCTIONS                                                            */
 /*---------------------------------------------------------------------------*/
 
 // Conditional Restricted Boltzmann Machine (CRBM). Constructor
-void create_CRBM (CRBM* crbm, int N, int n_visible, int n_hidden, int delay,
+void create_CRBM (CRBM* crbm, int N, int n_visible, int n_hidden, int delay, int batch_size,
 		double** A, double** B, double** W, double* hbias, double* vbias)
 {
-	double a = 1.0 / n_visible;
-
 	// Initialize Parameters
 	crbm->N = N;
 	crbm->n_visible = n_visible;
 	crbm->n_hidden = n_hidden;
 	crbm->delay = delay;
+	crbm->batch_size = batch_size;
 
 	// Initialize Matrices and Vectors
-	if (W == NULL)
-	{
-		crbm->W = (double**) malloc(sizeof(double*) * n_hidden);
-		for(int i = 0; i < n_hidden; i++)
-		{
-			crbm->W[i] = (double*) malloc(sizeof(double) * n_visible);
-			for(int j = 0; j < n_visible; j++) crbm->W[i][j] = 0.01 * normal(0,1);
-		}
-	} else crbm->W = W;
+	if (W == NULL) crbm->W = matrix_normal(n_visible, n_hidden, 0, 0.01);
+	else crbm->W = W;
 
-	if (A == NULL)
-	{
-		crbm->A = (double**) malloc(sizeof(double*) * n_visible);
-		for(int i = 0; i < n_visible; i++)
-		{
-			crbm->A[i] = (double*) malloc(sizeof(double) * n_visible * delay);
-			for(int j = 0; j < n_visible * delay; j++) crbm->A[i][j] = 0.01 * normal(0,1);
-		}
-	} else crbm->A = A;
+	if (B == NULL) crbm->B = matrix_normal(n_visible * delay, n_hidden, 0, 0.01);
+	else crbm->B = B;
 
-	if (B == NULL)
-	{
-		crbm->B = (double**) malloc(sizeof(double*) * n_hidden);
-		for(int i = 0; i < n_hidden; i++)
-		{
-			crbm->B[i] = (double*) malloc(sizeof(double) * n_visible * delay);
-			for(int j = 0; j < n_visible * delay; j++) crbm->B[i][j] = 0.01 * normal(0,1);
-		}
-	} else crbm->B = B;
+	if (A == NULL) crbm->A = matrix_normal(n_visible * delay, n_visible, 0, 0.01);
+	else crbm->A = A;
 
-	if (hbias == NULL)
-	{
-		crbm->hbias = (double*) malloc(sizeof(double) * n_hidden);
-		for(int i = 0; i < n_hidden; i++) crbm->hbias[i] = 0;
-	} else crbm->hbias = hbias;
+	if (hbias == NULL) crbm->hbias = vector_zeros(n_hidden);
+	else crbm->hbias = hbias;
 
-	if (vbias == NULL)
-	{
-		crbm->vbias = (double*) malloc(sizeof(double) * n_visible);
-		for(int i = 0; i < n_visible; i++) crbm->vbias[i] = 0;
-	} else crbm->vbias = vbias;
+	if (vbias == NULL) crbm->vbias = vector_zeros(n_visible);
+	else crbm->vbias = vbias;
 
 	// Initialize Velocity for Momentum
-	crbm->vel_W = (double**) malloc(sizeof(double*) * n_hidden);
-	crbm->vel_B = (double**) malloc(sizeof(double*) * n_hidden);
-	crbm->vel_h = (double*) malloc(sizeof(double) * n_hidden);
-	for(int i = 0; i < n_hidden; i++)
-	{
-		crbm->vel_W[i] = (double*) malloc(sizeof(double) * n_visible);
-		for(int j = 0; j < n_visible; j++) crbm->vel_W[i][j] = 0;
-
-		crbm->vel_B[i] = (double*) malloc(sizeof(double) * n_visible * delay);
-		for(int j = 0; j < n_visible * delay; j++) crbm->vel_B[i][j] = 0;
-		crbm->vel_h[i] = 0;
-	}
-
-	crbm->vel_A = (double**) malloc(sizeof(double*) * n_visible);
-	crbm->vel_v = (double*) malloc(sizeof(double) * n_visible);
-	for(int i = 0; i < n_visible; i++)
-	{
-		crbm->vel_A[i] = (double*) malloc(sizeof(double) * n_visible * delay);
-		for(int j = 0; j < n_visible * delay; j++) crbm->vel_A[i][j] = 0;
-		crbm->vel_v[i] = 0;
-	}
+	crbm->vel_W = matrix_zeros(n_visible, n_hidden);
+	crbm->vel_B = matrix_zeros(n_visible * delay, n_hidden);
+	crbm->vel_A = matrix_zeros(n_visible * delay, n_visible);
+	crbm->vel_h = vector_zeros(n_hidden);
+	crbm->vel_v = vector_zeros(n_visible);
 }
 
 // Destructor of RBMs
 void free_CRBM (CRBM* crbm)
 {
-	for(int i = 0; i < crbm->n_hidden; i++)
-	{
-		free(crbm->W[i]);
-		free(crbm->B[i]);
-		free(crbm->vel_W[i]);
-		free(crbm->vel_B[i]);
-	}
-	free(crbm->W);
-	free(crbm->B);
+	matrix_free(crbm->W, crbm->n_visible);
+	matrix_free(crbm->B, crbm->n_visible * crbm->delay);
+	matrix_free(crbm->A, crbm->n_visible * crbm->delay);
+	matrix_free(crbm->vel_W, crbm->n_visible);
+	matrix_free(crbm->vel_B, crbm->n_visible * crbm->delay);
+	matrix_free(crbm->vel_A, crbm->n_visible * crbm->delay);
+
 	free(crbm->hbias);
 	free(crbm->vbias);
-
-	for(int i = 0; i < crbm->n_visible; i++)
-	{
-		free(crbm->A[i]);
-		free(crbm->vel_A[i]);
-	}
-	free(crbm->A);
-
-	free(crbm->vel_W);
-	free(crbm->vel_B);
-	free(crbm->vel_A);
 	free(crbm->vel_h);
 	free(crbm->vel_v);
 }
 
-// Prop-Up Function
-double CRBM_propup (CRBM* crbm, double* vis, double* v_hist, int i)
+// This Function performs the Prop-Up (sigmoid(v_sample * W + v_history * B + hbias))
+//   param v_sample : batch_size x visible
+//   param W        : visible x hidden
+//   param v_hist   : batch_size x (visible * delay)
+//   param B        : (visible * delay) x hidden
+//   returns retval : batch_size x hidden
+double** CRBM_propup (CRBM* crbm, double** v_sample, double** v_history)
 {
-	double pre_sigmoid_activation = 0.0;
-	for(int j = 0; j < crbm->n_visible; j++) pre_sigmoid_activation += crbm->W[i][j] * vis[j];
-	for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->B[i][j] * v_hist[j];
-	pre_sigmoid_activation += crbm->hbias[i];
-	return sigmoid(pre_sigmoid_activation);
+	double** aux1 = matrix_product(v_sample, crbm->W, crbm->batch_size, crbm->n_visible, crbm->n_hidden);
+	double** aux2 = matrix_product(v_history, crbm->B, crbm->batch_size, crbm->n_visible * crbm->delay, crbm->n_hidden);
+	double** aux3 = matrix_summat(aux1, aux2, crbm->batch_size, crbm->n_hidden);
+	double** pre_sigmoid = matrix_sumvec(aux3, crbm->hbias, crbm->batch_size, crbm->n_hidden);
+	double** retval = matrix_sigma(pre_sigmoid, crbm->batch_size, crbm->n_hidden);
+
+	matrix_free(aux1, crbm->batch_size);
+	matrix_free(aux2, crbm->batch_size);
+	matrix_free(aux3, crbm->batch_size);
+	matrix_free(pre_sigmoid, crbm->batch_size);
+
+	return retval;
 }
 
-// Prop-Down Function
-double CRBM_propdown (CRBM* crbm, double* hid, double* v_hist, int i)
+// This Function performs the Prop-Down (h_sample * t(W) + v_history * A + vbias)
+//   param h_sample : batch_size x hidden
+//   param W        : visible x hidden
+//   param v_hist   : batch_size x (visible * delay)
+//   param A        : (visible * delay) x visible
+//   returns retval : batch_size x visible
+double** CRBM_propdown (CRBM* crbm, double** h_sample, double** v_history)
 {
-	double pre_sigmoid_activation = 0.0;
-	for(int j = 0; j < crbm->n_hidden; j++) pre_sigmoid_activation += crbm->W[j][i] * hid[j];
-	for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->A[i][j] * v_hist[j];
-	pre_sigmoid_activation += crbm->vbias[i];
+	double** t_W = matrix_transpose(crbm->W, crbm->n_hidden, crbm->n_visible);
 
-	return sigmoid(pre_sigmoid_activation);
+	double** aux1 = matrix_product(h_sample, t_W, crbm->batch_size, crbm->n_hidden, crbm->n_visible);
+	double** aux2 = matrix_product(v_history, crbm->A, crbm->batch_size, crbm->n_visible * crbm->delay, crbm->n_visible);
+	double** aux3 = matrix_summat(aux1, aux2, crbm->batch_size, crbm->n_visible);
+	double** retval = matrix_sumvec(aux3, crbm->vbias, crbm->batch_size, crbm->n_visible);
+//	double** pre_sigmoid = matrix_sumvec(aux3, crbm->vbias, crbm->batch_size, crbm->n_visible);
+//	double** retval = matrix_sigma(pre_sigmoid, crbm->batch_size, crbm->n_visible);
+
+	matrix_free(t_W, crbm->n_visible);
+	matrix_free(aux1, crbm->batch_size);
+	matrix_free(aux2, crbm->batch_size);
+	matrix_free(aux3, crbm->batch_size);
+//	matrix_free(pre_sigmoid, crbm->batch_size);
+
+	return retval;
 }
 
 // This function infers state of hidden units given visible units
-void visible_state_to_hidden_probabilities (CRBM* crbm, double* v0_sample, double* v_history, double* mean, double* sample)
+//   returns h_mean   : batch_size x hidden
+//   returns h_sample : batch_size x hidden
+void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, double** v_history, double*** h_mean, double*** h_sample)
 {
-	for(int i = 0; i < crbm->n_hidden; i++)
-	{
-		mean[i] = CRBM_propup(crbm, v0_sample, v_history, i);
-		sample[i] = binomial(1, mean[i]);
-	}
+	*h_mean = CRBM_propup(crbm, v_sample, v_history);
+	*h_sample = matrix_bernoulli(*h_mean, crbm->batch_size, crbm->n_hidden);
 }
 
 // This function infers state of visible units given hidden units
-void hidden_state_to_visible_probabilities (CRBM* crbm, double* h0_sample, double* v_history, double* mean, double* sample)
+//   returns v_mean   : batch_size x visible
+//   returns v_sample : batch_size x visible
+void hidden_state_to_visible_probabilities (CRBM* crbm, double** h_sample, double** v_history, double*** v_mean, double*** v_sample)
 {
-	for (int i = 0; i < crbm->n_visible; i++)
-	{
-		mean[i] = CRBM_propdown(crbm, h0_sample, v_history, i);
-		sample[i] = binomial(1, mean[i]);
-	}
+	*v_mean = CRBM_propup(crbm, h_sample, v_history);
+	*v_sample = matrix_copy(*v_mean, crbm->batch_size, crbm->n_visible);
 }
 
-// This functions implements one step of CD-k
-//   param input      : matrix input from batch data (n_vis x n_seq)
-//   param input_hist : matrix input_history from batch data (n_seq x (n_vis * delay))
-//   param lr         : learning rate used to train the RBM
+// This function implements one step of CD-k
+//   param input      : matrix input from batch data (batch_size x visible)
+//   param input_hist : matrix input_history from batch data (batch_size x (visible * delay))
+//   param lr         : learning rate used to train the CRBM
 //   param momentum   : value for momentum coefficient on learning
 //   param k          : number of Gibbs steps to do in CD-k
-double cdk_CRBM (CRBM* crbm, double* input, double* input_history, double lr, double momentum, int k)
+double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, double momentum, int k)
 {
-	double* ph_mean = (double*) malloc(sizeof(double) * crbm->n_hidden);
-	double* ph_sample = (double*) malloc(sizeof(double) * crbm->n_hidden);
-	double* nv_means = (double*) malloc(sizeof(double) * crbm->n_visible);
-	double* nv_sample = (double*) malloc(sizeof(double) * crbm->n_visible);
-	double* nh_means = (double*) malloc(sizeof(double) * crbm->n_hidden);
-	double* nh_sample = (double*) malloc(sizeof(double) * crbm->n_hidden);
-
 	// compute positive phase (awake)
-	visible_state_to_hidden_probabilities (crbm, input, input_history, ph_mean, ph_sample);
+	double** ph_mean = NULL;
+	double** ph_sample = NULL;
+	visible_state_to_hidden_probabilities (crbm, input, input_history, &ph_mean, &ph_sample);
 
 	// perform negative phase (asleep)
-	for (int i = 0; i < crbm->n_hidden; i++) nh_sample[i] = ph_sample[i];
+	double** nv_means = matrix_zeros(crbm->batch_size, crbm->n_visible);
+	double** nv_sample = matrix_zeros(crbm->batch_size, crbm->n_visible);
+	double** nh_means = matrix_zeros(crbm->batch_size, crbm->n_hidden);
+	double** nh_sample = matrix_copy(ph_sample, crbm->batch_size, crbm->n_hidden);
 	for (int step = 0; step < k; step++)
 	{
-		hidden_state_to_visible_probabilities (crbm, nh_sample, input_history, nv_means, nv_sample);
-		visible_state_to_hidden_probabilities (crbm, nv_sample, input_history, nh_means, nh_sample);
+		matrix_free(nv_means, crbm->batch_size); matrix_free(nv_sample, crbm->batch_size);
+		hidden_state_to_visible_probabilities (crbm, nh_sample, input_history, &nv_means, &nv_sample);
+		matrix_free(nh_means, crbm->batch_size); matrix_free(nh_sample, crbm->batch_size);
+		visible_state_to_hidden_probabilities (crbm, nv_sample, input_history, &nh_means, &nh_sample);
 	}
 
-	// determine gradients on CRMB: Delta_W, Delta_B, Delta_h
-	for (int i = 0; i < crbm->n_hidden; i++)
-	{
-		for(int j = 0; j < crbm->n_visible; j++)
-		{
-			double delta = (ph_mean[i] * input[j] - nh_means[i] * nv_sample[j]);// / crbm->N;
-			crbm->vel_W[i][j] = crbm->vel_W[i][j] * momentum + lr * delta;
-			crbm->W[i][j] += crbm->vel_W[i][j];
-		}
-		for(int j = 0; j < crbm->n_visible * crbm->delay; j++)
-		{
-			double delta = (ph_mean[i] * input_history[j] - nh_means[i] * input_history[j]);// / crbm->N;
-			crbm->vel_B[i][j] = crbm->vel_B[i][j] * momentum + lr * delta;
-			crbm->B[i][j] += crbm->vel_B[i][j];
-		}
-		double delta = (ph_sample[i] - nh_means[i]);// / crbm->N;
-		crbm->vel_h[i] = crbm->vel_h[i] * momentum + lr * delta;
-		crbm->hbias[i] += crbm->vel_h[i];
-	}
+	// applies gradients on CRBM: Delta_W, Delta_A, Delta_B, Delta_h, Delta_v
+	double** inertia_W = matrix_scale(crbm->vel_W, momentum, crbm->n_visible, crbm->n_hidden);
+	double** delta_W = delta_function_1(input, ph_mean, nv_sample, nh_means, crbm->n_visible, crbm->batch_size, crbm->n_hidden);
+	matrix_replace(&delta_W, matrix_scale(delta_W, lr, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
+	matrix_replace(&crbm->vel_W, matrix_summat(inertia_W, delta_W, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
+	matrix_replace(&crbm->W, matrix_summat(crbm->W, crbm->vel_W, crbm->n_visible, crbm->n_hidden), crbm->n_visible);
 
-	// determine gradients on CRMB: Delta_A, Delta_v
-	for (int i = 0; i < crbm->n_visible; i++)
-	{
-		for(int j = 0; j < crbm->n_visible * crbm->delay; j++)
-		{
-			double delta = (input[i] * input_history[j] - nv_sample[i] * input_history[j]);// / crbm->N;
-			crbm->vel_A[i][j] = crbm->vel_A[i][j] * momentum + lr * delta;
-			crbm->A[i][j] += crbm->vel_A[i][j];
-		}
-		double delta = (input[i] - nv_sample[i]);// / crbm->N;
-		crbm->vel_v[i] = crbm->vel_v[i] * momentum + lr * delta;
-		crbm->vbias[i] += crbm->vel_v[i];
-	}
+	double** inertia_A = matrix_scale(crbm->vel_A, momentum, crbm->n_visible * crbm->delay, crbm->n_visible);
+	double** delta_A = delta_function_2(input_history, input, nv_sample, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_visible);
+	matrix_replace(&delta_A, matrix_scale(delta_A, lr, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
+	matrix_replace(&crbm->vel_A, matrix_summat(inertia_A, delta_A, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
+	matrix_replace(&crbm->A, matrix_summat(crbm->A, crbm->vel_A, crbm->n_visible * crbm->delay, crbm->n_visible), crbm->n_visible * crbm->delay);
+
+	double** inertia_B = matrix_scale(crbm->vel_B, momentum, crbm->n_visible * crbm->delay, crbm->n_hidden);
+	double** delta_B = delta_function_2(input_history, ph_mean, nh_means, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_hidden);
+	matrix_replace(&delta_B, matrix_scale(delta_B, lr, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
+	matrix_replace(&crbm->vel_B, matrix_summat(inertia_B, delta_B, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
+	matrix_replace(&crbm->B, matrix_summat(crbm->B, crbm->vel_B, crbm->n_visible * crbm->delay, crbm->n_hidden), crbm->n_visible * crbm->delay);
+
+	double* inertia_v = vector_scale(crbm->vel_v, momentum, crbm->n_visible);
+	double* delta_v = delta_function_3(input, nv_sample, crbm->batch_size, crbm->n_visible);
+	vector_replace(&delta_v, vector_scale(delta_v, lr, crbm->n_visible));
+	vector_replace(&crbm->vel_v, vector_sumvec(inertia_v, delta_v, crbm->n_visible));
+	vector_replace(&crbm->vbias, vector_sumvec(crbm->vbias, crbm->vel_v, crbm->n_visible));
+
+	double* inertia_h = vector_scale(crbm->vel_h, momentum, crbm->n_hidden);
+	double* delta_h = delta_function_3(ph_mean, nh_means, crbm->batch_size, crbm->n_visible);
+	vector_replace(&delta_h, vector_scale(delta_h, lr, crbm->n_hidden));
+	vector_replace(&crbm->vel_h, vector_sumvec(inertia_h, delta_h, crbm->n_hidden));
+	vector_replace(&crbm->hbias, vector_sumvec(crbm->hbias, crbm->vel_h, crbm->n_hidden));
 
 	// approximation to the reconstruction error: sum over dimensions, mean over cases
-	double recon = 0;
-	for (int i = 0; i < crbm->n_visible; i++)
-		recon += pow(input[i] - nv_means[i], 2);
-	recon /= crbm->n_visible;
+	double** aux1 = matrix_sqdiff(input, nv_means, crbm->batch_size, crbm->n_visible);
+	double* aux2 = matrix_sumrows(aux1, crbm->batch_size, crbm->n_visible);
+	double recon = vector_mean(aux2, crbm->batch_size);
 
-	free(ph_mean);
-	free(ph_sample);
-	free(nv_means);
-	free(nv_sample);
-	free(nh_means);
-	free(nh_sample);
+	// free the used space
+	matrix_free(ph_mean, crbm->batch_size);
+	matrix_free(ph_sample, crbm->batch_size);
+	matrix_free(nv_means, crbm->batch_size);
+	matrix_free(nv_sample, crbm->batch_size);
+	matrix_free(nh_means, crbm->batch_size);
+	matrix_free(nh_sample, crbm->batch_size);
+
+	matrix_free(delta_W, crbm->n_visible);
+	matrix_free(delta_B, crbm->n_visible * crbm->delay);
+	matrix_free(delta_A, crbm->n_visible * crbm->delay);
+	matrix_free(inertia_W, crbm->n_visible);
+	matrix_free(inertia_B, crbm->n_visible * crbm->delay);
+	matrix_free(inertia_A, crbm->n_visible * crbm->delay);
+	free(inertia_v); free(delta_v);
+	free(inertia_h); free(delta_h);
+
+	matrix_free(aux1, crbm->batch_size);
+	free(aux2);
 
 	return recon;
 }
@@ -363,8 +370,6 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 {
 	srand(rand_seed);
 
-	batch_size = 1; //FIXME - At this time, one input at a time
-
 	int n_train_batches = nrow / batch_size;
 	int n_visible = ncol;
 
@@ -373,7 +378,7 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 	for (int i = 0; i < nrow - delay; i++) permindex[i] = permindex[i] + delay;
 
 	// construct RBM
-	create_CRBM (crbm, nrow, n_visible, n_hidden, delay, NULL, NULL, NULL, NULL, NULL);
+	create_CRBM (crbm, nrow, n_visible, n_hidden, delay, batch_size, NULL, NULL, NULL, NULL, NULL);
 
 	// go through the training epochs and training set
 	double mean_cost;
@@ -387,23 +392,33 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 
 			if (idx_aux_fin >= nrow - delay) break;
 
-			int index = permindex[batch_index];
-			double* input = (double*) malloc(sizeof(double) * ncol);
-			for (int j = 0; j < ncol; j++) input[j] = batchdata[index][j];
+			double** input = (double**) malloc(sizeof(double*) * batch_size);
+			double** input_hist = (double**) malloc(sizeof(double) * batch_size);
+			for (int i = 0; i < batch_size; i++)
+			{
+				int index = permindex[i + idx_aux_ini];
+				input[i] = (double*) malloc(sizeof(double) * ncol);
+				for (int j = 0; j < ncol; j++) input[i][j] = batchdata[index][j];
 
-			double* input_hist = (double*) malloc(sizeof(double) * ncol * delay);
-			for (int i = 0; i < delay; i++)
-				for (int j = 0; j < ncol; j++)
-					input_hist[i * ncol + j] = batchdata[index - 1 - i][j];
+				input_hist[i] = (double*) malloc(sizeof(double) * ncol * delay);
+				for (int d = 0; d < delay; d++)
+					for (int j = 0; j < ncol; j++)
+						input_hist[i][d * ncol + j] = batchdata[index - 1 - d][j];
+			}
 
 			// get the cost and the gradient corresponding to one step of CD-k
 			mean_cost += cdk_CRBM (crbm, input, input_hist, learning_rate, momentum, 1);
 
+			for (int i = 0; i < batch_size; i++)
+			{
+				free(input[i]);
+				free(input_hist[i]);
+			}
 			free(input);
 			free(input_hist);
 		}
 		mean_cost /= batch_size;
-		if (epoch % 100 == 0) printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
+		if (epoch % 25 == 0) printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
 	}
 	free(permindex);
 
@@ -416,23 +431,30 @@ void train_crbm (CRBM* crbm, double** batchdata, int nrow, int ncol,
 /*---------------------------------------------------------------------------*/
 
 // This function computes the activation of Vector V
-//   param v : vector to predict
+//   param v       : vector to predict
 //   param v_hist  : history matrix for conditioning
 double* activation_vector_CRBM (CRBM* crbm, double* v, double* v_hist)
 {
 	double* activation = (double*) malloc(sizeof(double) * crbm->n_hidden);
 	for (int i = 0; i < crbm->n_hidden; i++)
-		activation[i] = CRBM_propup(crbm, v, v_hist, i);
+	{
+		double pre_sigmoid_activation = 0.0;
+		for(int j = 0; j < crbm->n_visible; j++) pre_sigmoid_activation += crbm->W[j][i] * v[j];
+		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->B[j][i] * v_hist[j];
+		pre_sigmoid_activation += crbm->hbias[i];
+		activation[i] = sigmoid(pre_sigmoid_activation);
+	}
 	return activation;
 }
 
-// This function computes the activation of Matrix V with history V_hist
+// This function computes the activation of Matrix V
 //   param v       : matrix to predict
-//   param v_hist  : history matrix for conditioning
+//   Now we suppose that the input matrix is a time serie
 double** activation_CRBM (CRBM* crbm, double** v, int nrow)
 {
-	double** activation = (double**) malloc(sizeof(double) * nrow);
+	double** activation = (double**) malloc(sizeof(double*) * nrow);
 	double* v_hist = (double*) malloc(sizeof(double) * crbm->n_visible * crbm->delay);
+	for (int i = 0; i < crbm->delay; i++) activation[i] = vector_zeros (crbm->delay);
 	for (int i = crbm->delay; i < nrow; i++)
 	{
 		for (int j = 0; j < crbm->delay; j++)
@@ -447,13 +469,17 @@ double** activation_CRBM (CRBM* crbm, double** v, int nrow)
 // This function makes a reconstruction of Vector V
 //   param v : vector to reconstruct
 //   param v_hist  : history matrix for conditioning
-double* reconstruct_vector_CRBM (CRBM* crbm, double* v, double* v_hist)
+double* reconstruct_vector_CRBM (CRBM* crbm, double* h, double* v_hist)
 {
 	double* reconstructed = (double*) malloc(sizeof(double) * crbm->n_visible);
-	double* h = activation_vector_CRBM (crbm, v, v_hist);
 	for (int i = 0; i < crbm->n_visible; i++)
-		reconstructed[i] = CRBM_propdown(crbm, h, v_hist, i);
-	free(h);
+	{
+		double pre_sigmoid_activation = 0.0;
+		for(int j = 0; j < crbm->n_hidden; j++) pre_sigmoid_activation += crbm->W[i][j] * h[j];
+		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->A[j][i] * v_hist[j];
+		pre_sigmoid_activation += crbm->vbias[i];
+		reconstructed[i] = sigmoid(pre_sigmoid_activation);
+	}
 	return reconstructed;
 }
 
@@ -462,14 +488,17 @@ double* reconstruct_vector_CRBM (CRBM* crbm, double* v, double* v_hist)
 //   param v_hist  : history matrix for conditioning
 double** reconstruct_CRBM (CRBM* crbm, double** v, int nrow)
 {
-	double** reconstruct = (double**) malloc(sizeof(double) * nrow);
+	double** reconstruct = (double**) malloc(sizeof(double*) * nrow);
 	double* v_hist = (double*) malloc(sizeof(double) * crbm->n_visible * crbm->delay);
+	for (int i = 0; i < crbm->delay; i++) reconstruct[i] = vector_zeros (crbm->n_visible);
 	for (int i = crbm->delay; i < nrow; i++)
 	{
 		for (int j = 0; j < crbm->delay; j++)
 			for (int k = 0; k < crbm->n_visible; k++)
 				v_hist[j * crbm->n_visible + k] = v[i - j - 1][k];
-		reconstruct[i] = reconstruct_vector_CRBM(crbm, v[i], v_hist);
+		double* h = activation_vector_CRBM (crbm, v[i], v_hist);
+		reconstruct[i] = reconstruct_vector_CRBM(crbm, h, v_hist);
+		free(h);
 	}
 	free(v_hist);
 	return reconstruct;
@@ -532,41 +561,45 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_e
 	SET_VECTOR_ELT(retval, 2, allocVector(INTSXP, 1));
 	INTEGER(VECTOR_ELT(retval, 2))[0] = crbm.n_hidden;
 
-	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, nhid, ncol));
-	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nhid, ncol * dely));
-	SET_VECTOR_ELT(retval, 6, allocVector(REALSXP, nhid));
-	SET_VECTOR_ELT(retval, 8, allocMatrix(REALSXP, nhid, ncol));
-	SET_VECTOR_ELT(retval, 9, allocMatrix(REALSXP, nhid, ncol * dely));
-	SET_VECTOR_ELT(retval, 11, allocVector(REALSXP, nhid));
-	for (int i = 0; i < nhid; i++)
-	{
-		for (int j = 0; j < ncol; j++)
-		{
-			REAL(VECTOR_ELT(retval, 3))[i * ncol + j] = crbm.W[i][j];
-			REAL(VECTOR_ELT(retval, 8))[i * ncol + j] = crbm.vel_W[i][j];
-		}
-		for (int j = 0; j < ncol * dely; j++)
-		{
-			REAL(VECTOR_ELT(retval, 4))[i * ncol + j] = crbm.B[i][j];
-			REAL(VECTOR_ELT(retval, 9))[i * ncol + j] = crbm.vel_B[i][j];
-		}
-		REAL(VECTOR_ELT(retval, 6))[i] = crbm.hbias[i];
-		REAL(VECTOR_ELT(retval, 11))[i] = crbm.vel_h[i];
-	}
-
-	SET_VECTOR_ELT(retval, 5, allocMatrix(REALSXP, ncol, ncol * dely));
+	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, ncol, nhid));
 	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, ncol));
-	SET_VECTOR_ELT(retval, 10, allocMatrix(REALSXP, ncol, ncol * dely));
+	SET_VECTOR_ELT(retval, 8, allocMatrix(REALSXP, ncol, nhid));
 	SET_VECTOR_ELT(retval, 12, allocVector(REALSXP, ncol));
 	for (int i = 0; i < ncol; i++)
 	{
-		for (int j = 0; j < ncol * dely; j++)
+		for (int j = 0; j < nhid; j++)
+		{
+			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = crbm.W[i][j];
+			REAL(VECTOR_ELT(retval, 8))[i * nhid + j] = crbm.vel_W[i][j];
+		}
+		REAL(VECTOR_ELT(retval, 7))[i] = crbm.vbias[i];
+		REAL(VECTOR_ELT(retval, 12))[i] = crbm.vel_v[i];
+	}
+
+	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, ncol * dely, nhid));
+	SET_VECTOR_ELT(retval, 5, allocMatrix(REALSXP, ncol * dely, ncol));
+	SET_VECTOR_ELT(retval, 9, allocMatrix(REALSXP, ncol * dely, nhid));
+	SET_VECTOR_ELT(retval, 10, allocMatrix(REALSXP, ncol * dely, ncol));
+	for (int i = 0; i < ncol * dely; i++)
+	{
+		for (int j = 0; j < nhid; j++)
+		{
+			REAL(VECTOR_ELT(retval, 4))[i * nhid + j] = crbm.B[i][j];
+			REAL(VECTOR_ELT(retval, 9))[i * nhid + j] = crbm.vel_B[i][j];
+		}
+		for (int j = 0; j < ncol; j++)
 		{
 			REAL(VECTOR_ELT(retval, 5))[i * ncol + j] = crbm.A[i][j];
 			REAL(VECTOR_ELT(retval, 10))[i * ncol + j] = crbm.vel_A[i][j];
 		}
-		REAL(VECTOR_ELT(retval, 7))[i] = crbm.vbias[i];
-		REAL(VECTOR_ELT(retval, 12))[i] = crbm.vel_v[i];
+	}
+
+	SET_VECTOR_ELT(retval, 6, allocVector(REALSXP, nhid));
+	SET_VECTOR_ELT(retval, 11, allocVector(REALSXP, nhid));
+	for (int i = 0; i < nhid; i++)
+	{
+		REAL(VECTOR_ELT(retval, 6))[i] = crbm.hbias[i];
+		REAL(VECTOR_ELT(retval, 11))[i] = crbm.vel_h[i];
 	}
 
 	SET_VECTOR_ELT(retval, 13, allocVector(INTSXP, 1));
@@ -607,6 +640,7 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
  	int nrow = INTEGER(GET_DIM(newdata))[0];
  	int ncol = INTEGER(GET_DIM(newdata))[1];
 
+	int nvis = INTEGER_VALUE(n_visible);
 	int nhid = INTEGER_VALUE(n_hidden);
 	int dely = INTEGER_VALUE(delay);
 
@@ -645,10 +679,10 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	for (int i = 0; i < nhid; i++) hbias[i] = RVECTOR(hbias_input,i);
 
 	double* vbias = malloc(sizeof(double) * ncol);
-	for (int i = 0; i < ncol; i++) vbias[i] = RVECTOR(vbias_input,i);
+	for (int i = 0; i < nvis; i++) vbias[i] = RVECTOR(vbias_input,i);
 
 	CRBM crbm;
-	create_CRBM (&crbm, 0, ncol, nhid, dely, A, B, W, hbias, vbias);
+	create_CRBM (&crbm, 0, nvis, nhid, dely, 1, A, B, W, hbias, vbias);
 
 	// Prepare Test Dataset
 	double** test_X_p = malloc(sizeof(double*) * nrow);
@@ -674,7 +708,7 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	}
 	free(reconstruct_p);
 
-	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nhid, ncol));
+	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
 	for (int i = 0; i < nrow; i++)
 	{
 		for (int j = 0; j < nhid; j++)
@@ -730,7 +764,7 @@ int main (void)
 	double learning_rate = 0.1;
 	double momentum = 0.8;
 	int training_epochs = 1000;
-	int batch_size = 1;
+	int batch_size = 100;
 	int delay = 2;
 
 	CRBM crbm;
