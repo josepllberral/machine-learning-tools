@@ -116,8 +116,11 @@ testing.crbm <- function()
 {
 	dataset <- load_data('./datasets/motion.rds');
 
-#	crbm <- train.crbm (dataset$batchdata, batch_size = 1, n_hidden = 100, delay = 6, training_epochs = 300, learning_rate = 0.001, momentum = 0.8, rand_seed = 1234);
+#	start_time <- Sys.time();
 	crbm <- train.crbm (dataset$batchdata, dataset$seqlen, batch_size = 100, n_hidden = 100, delay = 6, training_epochs = 200, learning_rate = 1e-3, momentum = 0.5, rand_seed = 1234);
+#	crbm <- train_crbm (dataset, batch_size = 100, n_hidden = 100, delay = 6, training_epochs = 200, learning_rate = 1e-3, momentum = 0.5, rand_seed = 1234);
+#	end_time <- Sys.time();
+#	print(end_time - start_time)
 
 	res <- predict(crbm, dataset$batchdata);
 	res;

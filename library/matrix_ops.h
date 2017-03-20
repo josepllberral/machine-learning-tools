@@ -15,11 +15,9 @@ double** matrix_product (double** A, double** B, int arow, int common, int bcol)
 	for (int a = 0; a < arow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * bcol);
+		memset(C[a], 0, sizeof(double) * bcol);
 		for (int c = 0; c < bcol; c++)
-		{
-			C[a][c] = 0;
 			for (int b = 0; b < common; b++) C[a][c] += A[a][b] * B[b][c];
-		}
 	}
 	return C;
 }
@@ -143,12 +141,10 @@ double** matrix_bernoulli (double** A, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		B[a] = (double*) malloc(sizeof(double) * ncol);
+		memset(B[a], 0, sizeof(double) * ncol);
 		for (int b = 0; b < ncol; b++)
-		{
-			B[a][b] = 0;
-			double r = rand() / (RAND_MAX + 1.0);
-			if (A[a][b] >= 0 && A[a][b] <= 1 && r <= A[a][b]) B[a][b] = 1;
-		}
+			if (A[a][b] >= 0 && A[a][b] <= 1)
+				if ((rand() / (RAND_MAX + 1.0)) <= A[a][b]) B[a][b] = 1;
 	}
 	return B;
 }
@@ -176,11 +172,9 @@ double** matrix_sqdiff (double** A, double** B, int nrow, int ncol)
 double* matrix_sumrows (double** A, int nrow, int ncol)
 {
 	double* S = (double*) malloc(sizeof(double) * nrow);
+	memset(S, 0, sizeof(double) * nrow);
 	for (int a = 0; a < nrow; a++)
-	{
-		S[a] = 0;
 		for (int b = 0; b < ncol; b++) S[a] += A[a][b];
-	}
 	return S;
 }
 
@@ -191,7 +185,7 @@ double* matrix_sumrows (double** A, int nrow, int ncol)
 double* matrix_sumcols (double** A, int nrow, int ncol)
 {
 	double* S = (double*) malloc(sizeof(double) * ncol);
-	for (int b = 0; b < ncol; b++) S[b] = 0;
+	memset(S, 0, sizeof(double) * ncol);
 	for (int a = 0; a < nrow; a++)
 		for (int b = 0; b < ncol; b++)
 			S[b] += A[a][b];
@@ -205,7 +199,7 @@ double* matrix_sumcols (double** A, int nrow, int ncol)
 double* matrix_meancols (double** A, int nrow, int ncol)
 {
 	double* S = (double*) malloc(sizeof(double) * ncol);
-	for (int b = 0; b < ncol; b++) S[b] = 0;
+	memset(S, 0, sizeof(double) * ncol);
 	for (int a = 0; a < nrow; a++)
 		for (int b = 0; b < ncol; b++)
 			S[b] += A[a][b];
@@ -245,7 +239,7 @@ double** matrix_zeros (int nrow, int ncol)
 	for (int i = 0; i < nrow; i++)
 	{
 		Z[i] = (double*) malloc(sizeof(double) * ncol);
-		for (int j = 0; j < ncol; j++) Z[i][j] = 0;
+		memset(Z[i], 0, sizeof(double) * ncol);
 	}
 	return Z;
 }
@@ -323,7 +317,7 @@ double* vector_sumvec (double* A, double* B, int npos)
 double* vector_zeros (int npos)
 {
 	double* V = (double*) malloc(sizeof(double) * npos);
-	for (int i = 0; i < npos; i++) V[i] = 0;
+	memset(V, 0, sizeof(double) * npos);
 	return V;
 }
 
