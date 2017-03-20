@@ -16,8 +16,9 @@ double** matrix_product (double** A, double** B, int arow, int common, int bcol)
 	{
 		C[a] = (double*) malloc(sizeof(double) * bcol);
 		memset(C[a], 0, sizeof(double) * bcol);
-		for (int c = 0; c < bcol; c++)
-			for (int b = 0; b < common; b++) C[a][c] += A[a][b] * B[b][c];
+		for (int b = 0; b < common; b++)
+			for (int c = 0; c < bcol; c++)
+				C[a][c] += A[a][b] * B[b][c];
 	}
 	return C;
 }
@@ -143,8 +144,8 @@ double** matrix_bernoulli (double** A, int nrow, int ncol)
 		B[a] = (double*) malloc(sizeof(double) * ncol);
 		memset(B[a], 0, sizeof(double) * ncol);
 		for (int b = 0; b < ncol; b++)
-			if (A[a][b] >= 0 && A[a][b] <= 1)
-				if ((rand() / (RAND_MAX + 1.0)) <= A[a][b]) B[a][b] = 1;
+			if (A[a][b] >= 0 && A[a][b] <= 1 && (rand() / (RAND_MAX + 1.0)) <= A[a][b])
+				B[a][b] = 1;
 	}
 	return B;
 }
