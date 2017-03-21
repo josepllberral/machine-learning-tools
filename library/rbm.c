@@ -20,6 +20,8 @@
 #include <Rdefines.h>
 #include <Rinternals.h>
 
+#include "matrix_ops.h"
+
 typedef struct {
 	int N;
 	int n_visible;
@@ -30,34 +32,12 @@ typedef struct {
 	double** vel_W;
 	double* vel_v;
 	double* vel_h;
+	int batch_size;
 } RBM;
 
 /*---------------------------------------------------------------------------*/
 /* AUXILIAR FUNCTIONS                                                        */
 /*---------------------------------------------------------------------------*/
-
-// Function to produce Uniform Samples
-double uniform (double min, double max)
-{
-	return rand() / (RAND_MAX + 1.0) * (max - min) + min;  
-}
-
-// Function to produce Bernoulli Samples
-int binomial (int n, double p)
-{
-	if (p < 0 || p > 1) return 0;
-
-	int c = 0;
-	double r;
-
-	for(int i = 0; i < n; i++)
-	{
-		r = rand() / (RAND_MAX + 1.0);
-		if (r < p) c++;
-	}
-
-	return c;
-}
 
 // Function to produce the Sigmoid
 double sigmoid (double x)
@@ -65,32 +45,39 @@ double sigmoid (double x)
 	return 1.0 / (1.0 + exp(-x));
 }
 
-// Function to transpose a matrix
-double** transpose (double** mat, int nrow, int ncol)
+// This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
+double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
 {
-	double** retval = (double**) malloc(sizeof(double) * nrow * ncol);
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			retval[i * ncol + j] = mat[j * nrow + i];
-	return retval;
+	double temp[acol][bcol];
+	memset(temp, 0, sizeof(double) * acol * bcol);
+	for(int i = 0; i < arow; i++)
+		for(int j = 0; j < acol; j++)
+			for(int k = 0; k < bcol; k++)
+				temp[j][k] += A1[i][j] * A2[i][k] - B1[i][j] * B2[i][k];
+
+	int size_of_bcol = sizeof(double) * bcol;
+	double** delta = (double**) malloc(sizeof(double*) * acol);
+	for(int j = 0; j < acol; j++)
+	{
+		delta[j] = (double*) malloc(size_of_bcol);
+		memcpy(delta[j], temp[j], size_of_bcol);
+	}
+	return delta;
 }
 
-// Function to produce a random shuffle from 1 to limit
-int* shuffle (int limit)
+// This function implements the operation: colmeans(A - B)
+double* delta_function_2(double** A, double** B, int nrow, int ncol)
 {
-	int* vec = (int*) malloc(sizeof(int) * limit);
-	for (int i = 0; i < limit; i++) vec[i] = i;
+	double temp[ncol];
+	memset(temp, 0, sizeof(double) * ncol);
+	for(int i = 0; i < nrow; i++)
+		for(int j = 0; j < ncol; j++)
+			temp[j] += A[i][j] - B[i][j];
 
-	if (limit > 1)
-		for (int i = limit - 1; i > 0; i--)
-		{
-			int j = (int) uniform(0, i); //(unsigned int) (drand48()*(i + 1));
-			int t = vec[j];
-			vec[j] = vec[i];
-			vec[i] = t;
-		}
+	double* delta = (double*) malloc(sizeof(double) * ncol);
+	memcpy(delta, temp, sizeof(double) * ncol);
 
-	return vec;
+	return delta;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -98,108 +85,90 @@ int* shuffle (int limit)
 /*---------------------------------------------------------------------------*/
 
 // Restricted Boltzmann Machine (RBM). Constructor
-void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, double** W, double* hbias, double* vbias)
+void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, int batch_size,
+		double** W, double* hbias, double* vbias)
 {
-	double a = 1.0 / n_visible;
-
 	// Initialize Parameters
 	rbm->N = N;
 	rbm->n_visible = n_visible;
 	rbm->n_hidden = n_hidden;
+	rbm->batch_size = batch_size;
 
 	// Initialize Matrices and Vectors
-	if (W == NULL)
-	{
-		rbm->W = (double**) malloc(sizeof(double*) * n_hidden);
-		for(int i = 0; i < n_hidden; i++)
-		{
-			rbm->W[i] = (double*) malloc(sizeof(double) * n_visible);
-			for(int j = 0; j < n_visible; j++) rbm->W[i][j] = uniform(-a, a);
-		}
-	} else rbm->W = W;
+	if (W == NULL) rbm->W = matrix_normal(n_visible, n_hidden, 0, 1, 0.01);
+	else rbm->W = W;
 
-	if (hbias == NULL)
-	{
-		rbm->hbias = (double*) malloc(sizeof(double) * n_hidden);
-		for(int i = 0; i < n_hidden; i++) rbm->hbias[i] = 0;
-	} else rbm->hbias = hbias;
+	if (hbias == NULL) rbm->hbias = vector_zeros(n_hidden);
+	else rbm->hbias = hbias;
 
-	if (vbias == NULL)
-	{
-		rbm->vbias = (double*) malloc(sizeof(double) * n_visible);
-		for(int i = 0; i < n_visible; i++) rbm->vbias[i] = 0;
-	} else rbm->vbias = vbias;
+	if (vbias == NULL) rbm->vbias = vector_zeros(n_visible);
+	else rbm->vbias = vbias;
 
 	// Initialize Velocity for Momentum
-	rbm->vel_W = (double**) malloc(sizeof(double*) * n_hidden);
-	rbm->vel_h = (double*) malloc(sizeof(double) * n_hidden);
-	for(int i = 0; i < n_hidden; i++)
-	{
-		rbm->vel_W[i] = (double*) malloc(sizeof(double) * n_visible);
-		for(int j = 0; j < n_visible; j++) rbm->vel_W[i][j] = 0;
-		rbm->vel_h[i] = 0;
-	}
-
-	rbm->vel_v = (double*) malloc(sizeof(double) * n_visible);
-	for(int i = 0; i < n_visible; i++) rbm->vel_v[i] = 0;
+	rbm->vel_W = matrix_zeros(n_visible, n_hidden);
+	rbm->vel_h = vector_zeros(n_hidden);
+	rbm->vel_v = vector_zeros(n_visible);
 }
 
 // Destructor of RBMs
 void free_RBM (RBM* rbm)
 {
-	for(int i = 0; i < rbm->n_hidden; i++)
-	{
-		free(rbm->W[i]);
-		free(rbm->vel_W[i]);
-	}
-	free(rbm->W);
+	matrix_free(rbm->W, rbm->n_visible);
+	matrix_free(rbm->vel_W, rbm->n_visible);
+
 	free(rbm->hbias);
 	free(rbm->vbias);
-
-	free(rbm->vel_W);
 	free(rbm->vel_h);
 	free(rbm->vel_v);
 }
 
-// Prop-Up Function
-double RBM_propup (RBM* rbm, double* v, double* w, double b)
-{
-	double pre_sigmoid_activation = 0.0;
-
-	for(int j = 0; j < rbm->n_visible; j++) pre_sigmoid_activation += w[j] * v[j];
-	pre_sigmoid_activation += b;
-
-	return sigmoid(pre_sigmoid_activation);
-}
-
-// Prop-Down Function
-double RBM_propdown (RBM* rbm, double* h, int i, double b)
-{
-	double pre_sigmoid_activation = 0.0;
-
-	for(int j = 0; j < rbm->n_hidden; j++) pre_sigmoid_activation += rbm->W[j][i] * h[j];
-	pre_sigmoid_activation += b;
-
-	return sigmoid(pre_sigmoid_activation);
-}
-
 // This function infers state of hidden units given visible units
-void visible_state_to_hidden_probabilities (RBM* rbm, double* v0_sample, double* mean, double* sample)
+void visible_state_to_hidden_probabilities (RBM* rbm, double** v_sample, double*** h_mean, double*** h_sample)
 {
-	for(int i = 0; i < rbm->n_hidden; i++)
+	double size_of_hidden = sizeof(double) * rbm->n_hidden;
+	double temp_mean[rbm->n_hidden];
+	double temp_sample[rbm->n_hidden];
+	for(int i = 0; i < rbm->batch_size; i++)
 	{
-		mean[i] = RBM_propup(rbm, v0_sample, rbm->W[i], rbm->hbias[i]);
-		sample[i] = binomial(1, mean[i]);
+		memset(temp_mean, 0, size_of_hidden);
+		memset(temp_sample, 0, size_of_hidden);
+
+		for(int j = 0; j < rbm->n_visible; j++)
+			for(int k = 0; k < rbm->n_hidden; k++)
+				temp_mean[k] += v_sample[i][j] * rbm->W[j][k];
+		for(int j = 0; j < rbm->n_hidden; j++)
+		{
+			temp_mean[j] = sigmoid(temp_mean[j] + rbm->hbias[j]);
+			if (temp_mean[j] >= 0 && temp_mean[j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= temp_mean[j]) temp_sample[j] = 1;
+		}
+
+		memcpy((*h_mean)[i], temp_mean, size_of_hidden);
+		memcpy((*h_sample)[i], temp_sample, size_of_hidden);
 	}
+
 }
 
 // This function infers state of visible units given hidden units
-void hidden_state_to_visible_probabilities (RBM* rbm, double* h0_sample, double* mean, double* sample)
+void hidden_state_to_visible_probabilities (RBM* rbm, double** h_sample, double*** v_mean, double*** v_sample)
 {
-	for (int i = 0; i < rbm->n_visible; i++)
+	double size_of_visible = sizeof(double) * rbm->n_visible;
+	double temp_mean[rbm->n_visible];
+	double temp_sample[rbm->n_visible];
+	for(int i = 0; i < rbm->batch_size; i++)
 	{
-		mean[i] = RBM_propdown(rbm, h0_sample, i, rbm->vbias[i]);
-		sample[i] = binomial(1, mean[i]);
+		memset(temp_mean, 0, size_of_visible);
+		memset(temp_sample, 0, size_of_visible);
+
+		for(int j = 0; j < rbm->n_visible; j++)
+		{
+			for(int k = 0; k < rbm->n_hidden; k++)
+				temp_mean[j] += h_sample[i][k] * rbm->W[j][k];
+			temp_mean[j] = sigmoid(temp_mean[j] + rbm->vbias[j]);
+			if (temp_mean[j] >= 0 && temp_mean[j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= temp_mean[j]) temp_sample[j] = 1;
+		}
+
+		memcpy((*v_mean)[i], temp_mean, size_of_visible);
+		memcpy((*v_sample)[i], temp_sample, size_of_visible);
 	}
 }
 
@@ -208,60 +177,65 @@ void hidden_state_to_visible_probabilities (RBM* rbm, double* h0_sample, double*
 //   param lr       : learning rate used to train the RBM
 //   param momentum : value for momentum coefficient on learning
 //   param k        : number of Gibbs steps to do in CD-k
-double cdk_RBM (RBM* rbm, double* input, double lr, double momentum, int k)
+double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
 {
-	double* ph_mean = (double*) malloc(sizeof(double) * rbm->n_hidden);
-	double* ph_sample = (double*) malloc(sizeof(double) * rbm->n_hidden);
-	double* nv_means = (double*) malloc(sizeof(double) * rbm->n_visible);
-	double* nv_sample = (double*) malloc(sizeof(double) * rbm->n_visible);
-	double* nh_means = (double*) malloc(sizeof(double) * rbm->n_hidden);
-	double* nh_sample = (double*) malloc(sizeof(double) * rbm->n_hidden);
-
 	// compute positive phase (awake)
-	visible_state_to_hidden_probabilities (rbm, input, ph_mean, ph_sample);
+	double** ph_means = matrix_zeros(rbm->batch_size, rbm->n_hidden);
+	double** ph_sample = matrix_zeros(rbm->batch_size, rbm->n_hidden);
+	visible_state_to_hidden_probabilities (rbm, input, &ph_means, &ph_sample);
 
 	// perform negative phase (asleep)
-	for (int i = 0; i < rbm->n_hidden; i++) nh_sample[i] = ph_sample[i];
+	double** nv_means = matrix_zeros(rbm->batch_size, rbm->n_visible);
+	double** nv_sample = matrix_zeros(rbm->batch_size, rbm->n_visible);
+	double** nh_means = matrix_zeros(rbm->batch_size, rbm->n_hidden);
+	double** nh_sample = matrix_copy(ph_sample, rbm->batch_size, rbm->n_hidden);
 	for (int step = 0; step < k; step++)
 	{
-		hidden_state_to_visible_probabilities (rbm, nh_sample, nv_means, nv_sample);
-		visible_state_to_hidden_probabilities (rbm, nv_sample, nh_means, nh_sample);
+		hidden_state_to_visible_probabilities (rbm, nh_sample, &nv_means, &nv_sample);
+		visible_state_to_hidden_probabilities (rbm, nv_sample, &nh_means, &nh_sample);
 	}
 
-	// determine gradients on RMB: Delta_W, Delta_h
-	for (int i = 0; i < rbm->n_hidden; i++)
-	{
-		for(int j = 0; j < rbm->n_visible; j++)
-		{
-			double delta = (ph_mean[i] * input[j] - nh_means[i] * nv_sample[j]) / rbm->N;
-			rbm->vel_W[i][j] = rbm->vel_W[i][j] * momentum + lr * delta;
-			rbm->W[i][j] += rbm->vel_W[i][j];
-		}
-		double delta = (ph_sample[i] - nh_means[i]) / rbm->N;
-		rbm->vel_h[i] = rbm->vel_h[i] * momentum + lr * delta;
-		rbm->hbias[i] += rbm->vel_h[i];
-	}
+	// applies gradients on RBM: Delta_W, Delta_h, Delta_v
+	double** delta_W = delta_function_1(input, ph_means, nv_sample, nh_means, rbm->n_visible, rbm->batch_size, rbm->n_hidden);
+	double* delta_h = delta_function_2(ph_means, nh_means, rbm->batch_size, rbm->n_visible);
+	double* delta_v = delta_function_2(input, nv_sample, rbm->batch_size, rbm->n_visible);
 
-	// determine gradients on RMB: Delta_v
+	double ratio = lr / rbm->batch_size;
+
 	for(int i = 0; i < rbm->n_visible; i++)
 	{
-		double delta = (input[i] - nv_sample[i]) / rbm->N;
-		rbm->vel_v[i] = rbm->vel_v[i] * momentum + lr * delta;
+		for(int j = 0; j < rbm->n_hidden; j++)
+		{
+			rbm->vel_W[i][j] = rbm->vel_W[i][j] * momentum + delta_W[i][j] * ratio;
+			rbm->W[i][j] += rbm->vel_W[i][j];
+		}
+		rbm->vel_v[i] = rbm->vel_v[i] * momentum + delta_v[i] * ratio;
 		rbm->vbias[i] += rbm->vel_v[i];
+	}
+
+	for(int i = 0; i < rbm->n_hidden; i++)
+	{
+		rbm->vel_h[i] = rbm->vel_h[i] * momentum + delta_h[i] * ratio;
+		rbm->hbias[i] += rbm->vel_h[i];
 	}
 
 	// approximation to the reconstruction error: sum over dimensions, mean over cases
 	double recon = 0;
-	for (int i = 0; i < rbm->n_visible; i++)
-		recon += pow(input[i] - nv_means[i], 2);
-	recon /= rbm->n_visible;
+	for(int i = 0; i < rbm->batch_size; i++)
+		for(int j = 0; j < rbm->n_visible; j++)
+			recon += pow(input[i][j] - nv_means[i][j],2);
+	recon /= rbm->batch_size;
 
-	free(ph_mean);
-	free(ph_sample);
-	free(nv_means);
-	free(nv_sample);
-	free(nh_means);
-	free(nh_sample);
+	matrix_free(ph_means, rbm->batch_size);
+	matrix_free(ph_sample, rbm->batch_size);
+	matrix_free(nv_means, rbm->batch_size);
+	matrix_free(nv_sample, rbm->batch_size);
+	matrix_free(nh_means, rbm->batch_size);
+	matrix_free(nh_sample, rbm->batch_size);
+
+	matrix_free(delta_W, rbm->n_visible);
+	free(delta_v);
+	free(delta_h);
 
 	return recon;
 }
@@ -283,8 +257,6 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 {
 	srand(rand_seed);
 
-	batch_size = 1; //FIXME - At this time, one input at a time
-
 	int n_train_batches = nrow / batch_size;
 	int n_visible = ncol;
 
@@ -292,7 +264,7 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 	int* permindex = shuffle(nrow);
 
 	// construct RBM
-	create_RBM (rbm, nrow, n_visible, n_hidden, NULL, NULL, NULL);
+	create_RBM (rbm, nrow, n_visible, n_hidden, batch_size, NULL, NULL, NULL);
 
 	// go through the training epochs and training set
 	double mean_cost;
@@ -306,26 +278,19 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 
 			if (idx_aux_fin >= nrow) break;
 
-		/*	double input[batch_size][ncol];
-			int p = 0;
-			for (int i = idx_aux_ini; i < idx_aux_fin; i++)
+			double** input = (double**) malloc(sizeof(double*) * batch_size);
+			for (int i = 0; i < batch_size; i++)
 			{
-				int index = permindex[i];
-				for (int j = 0; j < ncol; j++)
-					input[p][j] = batchdata[index][j];
-				p++;
-			} */
+				int index = permindex[i + idx_aux_ini];
 
-			double* input = (double*) malloc(sizeof(double) * ncol);
-			int index = permindex[batch_index];
-
-			for (int j = 0; j < ncol; j++)
-				input[j] = batchdata[index][j];
+				input[i] = (double*) malloc(sizeof(double) * ncol);
+				memcpy(input[i], batchdata[index], sizeof(double) * ncol);
+			}
 
 			// get the cost and the gradient corresponding to one step of CD-k
 			mean_cost += cdk_RBM (rbm, input, learning_rate, momentum, 1);
 
-			free(input);
+			matrix_free(input, batch_size);
 		}
 		mean_cost /= batch_size;
 		if (epoch % 100 == 0) printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
@@ -341,12 +306,16 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 /*---------------------------------------------------------------------------*/
 
 // This function computes the activation of Vector V
-//   param v : vector to predict
+//   param v       : vector to predict
 double* activation_vector_RBM (RBM* rbm, double* v)
 {
 	double* activation = (double*) malloc(sizeof(double) * rbm->n_hidden);
 	for (int i = 0; i < rbm->n_hidden; i++)
-		activation[i] = RBM_propup(rbm, v, rbm->W[i], rbm->hbias[i]);
+	{
+		double pre_sigmoid_activation = rbm->hbias[i];
+		for(int j = 0; j < rbm->n_visible; j++) pre_sigmoid_activation += rbm->W[j][i] * v[j];
+		activation[i] = sigmoid(pre_sigmoid_activation);
+	}
 	return activation;
 }
 
@@ -362,13 +331,15 @@ double** activation_RBM (RBM* rbm, double** v, int nrow)
 
 // This function makes a reconstruction of Vector V
 //   param v : vector to reconstruct
-double* reconstruct_vector_RBM (RBM* rbm, double* v)
+double* reconstruct_vector_RBM (RBM* rbm, double* h)
 {
 	double* reconstructed = (double*) malloc(sizeof(double) * rbm->n_visible);
-	double* h = activation_vector_RBM (rbm, v);
 	for (int i = 0; i < rbm->n_visible; i++)
-		reconstructed[i] = RBM_propdown(rbm, h, i, rbm->vbias[i]);
-	free(h);
+	{
+		double pre_sigmoid_activation = rbm->vbias[i];
+		for(int j = 0; j < rbm->n_hidden; j++) pre_sigmoid_activation += rbm->W[i][j] * h[j];
+		reconstructed[i] = sigmoid(pre_sigmoid_activation);
+	}
 	return reconstructed;
 }
 
@@ -378,7 +349,11 @@ double** reconstruct_RBM (RBM* rbm, double** v, int nrow)
 {
 	double** reconstruct = (double**) malloc(sizeof(double) * nrow);
 	for (int i = 0; i < nrow; i++)
-		reconstruct[i] = reconstruct_vector_RBM(rbm, v[i]);
+	{
+		double* h = activation_vector_RBM (rbm, v[i]);
+		reconstruct[i] = reconstruct_vector_RBM(rbm, h);
+		free(h);
+	}
 	return reconstruct;
 }
 
@@ -427,27 +402,27 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	SET_VECTOR_ELT(retval, 2, allocVector(INTSXP, 1));
 	INTEGER(VECTOR_ELT(retval, 2))[0] = rbm.n_hidden;
 
-	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, nhid, ncol));
-	SET_VECTOR_ELT(retval, 4, allocVector(REALSXP, nhid));
-	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nhid, ncol));
-	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, nhid));
-	for (int i = 0; i < nhid; i++)
-	{
-		for (int j = 0; j < ncol; j++)
-		{
-			REAL(VECTOR_ELT(retval, 3))[i * ncol + j] = rbm.W[i][j];
-			REAL(VECTOR_ELT(retval, 6))[i * ncol + j] = rbm.vel_W[i][j];
-		}
-		REAL(VECTOR_ELT(retval, 4))[i] = rbm.hbias[i];
-		REAL(VECTOR_ELT(retval, 7))[i] = rbm.vel_h[i];
-	}
-
+	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, ncol, nhid));
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, ncol));
+	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, ncol, nhid));
 	SET_VECTOR_ELT(retval, 8, allocVector(REALSXP, ncol));
 	for (int i = 0; i < ncol; i++)
 	{
+		for (int j = 0; j < nhid; j++)
+		{
+			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = rbm.W[i][j];
+			REAL(VECTOR_ELT(retval, 6))[i * nhid + j] = rbm.vel_W[i][j];
+		}
 		REAL(VECTOR_ELT(retval, 5))[i] = rbm.vbias[i];
 		REAL(VECTOR_ELT(retval, 8))[i] = rbm.vel_v[i];
+	}
+
+	SET_VECTOR_ELT(retval, 4, allocVector(REALSXP, nhid));
+	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, nhid));
+	for (int i = 0; i < nhid; i++)
+	{
+		REAL(VECTOR_ELT(retval, 4))[i] = rbm.hbias[i];
+		REAL(VECTOR_ELT(retval, 7))[i] = rbm.vel_h[i];
 	}
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 9));
@@ -465,9 +440,7 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	UNPROTECT(2);
 
 	// Free Dataset Structure
-	for (int i = 0; i < nrow; i++) free(train_X_p[i]);
-	free(train_X_p);
-
+	matrix_free(train_X_p, nrow);
 	free_RBM(&rbm);
 
 	return retval;
@@ -499,7 +472,7 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	for (int i = 0; i < ncol; i++) vbias[i] = RVECTOR(vbias_input,i);
 
 	RBM rbm;
-	create_RBM (&rbm, 0, ncol, nhid, W, hbias, vbias);
+	create_RBM (&rbm, 0, ncol, nhid, 1, W, hbias, vbias);
 
 	// Prepare Test Dataset
 	double** test_X_p = malloc(sizeof(double*) * nrow);
@@ -509,6 +482,8 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 		for (int j = 0; j < ncol; j++) test_X_p[i][j] = RMATRIX(newdata,i,j);
 	}
 
+
+
 	// Pass through RBM
 	double** reconstruct_p = reconstruct_RBM(&rbm, test_X_p, nrow);
 	double** activation_p = activation_RBM(&rbm, test_X_p, nrow);
@@ -517,7 +492,7 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	SEXP retval = PROTECT(allocVector(VECSXP, 2));
 
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
-	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nhid, ncol));
+	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
 	for (int i = 0; i < nrow; i++)
 	{
 		for (int j = 0; j < ncol; j++)
@@ -538,9 +513,7 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	UNPROTECT(2);
 
 	// Free the structures and the RBM
-	for (int i = 0; i < nrow; i++) free(test_X_p[i]);
-	free(test_X_p);
-
+	matrix_free(test_X_p, nrow);
 	free_RBM(&rbm);
 
 	return retval;

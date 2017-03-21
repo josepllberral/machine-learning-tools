@@ -61,29 +61,35 @@ double sigmoid (double x)
 // This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
 double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
 {
-	double size_of_bcol = sizeof(double) * bcol;
+	double temp[acol][bcol];
+	memset(temp, 0, sizeof(double) * acol * bcol);
+	for(int i = 0; i < arow; i++)
+		for(int j = 0; j < acol; j++)
+			for(int k = 0; k < bcol; k++)
+				temp[j][k] += A1[i][j] * A2[i][k] - B1[i][j] * B2[i][k];
 
+	int size_of_bcol = sizeof(double) * bcol;
 	double** delta = (double**) malloc(sizeof(double*) * acol);
 	for(int j = 0; j < acol; j++)
 	{
 		delta[j] = (double*) malloc(size_of_bcol);
-		memset(delta[j], 0, size_of_bcol);
+		memcpy(delta[j], temp[j], size_of_bcol);
 	}
-
-	for(int i = 0; i < arow; i++)
-		for(int j = 0; j < acol; j++)
-			for(int k = 0; k < bcol; k++)
-				delta[j][k] += A1[i][j] * A2[i][k] - B1[i][j] * B2[i][k];
 	return delta;
 }
 
 // This function implements the operation: colmeans(A - B)
 double* delta_function_2(double** A, double** B, int nrow, int ncol)
 {
-	double* delta = (double*) malloc(sizeof(double) * ncol);
-	memset(delta, 0, sizeof(double) * ncol);
+	double temp[ncol];
+	memset(temp, 0, sizeof(double) * ncol);
 	for(int i = 0; i < nrow; i++)
-		for(int j = 0; j < ncol; j++) delta[j] += A[i][j] - B[i][j];
+		for(int j = 0; j < ncol; j++)
+			temp[j] += A[i][j] - B[i][j];
+
+	double* delta = (double*) malloc(sizeof(double) * ncol);
+	memcpy(delta, temp, sizeof(double) * ncol);
+
 	return delta;
 }
 
@@ -155,23 +161,27 @@ void free_CRBM (CRBM* crbm)
 void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, double** v_history, double*** h_mean, double*** h_sample)
 {
 	double size_of_hidden = sizeof(double) * crbm->n_hidden;
-
+	double temp_mean[crbm->n_hidden];
+	double temp_sample[crbm->n_hidden];
 	for(int i = 0; i < crbm->batch_size; i++)
 	{
-		memset((*h_mean)[i], 0, size_of_hidden);		
-		memset((*h_sample)[i], 0, size_of_hidden);
+		memset(temp_mean, 0, size_of_hidden);
+		memset(temp_sample, 0, size_of_hidden);
 
 		for(int j = 0; j < crbm->n_visible; j++)
 			for(int k = 0; k < crbm->n_hidden; k++)
-				(*h_mean)[i][k] += v_sample[i][j] * crbm->W[j][k];
+				temp_mean[k] += v_sample[i][j] * crbm->W[j][k];
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++)
 			for(int k = 0; k < crbm->n_hidden; k++)
-				(*h_mean)[i][k] += v_history[i][j] * crbm->B[j][k];
+				temp_mean[k] += v_history[i][j] * crbm->B[j][k];
 		for(int j = 0; j < crbm->n_hidden; j++)
 		{
-			(*h_mean)[i][j] = sigmoid((*h_mean)[i][j] + crbm->hbias[j]);
-			if ((*h_mean)[i][j] >= 0 && (*h_mean)[i][j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= (*h_mean)[i][j]) (*h_sample)[i][j] = 1;
+			temp_mean[j] = sigmoid(temp_mean[j] + crbm->hbias[j]);
+			if (temp_mean[j] >= 0 && temp_mean[j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= temp_mean[j]) temp_sample[j] = 1;
 		}
+
+		memcpy((*h_mean)[i], temp_mean, size_of_hidden);
+		memcpy((*h_sample)[i], temp_sample, size_of_hidden);
 	}
 }
 
@@ -187,21 +197,23 @@ void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, doubl
 void hidden_state_to_visible_probabilities (CRBM* crbm, double** h_sample, double** v_history, double*** v_mean, double*** v_sample)
 {
 	double size_of_visible = sizeof(double) * crbm->n_visible;
-
+	double temp_mean[crbm->n_visible];
 	for(int i = 0; i < crbm->batch_size; i++)
 	{
-		memset((*v_mean)[i], 0, size_of_visible);
-		
+		memset(temp_mean, 0, size_of_visible);
+
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++)
 			for(int k = 0; k < crbm->n_visible; k++)
-				(*v_mean)[i][k] += v_history[i][j] * crbm->A[j][k];
+				temp_mean[k] += v_history[i][j] * crbm->A[j][k];
 		for(int j = 0; j < crbm->n_visible; j++)
 		{
 			for(int k = 0; k < crbm->n_hidden; k++)
-				(*v_mean)[i][j] += h_sample[i][k] * crbm->W[j][k];
-			(*v_mean)[i][j] += crbm->vbias[j];
-			(*v_sample)[i][j] = (*v_mean)[i][j];
+				temp_mean[j] += h_sample[i][k] * crbm->W[j][k];
+			temp_mean[j] += crbm->vbias[j];
 		}
+
+		memcpy((*v_mean)[i], temp_mean, size_of_visible);
+		memcpy((*v_sample)[i], temp_mean, size_of_visible);
 	}
 }
 
@@ -358,8 +370,9 @@ void train_crbm (CRBM* crbm, double** batchdata, int* seqlen, int nseq,
 			for (int i = 0; i < batch_size; i++)
 			{
 				int index = permindex[i + idx_aux_ini];
+
 				input[i] = (double*) malloc(sizeof(double) * ncol);
-				for (int j = 0; j < ncol; j++) input[i][j] = batchdata[index][j];
+				memcpy(input[i], batchdata[index], sizeof(double) * ncol);
 
 				input_hist[i] = (double*) malloc(sizeof(double) * ncol * delay);
 				for (int d = 0; d < delay; d++)
@@ -400,7 +413,7 @@ double* activation_vector_CRBM (CRBM* crbm, double* v, double* v_hist)
 		double pre_sigmoid_activation = crbm->hbias[i];
 		for(int j = 0; j < crbm->n_visible; j++) pre_sigmoid_activation += crbm->W[j][i] * v[j];
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->B[j][i] * v_hist[j];
-		activation[i] = 1.0 / (1.0 + exp(pre_sigmoid_activation));
+		activation[i] = sigmoid(pre_sigmoid_activation);
 	}
 	return activation;
 }
@@ -435,7 +448,7 @@ double* reconstruct_vector_CRBM (CRBM* crbm, double* h, double* v_hist)
 		double pre_sigmoid_activation = crbm->vbias[i];
 		for(int j = 0; j < crbm->n_hidden; j++) pre_sigmoid_activation += crbm->W[i][j] * h[j];
 		for(int j = 0; j < crbm->n_visible * crbm->delay; j++) pre_sigmoid_activation += crbm->A[j][i] * v_hist[j];
-		reconstructed[i] = 1.0 / (1.0 + exp(pre_sigmoid_activation));
+		reconstructed[i] = sigmoid(pre_sigmoid_activation);
 	}
 	return reconstructed;
 }
@@ -470,6 +483,46 @@ double** generate_samples(CRBM* crbm, double** orig_data, double** orig_hist,
 	int n_samples, int n_gibbs)
 {
 	// TODO - ...
+
+//---------------------------------
+/*
+	n_seq <- nrow(orig_data);
+
+	persistent_vis_chain <<- orig_data;
+	persistent_history <<- orig_history;
+
+        # construct the function that implements our persistent chain.
+	sample_fn <- function(crbm, n_gibbs)
+	{
+		vis_sample <- persistent_vis_chain;
+		v_history <- persistent_history;
+
+		vis_mf <- NULL;
+		for (k in 1:n_gibbs)
+		{
+			hid <- sample_h_given_v_crbm(crbm, vis_sample, v_history);
+			vis <- sample_v_given_h_crbm(crbm, hid[["sample"]], v_history);
+
+			vis_mf <- vis[["mean"]];
+			vis_sample <- vis[["sample"]];
+		}
+
+		# add to updates the shared variable that takes care of our persistent chain
+		persistent_vis_chain <<- vis_sample;
+		persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible)]);
+
+		vis_mf;
+	}
+
+	generated_series <- array(0,c(n_seq, n_samples, crbm$n_visible));
+	for (t in 1:n_samples)
+	{
+		#if (t %% 10 == 1) print(paste("Generating frame ", t, " to ", min(t+9, n_samples), sep = ""));
+		generated_series[,t,] <- sample_fn(crbm, n_gibbs);
+	}
+	generated_series;
+*/
+//---------------------------------
 }
 
 /*---------------------------------------------------------------------------*/
@@ -589,16 +642,14 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
 	UNPROTECT(2);
 
 	// Free Dataset Structure
-	for (int i = 0; i < nrow; i++) free(train_X_p[i]);
-	free(train_X_p);
+	matrix_free(train_X_P, nrow);
 	free(seq_len_p);
-
 	free_CRBM(&crbm);
 
 	return retval;
 }
 
-// Interface for Predicting and Reconstructing using an RBM
+// Interface for Predicting and Reconstructing using a CRBM
 SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
 {
@@ -618,7 +669,7 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
  	int arow = INTEGER(GET_DIM(A_input))[0];
  	int acol = INTEGER(GET_DIM(A_input))[1];
 
-	// Re-assemble the RBM
+	// Re-assemble the CRBM
 	double** W = malloc(sizeof(double*) * wrow);
 	for (int i = 0; i < wrow; i++)
 	{
@@ -689,10 +740,8 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	setAttrib(retval, R_NamesSymbol, nms);
 	UNPROTECT(2);
 
-	// Free the structures and the RBM
-	for (int i = 0; i < nrow; i++) free(test_X_p[i]);
-	free(test_X_p);
-
+	// Free the structures and the CRBM
+	matrix_free(test_X_P, nrow);
 	free_CRBM(&crbm);
 
 	return retval;

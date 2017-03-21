@@ -14,8 +14,7 @@ double** matrix_product (double** A, double** B, int arow, int common, int bcol)
 	double** C = (double**) malloc(sizeof(double*) * arow);
 	for (int a = 0; a < arow; a++)
 	{
-		C[a] = (double*) malloc(sizeof(double) * bcol);
-		memset(C[a], 0, sizeof(double) * bcol);
+		C[a] = (double*) calloc(bcol, sizeof(double));
 		for (int b = 0; b < common; b++)
 			for (int c = 0; c < bcol; c++)
 				C[a][c] += A[a][b] * B[b][c];
@@ -33,7 +32,8 @@ double** matrix_summat (double** A, double** B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] + B[a][b];
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] + B[a][b];
 	}
 	return C;
 }
@@ -48,7 +48,8 @@ double** matrix_subtract (double** A, double** B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] - B[a][b];
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] - B[a][b];
 	}
 	return C;
 }
@@ -56,15 +57,16 @@ double** matrix_subtract (double** A, double** B, int nrow, int ncol)
 // Function for Matrix Sum with Vector
 //   param A      : Matrix to Sum (pointer)
 //   param B      : Vector to Sum (pointer)
-//   param nrow   : 1st dimension of A
-//   param ncol   : 2nd dimension of A and length of B
+//   param nrow   : 1st dimension of A and length of B
+//   param ncol   : 2nd dimension of A
 double** matrix_sumvec (double** A, double* B, int nrow, int ncol)
 {
 	double** C = (double**) malloc(sizeof(double*) * nrow);
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] + B[b]; //FIXME
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] + B[a];
 	}
 	return C;
 }
@@ -80,7 +82,8 @@ double** matrix_subtractvec (double** A, double* B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] - B[a];
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] - B[a];
 	}
 	return C;
 }
@@ -96,7 +99,8 @@ double** matrix_scale (double** A, double B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] * B;
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] * B;
 	}
 	return C;
 }
@@ -112,7 +116,8 @@ double** matrix_addition (double** A, double B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		C[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) C[a][b] = A[a][b] + B;
+		for (int b = 0; b < ncol; b++)
+			C[a][b] = A[a][b] + B;
 	}
 	return C;
 }
@@ -127,7 +132,8 @@ double** matrix_sigma (double** A, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		S[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) S[a][b] = 1.0 / (1.0 + exp(A[a][b]));
+		for (int b = 0; b < ncol; b++)
+			S[a][b] = 1.0 / (1.0 + exp(A[a][b]));
 	}
 	return S;
 }
@@ -141,8 +147,7 @@ double** matrix_bernoulli (double** A, int nrow, int ncol)
 	double** B = (double**) malloc(sizeof(double*) * nrow);
 	for (int a = 0; a < nrow; a++)
 	{
-		B[a] = (double*) malloc(sizeof(double) * ncol);
-		memset(B[a], 0, sizeof(double) * ncol);
+		B[a] = (double*) calloc(ncol, sizeof(double));
 		for (int b = 0; b < ncol; b++)
 			if (A[a][b] >= 0 && A[a][b] <= 1 && (rand() / (RAND_MAX + 1.0)) <= A[a][b])
 				B[a][b] = 1;
@@ -160,11 +165,11 @@ double** matrix_sqdiff (double** A, double** B, int nrow, int ncol)
 	for (int a = 0; a < nrow; a++)
 	{
 		S[a] = (double*) malloc(sizeof(double) * ncol);
-		for (int b = 0; b < ncol; b++) S[a][b] = pow(A[a][b] - B[a][b], 2);
+		for (int b = 0; b < ncol; b++)
+			S[a][b] = pow(A[a][b] - B[a][b], 2);
 	}
 	return S;
 }
-
 
 // Function for Sum Rows of a Matrix
 //   param A      : Target Matrix (pointer)
@@ -172,10 +177,10 @@ double** matrix_sqdiff (double** A, double** B, int nrow, int ncol)
 //   param ncol   : 2nd dimension of A
 double* matrix_sumrows (double** A, int nrow, int ncol)
 {
-	double* S = (double*) malloc(sizeof(double) * nrow);
-	memset(S, 0, sizeof(double) * nrow);
+	double* S = (double*) calloc(nrow, sizeof(double));
 	for (int a = 0; a < nrow; a++)
-		for (int b = 0; b < ncol; b++) S[a] += A[a][b];
+		for (int b = 0; b < ncol; b++)
+			S[a] += A[a][b];
 	return S;
 }
 
@@ -185,8 +190,7 @@ double* matrix_sumrows (double** A, int nrow, int ncol)
 //   param ncol   : 2nd dimension of A
 double* matrix_sumcols (double** A, int nrow, int ncol)
 {
-	double* S = (double*) malloc(sizeof(double) * ncol);
-	memset(S, 0, sizeof(double) * ncol);
+	double* S = (double*) calloc(ncol, sizeof(double));
 	for (int a = 0; a < nrow; a++)
 		for (int b = 0; b < ncol; b++)
 			S[b] += A[a][b];
@@ -199,12 +203,9 @@ double* matrix_sumcols (double** A, int nrow, int ncol)
 //   param ncol   : 2nd dimension of A
 double* matrix_meancols (double** A, int nrow, int ncol)
 {
-	double* S = (double*) malloc(sizeof(double) * ncol);
-	memset(S, 0, sizeof(double) * ncol);
-	for (int a = 0; a < nrow; a++)
-		for (int b = 0; b < ncol; b++)
-			S[b] += A[a][b];
-	for (int b = 0; b < ncol; b++) S[b] = S[b] / nrow;
+	double* S = matrix_sumcols(A, nrow, ncol);
+	for (int b = 0; b < ncol; b++)
+		S[b] = S[b] / nrow;
 	return S;
 }
 
@@ -215,18 +216,22 @@ double* matrix_meancols (double** A, int nrow, int ncol)
 //   param stdev  : Standard Deviation for Distribution
 double** matrix_normal(int nrow, int ncol, double mean, double stdev, double scale)
 {
+	int size_of_ncol = sizeof(double) * ncol;
+	double temp[ncol];
+
 	double** N = (double**) malloc(sizeof(double*) * nrow);
 	for (int i = 0; i < nrow; i++)
 	{
-		N[i] = (double*) malloc(sizeof(double) * ncol);
+		memset(temp, 0, size_of_ncol);
 		for (int j = 0; j < ncol; j++)
 		{
 			double rnd1 = (double) rand() / RAND_MAX;
 			double rnd2 = (double) rand() / RAND_MAX;
 			double rnum = mean + sqrt(-2 * log(rnd1)) * cos( 2 * M_PI * rnd2) * stdev;
-
-			N[i][j] =  rnum * scale;
+			temp[j] =  rnum * scale;
 		}
+		N[i] = (double*) malloc(size_of_ncol);
+		memcpy(N[i], temp, size_of_ncol);
 	}
 	return N;
 }
@@ -238,10 +243,7 @@ double** matrix_zeros (int nrow, int ncol)
 {
 	double** Z = (double**) malloc(sizeof(double*) * nrow);
 	for (int i = 0; i < nrow; i++)
-	{
-		Z[i] = (double*) malloc(sizeof(double) * ncol);
-		memset(Z[i], 0, sizeof(double) * ncol);
-	}
+		Z[i] = (double*) calloc(ncol, sizeof(double));
 	return Z;
 }
 
@@ -270,7 +272,7 @@ double** matrix_copy (double** A, int nrow, int ncol)
 	for (int i = 0; i < nrow; i++)
 	{
 		C[i] = (double*) malloc(sizeof(double) * ncol);
-		for (int j = 0; j < ncol; j++) C[i][j] = A[i][j];
+		memcpy(C[i], A[i], sizeof(double) * ncol);
 	}
 	return C;
 }
@@ -317,8 +319,7 @@ double* vector_sumvec (double* A, double* B, int npos)
 //   param npos   : Length of new Vector
 double* vector_zeros (int npos)
 {
-	double* V = (double*) malloc(sizeof(double) * npos);
-	memset(V, 0, sizeof(double) * npos);
+	double* V = (double*) calloc(npos, sizeof(double));
 	return V;
 }
 

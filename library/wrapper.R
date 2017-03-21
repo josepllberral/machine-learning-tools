@@ -2,7 +2,7 @@
 # Wrapper functions for RBM library                                           #
 ###############################################################################
 
-dyn.load("rbm.so");
+dyn.load("library/rbm.so");
 
 ## Function to Train a RBM. Returns a RBM in list form
 train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
