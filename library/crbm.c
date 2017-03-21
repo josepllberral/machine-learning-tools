@@ -478,51 +478,56 @@ double** reconstruct_CRBM (CRBM* crbm, double** v, int nrow)
 /* FORECAST AND SIMULATION USING THE CRBM                                    */
 /*---------------------------------------------------------------------------*/
 
-//   param n_gibbs : number of gibbs iterations
-double** generate_samples(CRBM* crbm, double** orig_data, double** orig_hist,
-	int n_samples, int n_gibbs)
+// Construct the function that implements our persistent chain
+double** sample_fn(CRBM* crbm, int n_gibbs, double*** vis_sample, double*** v_history)
 {
-	// TODO - ...
-
-//---------------------------------
-/*
-	n_seq <- nrow(orig_data);
-
-	persistent_vis_chain <<- orig_data;
-	persistent_history <<- orig_history;
-
-        # construct the function that implements our persistent chain.
-	sample_fn <- function(crbm, n_gibbs)
+	double** nv_means = matrix_zeros(1, crbm->n_visible);
+	double** nv_sample = matrix_copy((*vis_sample), 1, crbm->n_visible);
+	double** nh_means = matrix_zeros(1, crbm->n_hidden);
+	double** nh_sample = matrix_zeros(1, crbm->n_hidden);
+	for(int k = 0; k < n_gibbs; k++)
 	{
-		vis_sample <- persistent_vis_chain;
-		v_history <- persistent_history;
-
-		vis_mf <- NULL;
-		for (k in 1:n_gibbs)
-		{
-			hid <- sample_h_given_v_crbm(crbm, vis_sample, v_history);
-			vis <- sample_v_given_h_crbm(crbm, hid[["sample"]], v_history);
-
-			vis_mf <- vis[["mean"]];
-			vis_sample <- vis[["sample"]];
-		}
-
-		# add to updates the shared variable that takes care of our persistent chain
-		persistent_vis_chain <<- vis_sample;
-		persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible)]);
-
-		vis_mf;
+		visible_state_to_hidden_probabilities (crbm, nv_sample, (*v_history), &nh_means, &nh_sample);
+		hidden_state_to_visible_probabilities (crbm, nh_sample, (*v_history), &nv_means, &nv_sample);
 	}
 
-	generated_series <- array(0,c(n_seq, n_samples, crbm$n_visible));
-	for (t in 1:n_samples)
+	// Add to updates the shared variable that takes care of our persistent chain
+	matrix_free((*vis_sample), 1);
+	(*vis_sample) = nv_sample;
+
+	//TODO - persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible)]);
+
+	matrix_free(nh_means, crbm->n_hidden);
+	matrix_free(nh_sample, crbm->n_hidden);
+
+	return nv_means;
+}
+
+// Function to reproduce N samples from a time serie, given an input data and its history
+//   param n_samples : number of samples to be simulated
+//   param n_gibbs   : number of gibbs iterations
+double*** generate_samples(CRBM* crbm, double** orig_data, double** orig_hist,
+	int n_seq, int n_samples, int n_gibbs)
+{
+	double** p_vis_chain = matrix_copy(orig_data, n_seq, crbm->n_visible);
+	double** p_history = matrix_copy(orig_hist, n_seq, crbm->n_visible);
+
+	double*** generated_series = (double***) malloc(sizeof(double**) * n_seq);
+	for (int i = 0; i < n_seq; i++)
 	{
-		#if (t %% 10 == 1) print(paste("Generating frame ", t, " to ", min(t+9, n_samples), sep = ""));
-		generated_series[,t,] <- sample_fn(crbm, n_gibbs);
+		generated_series[i] = (double**) malloc(sizeof(double*) * n_samples);
+		for (int j = 0; j < n_samples; j++)
+			generated_series[i][j] = (double*) calloc(crbm->n_visible, sizeof(double));
 	}
-	generated_series;
-*/
-//---------------------------------
+
+	// FIXME - ALERT - Exchanged dimensions respect the R implementation: gen_series[,t,] <- sample_fn()
+	for (int t = 0; t < n_samples; t++)
+		generated_series[t] = sample_fn(crbm, n_gibbs, &p_vis_chain, &p_history); 
+
+	matrix_free(p_vis_chain, n_seq);
+	matrix_free(p_history, n_seq);
+
+	return generated_series;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -642,7 +647,7 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
 	UNPROTECT(2);
 
 	// Free Dataset Structure
-	matrix_free(train_X_P, nrow);
+	matrix_free(train_X_p, nrow);
 	free(seq_len_p);
 	free_CRBM(&crbm);
 
@@ -741,7 +746,7 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	UNPROTECT(2);
 
 	// Free the structures and the CRBM
-	matrix_free(test_X_P, nrow);
+	matrix_free(test_X_p, nrow);
 	free_CRBM(&crbm);
 
 	return retval;
