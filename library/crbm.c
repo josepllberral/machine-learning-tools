@@ -479,12 +479,17 @@ double** reconstruct_CRBM (CRBM* crbm, double** v, int nrow)
 /*---------------------------------------------------------------------------*/
 
 // Construct the function that implements our persistent chain
-double** sample_fn(CRBM* crbm, int n_gibbs, double*** vis_sample, double*** v_history)
+double* sample_fn(CRBM* crbm, int n_gibbs, double** vis_sample, double*** v_history)
 {
+	int size_of_visible = sizeof(double) * crbm->n_visible;
+
 	double** nv_means = matrix_zeros(1, crbm->n_visible);
-	double** nv_sample = matrix_copy((*vis_sample), 1, crbm->n_visible);
+	double** nv_sample = matrix_zeros(1, crbm->n_visible);
 	double** nh_means = matrix_zeros(1, crbm->n_hidden);
 	double** nh_sample = matrix_zeros(1, crbm->n_hidden);
+
+	memcpy(nv_sample[0], *vis_sample, size_of_visible);
+
 	for(int k = 0; k < n_gibbs; k++)
 	{
 		visible_state_to_hidden_probabilities (crbm, nv_sample, (*v_history), &nh_means, &nh_sample);
@@ -492,40 +497,47 @@ double** sample_fn(CRBM* crbm, int n_gibbs, double*** vis_sample, double*** v_hi
 	}
 
 	// Add to updates the shared variable that takes care of our persistent chain
-	matrix_free((*vis_sample), 1);
-	(*vis_sample) = nv_sample;
+	memcpy(*vis_sample, nv_sample[0], crbm->n_visible);	
 
-	//TODO - persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible)]);
+	for (int j = crbm->delay - 1; j > 0; j--)
+		memcpy((*v_history)[j - 1], (*v_history)[j], size_of_visible);
+	memcpy((*v_history)[0], *vis_sample, size_of_visible);
 
-	matrix_free(nh_means, crbm->n_hidden);
-	matrix_free(nh_sample, crbm->n_hidden);
+	// Prepare results
+	double* retval = (double*) malloc(size_of_visible);
+	memcpy(retval, nv_means[0], size_of_visible);
 
-	return nv_means;
+	matrix_free(nh_means, 1);
+	matrix_free(nh_sample, 1);
+	matrix_free(nv_means, 1);
+	matrix_free(nv_sample, 1);
+
+	return retval;
 }
 
 // Function to reproduce N samples from a time serie, given an input data and its history
 //   param n_samples : number of samples to be simulated
 //   param n_gibbs   : number of gibbs iterations
-double*** generate_samples(CRBM* crbm, double** orig_data, double** orig_hist,
-	int n_seq, int n_samples, int n_gibbs)
+double** generate_samples(CRBM* crbm, double** sequence, int n_seq, int n_samples, int n_gibbs)
 {
-	double** p_vis_chain = matrix_copy(orig_data, n_seq, crbm->n_visible);
-	double** p_history = matrix_copy(orig_hist, n_seq, crbm->n_visible);
+	int size_of_visible = sizeof(double) * crbm->n_visible;
 
-	double*** generated_series = (double***) malloc(sizeof(double**) * n_seq);
-	for (int i = 0; i < n_seq; i++)
+	double* p_vis_chain = (double*) malloc(size_of_visible);
+	memcpy(p_vis_chain, sequence[0], size_of_visible);
+
+	double** p_history = (double**) malloc(sizeof(double*) * crbm->delay);
+	for (int j = 0; j < crbm->delay; j++)
 	{
-		generated_series[i] = (double**) malloc(sizeof(double*) * n_samples);
-		for (int j = 0; j < n_samples; j++)
-			generated_series[i][j] = (double*) calloc(crbm->n_visible, sizeof(double));
+		p_history[j] = (double*) malloc(size_of_visible);
+		memcpy(p_history[j], sequence[j+1], size_of_visible);
 	}
 
-	// FIXME - ALERT - Exchanged dimensions respect the R implementation: gen_series[,t,] <- sample_fn()
+	double** generated_series = (double**) malloc(sizeof(double*) * n_samples);
 	for (int t = 0; t < n_samples; t++)
 		generated_series[t] = sample_fn(crbm, n_gibbs, &p_vis_chain, &p_history); 
 
-	matrix_free(p_vis_chain, n_seq);
-	matrix_free(p_history, n_seq);
+	free(p_vis_chain);
+	matrix_free(p_history, crbm->delay);
 
 	return generated_series;
 }
@@ -654,27 +666,12 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
 	return retval;
 }
 
-// Interface for Predicting and Reconstructing using a CRBM
-SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
-	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
+// Function to Re-assemble the CRBM
+void reassemble_CRBM (CRBM* crbm, SEXP W_input, SEXP B_input, SEXP A_input,
+	SEXP hbias_input, SEXP vbias_input, SEXP delay, int wrow, int wcol,
+	int brow, int bcol, int arow, int acol, int nhid, int ncol, int nvis,
+	int dely)
 {
- 	int nrow = INTEGER(GET_DIM(newdata))[0];
- 	int ncol = INTEGER(GET_DIM(newdata))[1];
-
-	int nvis = INTEGER_VALUE(n_visible);
-	int nhid = INTEGER_VALUE(n_hidden);
-	int dely = INTEGER_VALUE(delay);
-
- 	int wrow = INTEGER(GET_DIM(W_input))[0];
- 	int wcol = INTEGER(GET_DIM(W_input))[1];
-
- 	int brow = INTEGER(GET_DIM(B_input))[0];
- 	int bcol = INTEGER(GET_DIM(B_input))[1];
-
- 	int arow = INTEGER(GET_DIM(A_input))[0];
- 	int acol = INTEGER(GET_DIM(A_input))[1];
-
-	// Re-assemble the CRBM
 	double** W = malloc(sizeof(double*) * wrow);
 	for (int i = 0; i < wrow; i++)
 	{
@@ -702,8 +699,33 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	double* vbias = malloc(sizeof(double) * ncol);
 	for (int i = 0; i < nvis; i++) vbias[i] = RVECTOR(vbias_input,i);
 
+	create_CRBM (crbm, 0, nvis, nhid, dely, 1, A, B, W, hbias, vbias);
+}
+
+// Interface for Predicting and Reconstructing using a CRBM
+SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
+	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
+{
+ 	int nrow = INTEGER(GET_DIM(newdata))[0];
+ 	int ncol = INTEGER(GET_DIM(newdata))[1];
+
+	int nvis = INTEGER_VALUE(n_visible);
+	int nhid = INTEGER_VALUE(n_hidden);
+	int dely = INTEGER_VALUE(delay);
+
+ 	int wrow = INTEGER(GET_DIM(W_input))[0];
+ 	int wcol = INTEGER(GET_DIM(W_input))[1];
+
+ 	int brow = INTEGER(GET_DIM(B_input))[0];
+ 	int bcol = INTEGER(GET_DIM(B_input))[1];
+
+ 	int arow = INTEGER(GET_DIM(A_input))[0];
+ 	int acol = INTEGER(GET_DIM(A_input))[1];
+
+	// Re-assemble the CRBM
 	CRBM crbm;
-	create_CRBM (&crbm, 0, nvis, nhid, dely, 1, A, B, W, hbias, vbias);
+	reassemble_CRBM (&crbm, W_input, B_input, A_input, hbias_input, vbias_input, delay,
+		wrow, wcol, brow, bcol, arow, acol, nhid, ncol, nvis, dely);
 
 	// Prepare Test Dataset
 	double** test_X_p = malloc(sizeof(double*) * nrow);
@@ -747,6 +769,71 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 
 	// Free the structures and the CRBM
 	matrix_free(test_X_p, nrow);
+	free_CRBM(&crbm);
+
+	return retval;
+}
+
+// Interface for Generating a Sequence using a CRBM
+SEXP _C_CRBM_generate_samples (SEXP newdata, SEXP n_visible, SEXP n_hidden,
+	SEXP W_input, SEXP B_input, SEXP A_input, SEXP hbias_input,
+	SEXP vbias_input, SEXP delay, SEXP n_samples, SEXP n_gibbs)
+{
+	int nrow = INTEGER(GET_DIM(newdata))[0];
+ 	int ncol = INTEGER(GET_DIM(newdata))[1];
+
+	int nvis = INTEGER_VALUE(n_visible);
+	int nhid = INTEGER_VALUE(n_hidden);
+	int dely = INTEGER_VALUE(delay);
+
+ 	int wrow = INTEGER(GET_DIM(W_input))[0];
+ 	int wcol = INTEGER(GET_DIM(W_input))[1];
+
+ 	int brow = INTEGER(GET_DIM(B_input))[0];
+ 	int bcol = INTEGER(GET_DIM(B_input))[1];
+
+ 	int arow = INTEGER(GET_DIM(A_input))[0];
+ 	int acol = INTEGER(GET_DIM(A_input))[1];
+
+	int nsamp = INTEGER_VALUE(n_samples);
+	int ngibb = INTEGER_VALUE(n_gibbs);
+
+	// Re-assemble the CRBM
+	CRBM crbm;
+	reassemble_CRBM (&crbm, W_input, B_input, A_input, hbias_input, vbias_input, delay,
+		wrow, wcol, brow, bcol, arow, acol, nhid, ncol, nvis, dely);
+
+	// Prepare Test Dataset
+	double** data_p = malloc(sizeof(double*) * nrow);
+	for (int i = 0; i < nrow; i++)
+	{
+		data_p[i] = malloc(sizeof(double) * ncol);
+		for (int j = 0; j < ncol; j++) data_p[i][j] = RMATRIX(newdata,i,j);
+	}
+
+	// Pass through CRBM
+	double** results = generate_samples(&crbm, data_p, nrow, nsamp, ngibb);
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocVector(VECSXP, 1));
+
+	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nsamp, ncol));
+	for (int i = 0; i < nsamp; i++)
+	{
+		for (int j = 0; j < ncol; j++)
+			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = results[i][j];
+		free(results[i]);
+	}
+	free(results);
+
+	SEXP nms = PROTECT(allocVector(STRSXP, 1));
+	SET_STRING_ELT(nms, 0, mkChar("generated"));
+
+	setAttrib(retval, R_NamesSymbol, nms);
+	UNPROTECT(2);
+
+	// Free the structures and the CRBM
+	matrix_free(data_p, nrow);
 	free_CRBM(&crbm);
 
 	return retval;

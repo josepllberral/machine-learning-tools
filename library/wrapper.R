@@ -112,27 +112,46 @@ predict.crbm <- function (crbm, newdata)
 		as.integer(crbm$delay));
 }
 
+## Given initialization(s) of visibles and matching history, generate n_samples in future.
+##	sequence  : n_seq by n_visibles array, sequence for first input and its history
+##	n_samples : int, number of samples to generate forward
+##	n_gibbs   : int, number of alternating Gibbs steps per iteration
+forecast.crbm <- function(crbm, sequence, n_samples, n_gibbs = 30)
+{
+	if (!"crbm" %in% class(crbm))
+	{
+		message("ERROR: input object is not a CRBM");
+		return(NULL);
+	}
+
+	if (crbm$delay + 1 > nrow(sequence))
+	{
+		message("ERROR: Delay is longer than sequence");
+		return(NULL);
+	}
+
+	if ("integer" %in% class(sequence[1,1]))
+	{
+		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		sequence <- t(apply(sequence, 1, as.numeric));
+	}
+
+	.Call("_C_CRBM_generate_samples", as.matrix(sequence), as.integer(crbm$n_visible),
+		as.integer(crbm$n_hidden), as.matrix(crbm$W), as.matrix(crbm$B),
+		as.matrix(crbm$A), as.numeric(crbm$hbias), as.numeric(crbm$vbias),
+		as.integer(crbm$delay), as.integer(n_samples), as.integer(n_gibbs));
+}
+
+
 testing.crbm <- function()
 {
 	dataset <- load_data('./datasets/motion.rds');
 
-#	start_time <- Sys.time();
 	crbm <- train.crbm (dataset$batchdata, dataset$seqlen, batch_size = 100, n_hidden = 100, delay = 6, training_epochs = 200, learning_rate = 1e-3, momentum = 0.5, rand_seed = 1234);
-#	crbm <- train_crbm (dataset, batch_size = 100, n_hidden = 100, delay = 6, training_epochs = 200, learning_rate = 1e-3, momentum = 0.5, rand_seed = 1234);
-#	end_time <- Sys.time();
-#	print(end_time - start_time)
 
-	res <- predict(crbm, dataset$batchdata);
-	res;
-}
+	res1 <- predict(crbm, dataset$batchdata);
+	res2 <- forecast.crbm(crbm, dataset$batchdata[1:(crbm$delay+1),], 50, 30);
 
-## Given initialization(s) of visibles and matching history, generate n_samples in future.
-##	orig_data : n_seq by n_visibles array, initialization for first frame
-##	orig_history : n_seq by delay * n_visibles array, delay-step history
-##	n_samples : int, number of samples to generate forward
-##	n_gibbs : int, number of alternating Gibbs steps per iteration
-forecast.crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30)
-{
-	#TODO - ...
+	list(predicted = res1, forecast = res2);
 }
 
