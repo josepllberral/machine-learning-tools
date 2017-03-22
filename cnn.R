@@ -161,26 +161,26 @@ NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 
 ## Adds padding to image
 cppFunction('
-NumericMatrix img_padding (NumericMatrix img, int pad_x, int pad_y)
+NumericMatrix img_padding (NumericMatrix img, int pad_y, int pad_x)
 {
-	NumericMatrix out (img.nrow() + 2 * pad_x, img.ncol() + 2 * pad_y);
-	for(int i = pad_x; i < img.nrow() - pad_x; i++)
-		for(int j = pad_y; j < img.ncol() - pad_y; j++)
-			out(i,j) = img(i - pad_x, j - pad_y);
+	NumericMatrix out (img.nrow() + 2 * pad_y, img.ncol() + 2 * pad_x);
+	for(int i = pad_y; i < img.nrow() - pad_y; i++)
+		for(int j = pad_x; j < img.ncol() - pad_x; j++)
+			out(i,j) = img(i - pad_y, j - pad_x);
 	return out;
 }
 ')
 
 ## Image Padding - Old Version in "Native R"
-#img_padding <- function(img, pad_x, pad_y)
+#img_padding <- function(img, pad_y, pad_x)
 #{
 #	dims <- dim(img);
-#	imgs_pad <- array(0, c(dims[1] + 2 * pad_x, dims[2] + 2 * pad_y));
+#	imgs_pad <- array(0, c(dims[1] + 2 * pad_y, dims[2] + 2 * pad_x));
 #
-#	aux <- cbind(img, array(0, c(nrow(img), pad_x)));
-#	aux <- cbind(array(0, c(nrow(aux), pad_x)), aux);
-#	aux <- rbind(aux, array(0, c(pad_y, ncol(aux))));
-#	aux <- rbind(array(0, c(pad_y, ncol(aux))), aux);
+#	aux <- cbind(img, array(0, c(nrow(img), pad_y)));
+#	aux <- cbind(array(0, c(nrow(aux), pad_y)), aux);
+#	aux <- rbind(aux, array(0, c(pad_x, ncol(aux))));
+#	aux <- rbind(array(0, c(pad_x, ncol(aux))), aux);
 #	aux;
 #}
 
@@ -232,10 +232,10 @@ conv_bc01_orig <- function(imgs, filters, padding)
 	out_1 <- array(0, out_shape);
 
 	# Prepares padded image for convolution
-	imgs_pad <- array(0, dim(imgs) + c(0, 0, 2*(pad_x), 2*(pad_y)));
+	imgs_pad <- array(0, dim(imgs) + c(0, 0, 2*(pad_y), 2*(pad_x)));
 	for (i in 1:dim(imgs)[1])
 		for (j in 1:dim(imgs)[2])
-			imgs_pad[i,j,,] <- img_padding(imgs[i,j,,], pad_x, pad_y);
+			imgs_pad[i,j,,] <- img_padding(imgs[i,j,,], pad_y, pad_x);
 
 	# Perform convolution
 	for (b in 1:batch_size)
@@ -310,8 +310,8 @@ get_updates_conv_orig <- function(conv, lr)
 get_updates_conv <- cmpfun(get_updates_conv_orig);
 
 ## Get names of parameters and gradients (for testing functions)
-pnames_conv <- function(conv) { c("W","b"); }
-gnames_conv <- function(conv) { c("grad_W","grad_b"); }
+pnames_conv <- function() { c("W","b"); }
+gnames_conv <- function() { c("grad_W","grad_b"); }
 
 
 ## Returns a convolutional layer
