@@ -39,14 +39,8 @@ typedef struct {
 /* AUXILIAR FUNCTIONS                                                        */
 /*---------------------------------------------------------------------------*/
 
-// Function to produce the Sigmoid
-double sigmoid (double x)
-{
-	return 1.0 / (1.0 + exp(-x));
-}
-
 // This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
-double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
+double** delta_function_rbm_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
 {
 	double temp[acol][bcol];
 	memset(temp, 0, sizeof(double) * acol * bcol);
@@ -66,7 +60,7 @@ double** delta_function_1(double** A1, double** A2, double** B1, double** B2, in
 }
 
 // This function implements the operation: colmeans(A - B)
-double* delta_function_2(double** A, double** B, int nrow, int ncol)
+double* delta_function_rbm_2(double** A, double** B, int nrow, int ncol)
 {
 	double temp[ncol];
 	memset(temp, 0, sizeof(double) * ncol);
@@ -123,7 +117,7 @@ void free_RBM (RBM* rbm)
 }
 
 // This function infers state of hidden units given visible units
-void visible_state_to_hidden_probabilities (RBM* rbm, double** v_sample, double*** h_mean, double*** h_sample)
+void visible_state_to_hidden_probabilities_rbm (RBM* rbm, double** v_sample, double*** h_mean, double*** h_sample)
 {
 	double size_of_hidden = sizeof(double) * rbm->n_hidden;
 	double temp_mean[rbm->n_hidden];
@@ -149,7 +143,7 @@ void visible_state_to_hidden_probabilities (RBM* rbm, double** v_sample, double*
 }
 
 // This function infers state of visible units given hidden units
-void hidden_state_to_visible_probabilities (RBM* rbm, double** h_sample, double*** v_mean, double*** v_sample)
+void hidden_state_to_visible_probabilities_rbm (RBM* rbm, double** h_sample, double*** v_mean, double*** v_sample)
 {
 	double size_of_visible = sizeof(double) * rbm->n_visible;
 	double temp_mean[rbm->n_visible];
@@ -182,7 +176,7 @@ double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
 	// compute positive phase (awake)
 	double** ph_means = matrix_zeros(rbm->batch_size, rbm->n_hidden);
 	double** ph_sample = matrix_zeros(rbm->batch_size, rbm->n_hidden);
-	visible_state_to_hidden_probabilities (rbm, input, &ph_means, &ph_sample);
+	visible_state_to_hidden_probabilities_rbm (rbm, input, &ph_means, &ph_sample);
 
 	// perform negative phase (asleep)
 	double** nv_means = matrix_zeros(rbm->batch_size, rbm->n_visible);
@@ -191,14 +185,14 @@ double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
 	double** nh_sample = matrix_copy(ph_sample, rbm->batch_size, rbm->n_hidden);
 	for (int step = 0; step < k; step++)
 	{
-		hidden_state_to_visible_probabilities (rbm, nh_sample, &nv_means, &nv_sample);
-		visible_state_to_hidden_probabilities (rbm, nv_sample, &nh_means, &nh_sample);
+		hidden_state_to_visible_probabilities_rbm (rbm, nh_sample, &nv_means, &nv_sample);
+		visible_state_to_hidden_probabilities_rbm (rbm, nv_sample, &nh_means, &nh_sample);
 	}
 
 	// applies gradients on RBM: Delta_W, Delta_h, Delta_v
-	double** delta_W = delta_function_1(input, ph_means, nv_sample, nh_means, rbm->n_visible, rbm->batch_size, rbm->n_hidden);
-	double* delta_h = delta_function_2(ph_means, nh_means, rbm->batch_size, rbm->n_visible);
-	double* delta_v = delta_function_2(input, nv_sample, rbm->batch_size, rbm->n_visible);
+	double** delta_W = delta_function_rbm_1(input, ph_means, nv_sample, nh_means, rbm->n_visible, rbm->batch_size, rbm->n_hidden);
+	double* delta_h = delta_function_rbm_2(ph_means, nh_means, rbm->batch_size, rbm->n_visible);
+	double* delta_v = delta_function_rbm_2(input, nv_sample, rbm->batch_size, rbm->n_visible);
 
 	double ratio = lr / rbm->batch_size;
 
@@ -517,78 +511,5 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	free_RBM(&rbm);
 
 	return retval;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Main Function - Program Entry Point                                       */
-/*---------------------------------------------------------------------------*/
-
-int main (void)
-{
-	printf("START\n");
-
-	// training data
-	double train_X[6][6] = {
-		{1, 1, 1, 0, 0, 0},
-		{1, 0, 1, 0, 0, 0},
-		{1, 1, 1, 0, 0, 0},
-		{0, 0, 1, 1, 1, 0},
-		{0, 0, 1, 0, 1, 0},
-		{0, 0, 1, 1, 1, 0}
-	};
-	double** train_X_p = malloc(sizeof(double*) * 6);
-	for (int i = 0; i < 6; i++) train_X_p[i] = train_X[i];
-
-	int train_N = 6;
-
-	// train the RBM
-	int n_visible = 6;
-	int n_hidden = 3;
-	double learning_rate = 0.1;
-	double momentum = 0.8;
-	int training_epochs = 1000;
-	int batch_size = 1;
-
-	RBM rbm;
-	train_rbm (&rbm, train_X_p, train_N, n_visible, batch_size,
-                   n_hidden, training_epochs, learning_rate, momentum, 1234);
-
-	free(train_X_p);
-
-	// test data
-	double test_X[2][6] = {
-		{1, 1, 0, 0, 0, 0},
-		{0, 0, 0, 1, 1, 0}
-	};
-	double** test_X_p = malloc(sizeof(double*) * 2);
-	for (int i = 0; i < 2; i++) test_X_p[i] = test_X[i];
-
-	int test_N = 2;
-
-	// pass the test on the RBM
-	double** reconstruct_p = reconstruct_RBM(&rbm, test_X_p, test_N);
-
-	double reconstruct[2][6];
-	for (int i = 0; i < 2; i++)
-	{
-		for (int j = 0; j < 6; j++) reconstruct[i][j] = reconstruct_p[i][j];
-		free(reconstruct_p[i]);
-	}
-	free(reconstruct_p);
-	free(test_X_p);
-
-	// print results
-	for(int i = 0; i < test_N; i++)
-	{
-		for(int j = 0; j < n_visible; j++)
-			printf("%.5f ", reconstruct[i][j]);
-		printf("\n");
-	}
-
-	// free the RBM
-	free_RBM(&rbm);
-
-	printf("FIN\n");
-	return 0;
 }
 

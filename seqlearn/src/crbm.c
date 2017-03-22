@@ -53,13 +53,8 @@ typedef struct {
 /* AUXILIAR FUNCTIONS                                                        */
 /*---------------------------------------------------------------------------*/
 
-double sigmoid (double x)
-{
-	return 1.0 / (1.0 + exp(-x));
-}
-
 // This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
-double** delta_function_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
+double** delta_function_crbm_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
 {
 	double temp[acol][bcol];
 	memset(temp, 0, sizeof(double) * acol * bcol);
@@ -79,7 +74,7 @@ double** delta_function_1(double** A1, double** A2, double** B1, double** B2, in
 }
 
 // This function implements the operation: colmeans(A - B)
-double* delta_function_2(double** A, double** B, int nrow, int ncol)
+double* delta_function_crbm_2(double** A, double** B, int nrow, int ncol)
 {
 	double temp[ncol];
 	memset(temp, 0, sizeof(double) * ncol);
@@ -158,7 +153,7 @@ void free_CRBM (CRBM* crbm)
 //   param v_hist   : batch_size x (visible * delay)
 //   param B        : (visible * delay) x hidden
 //   returns retval : batch_size x hidden
-void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, double** v_history, double*** h_mean, double*** h_sample)
+void visible_state_to_hidden_probabilities_crbm (CRBM* crbm, double** v_sample, double** v_history, double*** h_mean, double*** h_sample)
 {
 	double size_of_hidden = sizeof(double) * crbm->n_hidden;
 	double temp_mean[crbm->n_hidden];
@@ -194,7 +189,7 @@ void visible_state_to_hidden_probabilities (CRBM* crbm, double** v_sample, doubl
 //   param v_hist   : batch_size x (visible * delay)
 //   param A        : (visible * delay) x visible
 //   returns retval : batch_size x visible
-void hidden_state_to_visible_probabilities (CRBM* crbm, double** h_sample, double** v_history, double*** v_mean, double*** v_sample)
+void hidden_state_to_visible_probabilities_crbm (CRBM* crbm, double** h_sample, double** v_history, double*** v_mean, double*** v_sample)
 {
 	double size_of_visible = sizeof(double) * crbm->n_visible;
 	double temp_mean[crbm->n_visible];
@@ -228,7 +223,7 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 	// compute positive phase (awake)
 	double** ph_means = matrix_zeros(crbm->batch_size, crbm->n_hidden);
 	double** ph_sample = matrix_zeros(crbm->batch_size, crbm->n_hidden);
-	visible_state_to_hidden_probabilities (crbm, input, input_history, &ph_means, &ph_sample);
+	visible_state_to_hidden_probabilities_crbm (crbm, input, input_history, &ph_means, &ph_sample);
 
 	// perform negative phase (asleep)
 	double** nv_means = matrix_zeros(crbm->batch_size, crbm->n_visible);
@@ -237,16 +232,16 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 	double** nh_sample = matrix_copy(ph_sample, crbm->batch_size, crbm->n_hidden);
 	for (int step = 0; step < k; step++)
 	{
-		hidden_state_to_visible_probabilities (crbm, nh_sample, input_history, &nv_means, &nv_sample);
-		visible_state_to_hidden_probabilities (crbm, nv_sample, input_history, &nh_means, &nh_sample);
+		hidden_state_to_visible_probabilities_crbm (crbm, nh_sample, input_history, &nv_means, &nv_sample);
+		visible_state_to_hidden_probabilities_crbm (crbm, nv_sample, input_history, &nh_means, &nh_sample);
 	}
 
 	// applies gradients on CRBM: Delta_W, Delta_A, Delta_B, Delta_h, Delta_v
-	double** delta_W = delta_function_1(input, ph_means, nv_sample, nh_means, crbm->n_visible, crbm->batch_size, crbm->n_hidden);
-	double** delta_B = delta_function_1(input_history, ph_means, input_history, nh_means, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_hidden);
-	double** delta_A = delta_function_1(input_history, input, input_history, nv_sample, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_visible);
-	double* delta_h = delta_function_2(ph_means, nh_means, crbm->batch_size, crbm->n_visible);
-	double* delta_v = delta_function_2(input, nv_sample, crbm->batch_size, crbm->n_visible);
+	double** delta_W = delta_function_crbm_1(input, ph_means, nv_sample, nh_means, crbm->n_visible, crbm->batch_size, crbm->n_hidden);
+	double** delta_B = delta_function_crbm_1(input_history, ph_means, input_history, nh_means, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_hidden);
+	double** delta_A = delta_function_crbm_1(input_history, input, input_history, nv_sample, crbm->n_visible * crbm->delay, crbm->batch_size, crbm->n_visible);
+	double* delta_h = delta_function_crbm_2(ph_means, nh_means, crbm->batch_size, crbm->n_visible);
+	double* delta_v = delta_function_crbm_2(input, nv_sample, crbm->batch_size, crbm->n_visible);
 
 	double ratio = lr / crbm->batch_size;
 
@@ -492,8 +487,8 @@ double* sample_fn(CRBM* crbm, int n_gibbs, double** vis_sample, double*** v_hist
 
 	for(int k = 0; k < n_gibbs; k++)
 	{
-		visible_state_to_hidden_probabilities (crbm, nv_sample, (*v_history), &nh_means, &nh_sample);
-		hidden_state_to_visible_probabilities (crbm, nh_sample, (*v_history), &nv_means, &nv_sample);
+		visible_state_to_hidden_probabilities_crbm (crbm, nv_sample, (*v_history), &nh_means, &nh_sample);
+		hidden_state_to_visible_probabilities_crbm (crbm, nh_sample, (*v_history), &nv_means, &nv_sample);
 	}
 
 	// Add to updates the shared variable that takes care of our persistent chain
@@ -837,92 +832,5 @@ SEXP _C_CRBM_generate_samples (SEXP newdata, SEXP n_visible, SEXP n_hidden,
 	free_CRBM(&crbm);
 
 	return retval;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Main Function - Program Entry Point                                       */
-/*---------------------------------------------------------------------------*/
-
-// TODO - Find more adequate Main Example
-int main (void)
-{
-	printf("START\n");
-
-	// training data
-	double train_X[8][6] = {
-		{1, 1, 1, 0, 0, 0},
-		{1, 0, 1, 0, 0, 0},
-		{1, 1, 1, 0, 0, 0},
-		{0, 0, 1, 1, 1, 0},
-		{0, 0, 1, 0, 1, 0},
-		{0, 0, 1, 1, 1, 0},
-		{0, 1, 0, 0, 1, 0},
-		{0, 0, 1, 1, 1, 1}
-	};
-	double** train_X_p = malloc(sizeof(double*) * 8);
-	for (int i = 0; i < 8; i++) train_X_p[i] = train_X[i];
-
-	int train_N = 8;
-
-	// train the RBM
-	int n_visible = 6;
-	int n_hidden = 3;
-	double learning_rate = 0.1;
-	double momentum = 0.8;
-	int training_epochs = 1000;
-	int batch_size = 100;
-	int delay = 2;
-
-	int* seqlen = (int*) malloc(sizeof(int));
-	seqlen[0] = 1;
-	int nseq = 1;
-
-
-	CRBM crbm;
-	train_crbm (&crbm, train_X_p, seqlen, nseq, train_N, n_visible, batch_size,
-			n_hidden, training_epochs, learning_rate,
-			momentum, delay, 1234);
-
-	free(train_X_p);
-
-	// test data
-	double test_X[6][6] = {
-		{1, 1, 0, 0, 0, 0},
-		{0, 0, 1, 1, 1, 0},
-		{0, 0, 1, 0, 1, 0},
-		{0, 0, 1, 1, 1, 0},
-		{0, 1, 0, 0, 1, 0},
-		{0, 0, 0, 1, 1, 0}
-	};
-	double** test_X_p = malloc(sizeof(double*) * 6);
-	for (int i = 0; i < 6; i++) test_X_p[i] = test_X[i];
-
-	int test_N = 6;
-
-	// pass the test on the RBM
-	double** reconstruct_p = reconstruct_CRBM(&crbm, test_X_p, test_N);
-
-	double reconstruct[6][6];
-	for (int i = 0; i < 6; i++)
-	{
-		for (int j = 0; j < 6; j++) reconstruct[i][j] = reconstruct_p[i][j];
-		free(reconstruct_p[i]);
-	}
-	free(reconstruct_p);
-	free(test_X_p);
-
-	// print results
-	for(int i = 0; i < test_N; i++)
-	{
-		for(int j = 0; j < n_visible; j++)
-			printf("%.5f ", reconstruct[i][j]);
-		printf("\n");
-	}
-
-	// free the RBM
-	free_CRBM(&crbm);
-
-	printf("FIN\n");
-	return 0;
 }
 
