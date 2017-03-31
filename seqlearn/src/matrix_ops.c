@@ -144,13 +144,19 @@ double** matrix_sigma (double** A, int nrow, int ncol)
 //   param ncol   : 2nd dimension of A
 double** matrix_bernoulli (double** A, int nrow, int ncol)
 {
-	double** B = (double**) malloc(sizeof(double*) * nrow);
+	double temp[nrow][ncol];
+	memset(temp, 0, sizeof(double) * nrow * ncol);
 	for (int a = 0; a < nrow; a++)
-	{
-		B[a] = (double*) calloc(ncol, sizeof(double));
 		for (int b = 0; b < ncol; b++)
 			if (A[a][b] >= 0 && A[a][b] <= 1 && (rand() / (RAND_MAX + 1.0)) <= A[a][b])
-				B[a][b] = 1;
+				temp[a][b] = 1;
+
+	int size_of_ncol = sizeof(double) * ncol;
+	double** B = (double**) malloc(sizeof(double*) * nrow);
+	for(int a = 0; a < nrow; a++)
+	{
+		B[a] = (double*) malloc(size_of_ncol);
+		memcpy(B[a], temp[a], size_of_ncol);
 	}
 	return B;
 }
@@ -216,22 +222,18 @@ double* matrix_meancols (double** A, int nrow, int ncol)
 //   param stdev  : Standard Deviation for Distribution
 double** matrix_normal(int nrow, int ncol, double mean, double stdev, double scale)
 {
-	int size_of_ncol = sizeof(double) * ncol;
-	double temp[ncol];
-
 	double** N = (double**) malloc(sizeof(double*) * nrow);
+	N[0] = (double*) malloc(sizeof(double*) * nrow * ncol);
 	for (int i = 0; i < nrow; i++)
 	{
-		memset(temp, 0, size_of_ncol);
+		N[i] = N[0] + i * ncol;
 		for (int j = 0; j < ncol; j++)
 		{
 			double rnd1 = (double) rand() / RAND_MAX;
 			double rnd2 = (double) rand() / RAND_MAX;
 			double rnum = mean + sqrt(-2 * log(rnd1)) * cos( 2 * M_PI * rnd2) * stdev;
-			temp[j] =  rnum * scale;
+			N[i][j] =  rnum * scale;
 		}
-		N[i] = (double*) malloc(size_of_ncol);
-		memcpy(N[i], temp, size_of_ncol);
 	}
 	return N;
 }
@@ -242,8 +244,9 @@ double** matrix_normal(int nrow, int ncol, double mean, double stdev, double sca
 double** matrix_zeros (int nrow, int ncol)
 {
 	double** Z = (double**) malloc(sizeof(double*) * nrow);
+	Z[0] = (double*) calloc(nrow * ncol, sizeof(double));
 	for (int i = 0; i < nrow; i++)
-		Z[i] = (double*) calloc(ncol, sizeof(double));
+		Z[i] = Z[0] + i * ncol;
 	return Z;
 }
 
@@ -269,9 +272,10 @@ double** matrix_transpose (double** A, int nrow, int ncol)
 double** matrix_copy (double** A, int nrow, int ncol)
 {
 	double** C = (double**) malloc(sizeof(double*) * nrow);
+	C[0] = (double*) malloc(sizeof(double*) * nrow * ncol);
 	for (int i = 0; i < nrow; i++)
 	{
-		C[i] = (double*) malloc(sizeof(double) * ncol);
+		C[i] = C[0] + i * ncol;
 		memcpy(C[i], A[i], sizeof(double) * ncol);
 	}
 	return C;
@@ -283,6 +287,17 @@ double** matrix_copy (double** A, int nrow, int ncol)
 void matrix_free (double** A, int nrow)
 {
 	for (int i = 0; i < nrow; i++) free(A[i]);
+	free(A);
+
+	return;
+}
+
+// Function to Free a Contiguous Matrix
+//   param A      : Target Matrix (pointer)
+//   param nrow   : 1st dimension of A
+void matrix_cfree (double** A)
+{
+	free(A[0]);
 	free(A);
 
 	return;

@@ -27,6 +27,7 @@ double** matrix_zeros (int nrow, int ncol);
 double** matrix_transpose (double** A, int nrow, int ncol);
 double** matrix_copy (double** A, int nrow, int ncol);
 void matrix_free (double** A, int nrow);
+void matrix_cfree (double** A);
 void matrix_replace (double*** A, double** B, int nrow);
 
 double* vector_sumvec (double* A, double* B, int npos);

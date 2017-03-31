@@ -82,7 +82,7 @@ NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 				int mm = krow - 1 - m;
 				int ii = i + (m - krow_h);
 
-				if (ii >= 0 || ii < mrow)
+				if (ii >= 0 && ii < mrow)
 					for(int n = 0; n < kcol; ++n)
 					{
 						int nn = kcol - 1 - n;

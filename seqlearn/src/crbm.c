@@ -65,9 +65,10 @@ double** delta_function_crbm_1(double** A1, double** A2, double** B1, double** B
 
 	int size_of_bcol = sizeof(double) * bcol;
 	double** delta = (double**) malloc(sizeof(double*) * acol);
+	delta[0] = (double*) malloc(sizeof(double*) * acol * bcol);
 	for(int j = 0; j < acol; j++)
 	{
-		delta[j] = (double*) malloc(size_of_bcol);
+		delta[j] = delta[0] + j * bcol;
 		memcpy(delta[j], temp[j], size_of_bcol);
 	}
 	return delta;
@@ -130,12 +131,12 @@ void create_CRBM (CRBM* crbm, int N, int n_visible, int n_hidden, int delay, int
 // Destructor of RBMs
 void free_CRBM (CRBM* crbm)
 {
-	matrix_free(crbm->W, crbm->n_visible);
-	matrix_free(crbm->B, crbm->n_visible * crbm->delay);
-	matrix_free(crbm->A, crbm->n_visible * crbm->delay);
-	matrix_free(crbm->vel_W, crbm->n_visible);
-	matrix_free(crbm->vel_B, crbm->n_visible * crbm->delay);
-	matrix_free(crbm->vel_A, crbm->n_visible * crbm->delay);
+	matrix_cfree(crbm->W);
+	matrix_cfree(crbm->B);
+	matrix_cfree(crbm->A);
+	matrix_cfree(crbm->vel_W);
+	matrix_cfree(crbm->vel_B);
+	matrix_cfree(crbm->vel_A);
 
 	free(crbm->hbias);
 	free(crbm->vbias);
@@ -165,8 +166,11 @@ void visible_state_to_hidden_probabilities_crbm (CRBM* crbm, double** v_sample, 
 
 		for(int j = 0; j < crbm->n_visible; j++)
 			for(int k = 0; k < crbm->n_hidden; k++)
+			{
 				temp_mean[k] += v_sample[i][j] * crbm->W[j][k];
-		for(int j = 0; j < crbm->n_visible * crbm->delay; j++)
+				temp_mean[k] += v_history[i][j] * crbm->B[j][k];
+			}
+		for(int j = crbm->n_visible; j < crbm->n_visible * crbm->delay; j++)
 			for(int k = 0; k < crbm->n_hidden; k++)
 				temp_mean[k] += v_history[i][j] * crbm->B[j][k];
 		for(int j = 0; j < crbm->n_hidden; j++)
@@ -247,27 +251,29 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 
 	for(int i = 0; i < crbm->n_visible; i++)
 	{
-		for(int j = 0; j < crbm->n_hidden; j++)
+		for (int j = i * crbm->n_hidden; j < (i + 1) * crbm->n_hidden; j++)
 		{
-			crbm->vel_W[i][j] = crbm->vel_W[i][j] * momentum + delta_W[i][j] * ratio;
-			crbm->W[i][j] += crbm->vel_W[i][j];
+			double temp = (*(crbm->vel_W))[j] * momentum + (*(delta_W))[j] * ratio;
+			(*(crbm->vel_W))[j] = temp;
+			(*(crbm->W))[j] += temp;
+
+			for (int k = j * crbm->delay; k < (j + 1) * crbm->delay; k++)
+			{
+				double temp= (*(crbm->vel_B))[k] * momentum + (*(delta_B))[k] * ratio;
+				(*(crbm->vel_B))[k] = temp;
+				(*(crbm->B))[k] += temp;	
+			}
 		}
+
+		for(int j = i * crbm->delay * crbm->n_visible; j < (i + 1) * crbm->delay * crbm->n_visible; j++)
+		{
+			double temp = (*(crbm->vel_A))[j] * momentum + (*(delta_A))[j] * ratio;
+			(*(crbm->vel_A))[j] = temp;
+			(*(crbm->A))[j] += temp;
+		}
+
 		crbm->vel_v[i] = crbm->vel_v[i] * momentum + delta_v[i] * ratio;
 		crbm->vbias[i] += crbm->vel_v[i];
-	}
-
-	for(int i = 0; i < crbm->n_visible * crbm->delay; i++)
-	{
-		for(int j = 0; j < crbm->n_hidden; j++)
-		{
-			crbm->vel_B[i][j] = crbm->vel_B[i][j] * momentum + delta_B[i][j] * ratio;
-			crbm->B[i][j] += crbm->vel_B[i][j];
-		}
-		for(int j = 0; j < crbm->n_visible; j++)
-		{
-			crbm->vel_A[i][j] = crbm->vel_A[i][j] * momentum + delta_A[i][j] * ratio;
-			crbm->A[i][j] += crbm->vel_A[i][j];
-		}
 	}
 
 	for(int i = 0; i < crbm->n_hidden; i++)
@@ -284,16 +290,16 @@ double cdk_CRBM (CRBM* crbm, double** input, double** input_history, double lr, 
 	recon /= crbm->batch_size;
 
 	// free the used space
-	matrix_free(ph_means, crbm->batch_size);
-	matrix_free(ph_sample, crbm->batch_size);
-	matrix_free(nv_means, crbm->batch_size);
-	matrix_free(nv_sample, crbm->batch_size);
-	matrix_free(nh_means, crbm->batch_size);
-	matrix_free(nh_sample, crbm->batch_size);
+	matrix_cfree(ph_means);
+	matrix_cfree(ph_sample);
+	matrix_cfree(nv_means);
+	matrix_cfree(nv_sample);
+	matrix_cfree(nh_means);
+	matrix_cfree(nh_sample);
 
-	matrix_free(delta_W, crbm->n_visible);
-	matrix_free(delta_B, crbm->n_visible * crbm->delay);
-	matrix_free(delta_A, crbm->n_visible * crbm->delay);
+	matrix_cfree(delta_W);
+	matrix_cfree(delta_B);
+	matrix_cfree(delta_A);
 	free(delta_v);
 	free(delta_h);
 
