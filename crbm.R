@@ -56,9 +56,9 @@ sigmoid_func <- function(mat)
 create_crbm <- function (n_visible = 49, n_hidden = 100, delay = 6, A = NULL, B = NULL, W = NULL,
 			 hbias = NULL, vbias = NULL, batch_size = 100)
 {	
-	if (is.null(W)) W <- 0.01 * sample_normal(c(n_visible, n_hidden)); #/ (n_visible + n_hidden);
-	if (is.null(A)) A <- 0.01 * sample_normal(c(n_visible * delay, n_visible)); #/ (n_visible + n_hidden);
-	if (is.null(B)) B <- 0.01 * sample_normal(c(n_visible * delay, n_hidden)); #/ (n_visible + n_hidden);
+	if (is.null(W)) W <- 0.01 * sample_normal(c(n_visible, n_hidden));
+	if (is.null(A)) A <- 0.01 * sample_normal(c(n_visible * delay, n_visible));
+	if (is.null(B)) B <- 0.01 * sample_normal(c(n_visible * delay, n_hidden));
 
 	if (is.null(hbias)) hbias <- rep(0, n_hidden);
 	if (is.null(vbias)) vbias <- rep(0, n_visible);
@@ -210,6 +210,7 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 
 			# get the cost and the gradient corresponding to one step of CD-k
 			aux <- get_cost_updates_crbm(crbm, input, input_history, lr = learning_rate, momentum = momentum, k = 1);
+
 			this_cost <- aux$recon;
 			crbm <- aux$crbm;
 
