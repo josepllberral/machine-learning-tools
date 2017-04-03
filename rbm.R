@@ -52,23 +52,23 @@ sigmoid_func <- function(mat)
 ###############################################################################
 
 ## Restricted Boltzmann Machine (RBM). Constructor
-create_rbm <- function(n_visible, n_hidden, rand_seed = 42, mu = 0, sigma = 0.3)
+create_rbm <- function (n_visible = 10, n_hidden = 100, W = NULL, hbias = NULL,
+	vbias = NULL, batch_size = 100)
 {
-    set.seed(rand_seed);
-    
-    W <- 0.01 * sample_normal(c(n_hidden, n_visible), mean = mu, sd = sigma);
-    vbias <- 0.01 * as.vector(sample_normal(n_visible, mean = mu, sd = sigma));
-    hbias <- 0.01 * as.vector(sample_normal(n_hidden, mean = mu, sd = sigma));
+    if (is.null(W)) W <- 0.01 * sample_normal(c(n_visible, n_hidden));
+    if (is.null(hbias)) hbias <- rep(0, n_hidden);
+    if (is.null(vbias)) vbias <- rep(0, n_visible);
     
     velocity <- list(W = array(0, dim(W)), v = rep(0, length(vbias)), h = rep(0, length(hbias)));
     
-    list(n_visible = n_visible, n_hidden = n_hidden, W = W, hbias = hbias, vbias = vbias, velocity = velocity);
+    list(n_visible = n_visible, n_hidden = n_hidden, W = W, hbias = hbias,
+	vbias = vbias, velocity = velocity, batch_size = batch_size);
 }
 
 ### This function infers state of hidden units given visible units
 visible_state_to_hidden_probabilities <- function(rbm, visible_state)
 {
-    h.mean <- sigmoid_func((rbm$W %*% visible_state) %+% rbm$hbias);
+    h.mean <- sigmoid_func((visible_state %*% rbm$W) %+% rbm$hbias);
     h.sample <- sample_bernoulli(h.mean);
 
     list(mean = h.mean, sample = h.sample);
@@ -77,14 +77,17 @@ visible_state_to_hidden_probabilities <- function(rbm, visible_state)
 ## This function infers state of visible units given hidden units
 hidden_state_to_visible_probabilities <- function(rbm, hidden_state)
 {
-    v.mean <- sigmoid_func((t(rbm$W) %*% hidden_state) %+% rbm$vbias);
-    v.sample <- sample_bernoulli(v.mean);
+    v.mean <- (hidden_state %*% t(rbm$W)) %+% rbm$vbias;
+    v.sample <- v.mean;
+
+#    v.mean <- sigmoid_func((hidden_state %*% t(rbm$W)) %+% rbm$vbias);
+#    v.sample <- sample_bernoulli(v.mean);
 
     list(mean = v.mean, sample = v.sample);
 }
 
 ## This functions implements one step of CD-k
-##  param input: matrix input from batch data (n_vis x n_seq)
+##  param input: matrix input from batch data (n_seq x n_vis)
 ##  param lr: learning rate used to train the RBM
 ##  param k: number of Gibbs steps to do in CD-k
 ##  param momentum: value for momentum coefficient on learning
@@ -101,14 +104,14 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
         nh <- visible_state_to_hidden_probabilities(rbm, nv[["sample"]]);
     }
 
-    # determine gradients on CRBM parameters
-    Delta_W <- (ph[["sample"]] %*% t(input)) - (nh[["mean"]] %*% t(nv[["sample"]]));
-    Delta_v <- rowMeans(input - nv[["sample"]]);
-    Delta_h <- rowMeans(ph[["sample"]] - nh[["mean"]]);
+    # determine gradients on RBM parameters
+    Delta_W <- t(input) %*% ph[["mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
+    Delta_v <- colSums(input - nv[["sample"]]);
+    Delta_h <- colSums(ph[["mean"]] - nh[["mean"]]);
     
-    rbm$velocity[["W"]] <- rbm$velocity[["W"]] * momentum + lr * Delta_W;
-    rbm$velocity[["v"]] <- rbm$velocity[["v"]] * momentum + lr * Delta_v;
-    rbm$velocity[["h"]] <- rbm$velocity[["h"]] * momentum + lr * Delta_h;
+    rbm$velocity[["W"]] <- rbm$velocity[["W"]] * momentum + lr * Delta_W / rbm$batch_size;
+    rbm$velocity[["v"]] <- rbm$velocity[["v"]] * momentum + lr * Delta_v / rbm$batch_size;
+    rbm$velocity[["h"]] <- rbm$velocity[["h"]] * momentum + lr * Delta_h / rbm$batch_size;
     
     # update weights
     rbm$W <- rbm$W + rbm$velocity[["W"]];
@@ -116,7 +119,7 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
     rbm$hbias <- rbm$hbias + rbm$velocity[["h"]];
 
     # approximation to the reconstruction error: sum over dimensions, mean over cases
-    list(rbm = rbm, recon = mean(rowSums(`^`(input - nv[["mean"]],2))));
+    list(rbm = rbm, recon = mean(colSums(`^`(input - nv[["mean"]],2))));
 }
 
 ###############################################################################
@@ -128,31 +131,27 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
 ##  param learning_rate: learning rate used for training the RBM
 ##  param training_epochs: number of epochs used for training
 ##  param batch_size: size of a batch used to train the RBM
-train_rbm <- function (dataset, batch_size = 100,
-                       n_hidden = 100, training_epochs = 300,
-                       learning_rate = 1e-4, momentum = 0.5)
+train_rbm <- function (dataset, batch_size = 100, n_hidden = 100,
+	training_epochs = 300, learning_rate = 1e-4, momentum = 0.5,
+	rand_seed = 1234)
 {
-    set.seed(123);
+    set.seed(rand_seed);
 
     n_train_batches <- ceiling(nrow(dataset) / batch_size);
     n_dim <- ncol(dataset);
-    
-    batchdata <- t(dataset);
-   
+      
     # shuffle indices
     permindex <- sample(1:nrow(dataset),nrow(dataset));
 
-    # construct the CRBM object
-    rbm <- create_rbm(n_visible = n_dim, n_hidden = n_hidden, rand_seed = 123);
+    # construct the RBM object
+    rbm <- create_rbm(n_visible = n_dim, n_hidden = n_hidden, batch_size = batch_size);
 
     start_time <- Sys.time();
  
     # go through the training epochs and training set
     for (epoch in 1:training_epochs)
     {
-        st1 <- Sys.time();
-        
-        mean_cost <- NULL;
+	mean_cost <- NULL;
         for (batch_index in 1:n_train_batches)
         {
             idx.aux.ini <- (((batch_index - 1) * batch_size) + 1);
@@ -160,7 +159,7 @@ train_rbm <- function (dataset, batch_size = 100,
             if (idx.aux.fin > length(permindex)) break;
             data_idx <- permindex[idx.aux.ini:idx.aux.fin];
 
-            input <- batchdata[,data_idx];
+            input <- dataset[data_idx,];
                        
             # get the cost and the gradient corresponding to one step of CD-k
             aux <- cdk_rbm(rbm, input, lr = learning_rate, momentum = momentum, k = 1);
@@ -169,9 +168,8 @@ train_rbm <- function (dataset, batch_size = 100,
 
             mean_cost <- c(mean_cost, this_cost);
         }
-        
-        et1 <- Sys.time();
-        message(paste('[Time Spent: ',round(as.numeric(et1 - st1),2),'] Training epoch ',epoch,', cost is ',mean(mean_cost, na.rm = TRUE),sep=""));
+#	if (epoch %% 50 == 1)
+		print(paste('Training epoch ',epoch,', cost is ',mean(mean_cost, na.rm = TRUE),sep=""));
     }
 
     end_time <- Sys.time();
@@ -196,33 +194,50 @@ train_rbm <- function (dataset, batch_size = 100,
 
 load_mnist <- function()
 {
-    load_image_file <- function(filename)
-    {
-        ret = list();
-        f = file(filename,'rb');
-        readBin(f,'integer',n=1,size=4,endian='big');
-        ret$n = readBin(f,'integer',n=1,size=4,endian='big');
-        nrow = readBin(f,'integer',n=1,size=4,endian='big');
-        ncol = readBin(f,'integer',n=1,size=4,endian='big');
-        x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F);
-        ret$x = matrix(x, ncol=nrow*ncol, byrow=T);
-        close(f);
-        ret;
-    }
-    load_label_file <- function(filename)
-    {
-        f = file(filename,'rb');
-        readBin(f,'integer',n=1,size=4,endian='big');
-        n = readBin(f,'integer',n=1,size=4,endian='big');
-        y = readBin(f,'integer',n=n,size=1,signed=F);
-        close(f);
-        y;
-    }
-    train <<- load_image_file('./datasets/train-images.idx3-ubyte');
-    test <<- load_image_file('./datasets/t10k-images.idx3-ubyte');
+	train <- data.frame();
+	test <- data.frame();
 
-    train$y <<- load_label_file('./datasets/train-labels.idx1-ubyte');
-    test$y <<- load_label_file('./datasets/t10k-labels.idx1-ubyte');
+	load_image_file <- function(filename)
+	{
+		ret = list();
+		f = file(filename,'rb');
+		readBin(f,'integer',n=1,size=4,endian='big');
+		ret$n = readBin(f,'integer',n=1,size=4,endian='big');
+		nrow = readBin(f,'integer',n=1,size=4,endian='big');
+		ncol = readBin(f,'integer',n=1,size=4,endian='big');
+		x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F);
+		ret$x = matrix(x, ncol=nrow*ncol, byrow=T);
+		close(f);
+		ret;
+	}
+
+	load_label_file <- function(filename)
+	{
+		f = file(filename,'rb');
+		readBin(f,'integer',n=1,size=4,endian='big');
+		n = readBin(f,'integer',n=1,size=4,endian='big');
+		y = readBin(f,'integer',n=n,size=1,signed=F);
+		close(f);
+		y;
+	}
+
+	train <- load_image_file('./datasets/train-images.idx3-ubyte');
+	test <- load_image_file('./datasets/t10k-images.idx3-ubyte');
+
+	train$x <- train$x / 255;
+	test$x <- test$x / 255;
+
+	train_y <- load_label_file('./datasets/train-labels.idx1-ubyte');
+	test_y <- load_label_file('./datasets/t10k-labels.idx1-ubyte');
+
+
+	train_y <- as.factor(train_y);
+	test_y <- as.factor(test_y);
+
+	inTrain <- data.frame(y = train_y, train$x);
+	inTest <- data.frame(y = test_y, test$x);
+
+	list(train = inTrain, test = inTest);
 }
 
 show_digit <- function(arr784, col=gray(12:1/12), ...)
@@ -233,18 +248,13 @@ show_digit <- function(arr784, col=gray(12:1/12), ...)
 ## Main Function - Program Entry Point
 main <- function()
 {
-	train <- data.frame();
-	test <- data.frame();
+	aux <- load_mnist();
+	training.num <- data.matrix(aux$train);
+	testing.num <- data.matrix(aux$test);
 
-	load_mnist();
-
-	train$x <- train$x / 255;
-
-	inTrain <- data.frame(y=train$y, train$x);
-	inTrain$y <- as.factor(inTrain$y);
-	trainIndex <- sample(x=1:length(inTrain$y),size=length(inTrain$y) * 0.6);
-	training <- inTrain[trainIndex,];
-	cv <- inTrain[-trainIndex,];
+	trainIndex <- sample(x=1:nrow(aux$train),size=nrow(aux$train) * 0.6);
+	training <- aux$train[trainIndex,];
+	cv <- aux$train[-trainIndex,];
 
 	show_digit(as.matrix(training[5,2:785]));
 
@@ -269,8 +279,6 @@ main <- function()
 	}
 
 	# Train an RBM to learn MNIST
-	training.num <- data.matrix(training);
-
 	rbm <- train_rbm(
 	    n_hidden = 30,
 	    dataset = training.num[,2:785],

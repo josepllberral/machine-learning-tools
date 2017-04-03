@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <math.h>
 
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_blas.h>
+
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
@@ -26,53 +29,14 @@ typedef struct {
 	int N;
 	int n_visible;
 	int n_hidden;
-	double** W;
-	double* hbias;
-	double* vbias;
-	double** vel_W;
-	double* vel_v;
-	double* vel_h;
+	gsl_matrix* W;
+	gsl_vector* hbias;
+	gsl_vector* vbias;
+	gsl_matrix* vel_W;
+	gsl_vector* vel_v;
+	gsl_vector* vel_h;
 	int batch_size;
 } RBM;
-
-/*---------------------------------------------------------------------------*/
-/* AUXILIAR FUNCTIONS                                                        */
-/*---------------------------------------------------------------------------*/
-
-// This function implements the operation: t(A1) %*% A2 - t(B1) %*% B2
-double** delta_function_rbm_1(double** A1, double** A2, double** B1, double** B2, int acol, int arow, int bcol)
-{
-	double temp[acol][bcol];
-	memset(temp, 0, sizeof(double) * acol * bcol);
-	for(int i = 0; i < arow; i++)
-		for(int j = 0; j < acol; j++)
-			for(int k = 0; k < bcol; k++)
-				temp[j][k] += A1[i][j] * A2[i][k] - B1[i][j] * B2[i][k];
-
-	int size_of_bcol = sizeof(double) * bcol;
-	double** delta = (double**) malloc(sizeof(double*) * acol);
-	for(int j = 0; j < acol; j++)
-	{
-		delta[j] = (double*) malloc(size_of_bcol);
-		memcpy(delta[j], temp[j], size_of_bcol);
-	}
-	return delta;
-}
-
-// This function implements the operation: colmeans(A - B)
-double* delta_function_rbm_2(double** A, double** B, int nrow, int ncol)
-{
-	double temp[ncol];
-	memset(temp, 0, sizeof(double) * ncol);
-	for(int i = 0; i < nrow; i++)
-		for(int j = 0; j < ncol; j++)
-			temp[j] += A[i][j] - B[i][j];
-
-	double* delta = (double*) malloc(sizeof(double) * ncol);
-	memcpy(delta, temp, sizeof(double) * ncol);
-
-	return delta;
-}
 
 /*---------------------------------------------------------------------------*/
 /* RBM FUNCTIONS                                                             */
@@ -80,7 +44,7 @@ double* delta_function_rbm_2(double** A, double** B, int nrow, int ncol)
 
 // Restricted Boltzmann Machine (RBM). Constructor
 void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, int batch_size,
-		double** W, double* hbias, double* vbias)
+		gsl_matrix* W, gsl_vector* hbias, gsl_vector* vbias)
 {
 	// Initialize Parameters
 	rbm->N = N;
@@ -92,97 +56,104 @@ void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, int batch_size,
 	if (W == NULL) rbm->W = matrix_normal(n_visible, n_hidden, 0, 1, 0.01);
 	else rbm->W = W;
 
-	if (hbias == NULL) rbm->hbias = vector_zeros(n_hidden);
+	if (hbias == NULL) rbm->hbias = gsl_vector_calloc(n_hidden);
 	else rbm->hbias = hbias;
 
-	if (vbias == NULL) rbm->vbias = vector_zeros(n_visible);
+	if (vbias == NULL) rbm->vbias = gsl_vector_calloc(n_visible);
 	else rbm->vbias = vbias;
 
 	// Initialize Velocity for Momentum
-	rbm->vel_W = matrix_zeros(n_visible, n_hidden);
-	rbm->vel_h = vector_zeros(n_hidden);
-	rbm->vel_v = vector_zeros(n_visible);
+	rbm->vel_W = gsl_matrix_calloc(n_visible, n_hidden);
+	rbm->vel_h = gsl_vector_calloc(n_hidden);
+	rbm->vel_v = gsl_vector_calloc(n_visible);
 }
 
 // Destructor of RBMs
 void free_RBM (RBM* rbm)
 {
-	matrix_free(rbm->W, rbm->n_visible);
-	matrix_free(rbm->vel_W, rbm->n_visible);
+	gsl_matrix_free(rbm->W);
+	gsl_matrix_free(rbm->vel_W);
 
-	free(rbm->hbias);
-	free(rbm->vbias);
-	free(rbm->vel_h);
-	free(rbm->vel_v);
+	gsl_vector_free(rbm->hbias);
+	gsl_vector_free(rbm->vbias);
+	gsl_vector_free(rbm->vel_h);
+	gsl_vector_free(rbm->vel_v);
 }
 
+
 // This function infers state of hidden units given visible units
-void visible_state_to_hidden_probabilities_rbm (RBM* rbm, double** v_sample, double*** h_mean, double*** h_sample)
+//   returns h_mean   : batch_size x hidden
+//   returns h_sample : batch_size x hidden
+// It performs the Prop-Up: h_means = sigmoid(v_sample * W + hbias)
+//                          h_sample = bernoulli(h_means)
+//   param v_sample : batch_size x visible
+//   param W        : visible x hidden
+//   returns retval : batch_size x hidden
+void visible_state_to_hidden_probabilities_rbm (RBM* rbm, gsl_matrix* v_sample, gsl_matrix** h_mean, gsl_matrix** h_sample)
 {
-	double size_of_hidden = sizeof(double) * rbm->n_hidden;
-	double temp_mean[rbm->n_hidden];
-	double temp_sample[rbm->n_hidden];
-	for(int i = 0; i < rbm->batch_size; i++)
-	{
-		memset(temp_mean, 0, size_of_hidden);
-		memset(temp_sample, 0, size_of_hidden);
+	int nrow = v_sample->size1;
 
-		for(int j = 0; j < rbm->n_visible; j++)
-			for(int k = 0; k < rbm->n_hidden; k++)
-				temp_mean[k] += v_sample[i][j] * rbm->W[j][k];
-		for(int j = 0; j < rbm->n_hidden; j++)
-		{
-			temp_mean[j] = sigmoid(temp_mean[j] + rbm->hbias[j]);
-			if (temp_mean[j] >= 0 && temp_mean[j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= temp_mean[j]) temp_sample[j] = 1;
-		}
+	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, rbm->n_hidden);
+	int res1 = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_sample, rbm->W, 1.0, pre_sigmoid);
 
-		memcpy((*h_mean)[i], temp_mean, size_of_hidden);
-		memcpy((*h_sample)[i], temp_sample, size_of_hidden);
-	}
+	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, rbm->n_hidden);
+	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, rbm->hbias);
+	int res2 = gsl_matrix_add(pre_sigmoid, M_bias);
 
+	*h_mean = matrix_sigmoid(pre_sigmoid);
+	*h_sample = matrix_bernoulli(*h_mean);
+
+	gsl_matrix_free(M_bias);
+	gsl_matrix_free(pre_sigmoid);
 }
 
 // This function infers state of visible units given hidden units
-void hidden_state_to_visible_probabilities_rbm (RBM* rbm, double** h_sample, double*** v_mean, double*** v_sample)
+//   returns v_mean   : batch_size x visible
+//   returns v_sample : batch_size x visible
+// It performs the Prop-Down: v_mean = v_sample = (h_sample * t(W) + vbias)
+//   param h_sample : batch_size x hidden
+//   param W        : visible x hidden
+//   returns retval : batch_size x visible
+void hidden_state_to_visible_probabilities_rbm (RBM* rbm, gsl_matrix* h_sample, gsl_matrix** v_mean, gsl_matrix** v_sample)
 {
-	double size_of_visible = sizeof(double) * rbm->n_visible;
-	double temp_mean[rbm->n_visible];
-	double temp_sample[rbm->n_visible];
-	for(int i = 0; i < rbm->batch_size; i++)
-	{
-		memset(temp_mean, 0, size_of_visible);
-		memset(temp_sample, 0, size_of_visible);
+	int nrow = h_sample->size1;
 
-		for(int j = 0; j < rbm->n_visible; j++)
-		{
-			for(int k = 0; k < rbm->n_hidden; k++)
-				temp_mean[j] += h_sample[i][k] * rbm->W[j][k];
-			temp_mean[j] = sigmoid(temp_mean[j] + rbm->vbias[j]);
-			if (temp_mean[j] >= 0 && temp_mean[j] <= 1 && (rand()/(RAND_MAX + 1.0)) <= temp_mean[j]) temp_sample[j] = 1;
-		}
+	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, rbm->n_visible);
+	int res1 = gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, h_sample, rbm->W, 1.0, pre_sigmoid);
 
-		memcpy((*v_mean)[i], temp_mean, size_of_visible);
-		memcpy((*v_sample)[i], temp_sample, size_of_visible);
-	}
+	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, rbm->n_visible);
+	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, rbm->vbias);
+	int res2 = gsl_matrix_add(pre_sigmoid, M_bias);
+
+	int res3 =  gsl_matrix_memcpy(*v_mean, pre_sigmoid);
+	int res4 =  gsl_matrix_memcpy(*v_sample, pre_sigmoid);
+
+//	*v_mean = matrix_sigmoid(pre_sigmoid);
+//	*v_sample = matrix_bernoulli(*v_mean);
+
+	gsl_matrix_free(M_bias);
+	gsl_matrix_free(pre_sigmoid);
 }
 
-// This functions implements one step of CD-k
-//   param input    : matrix input from batch data (n_vis x n_seq)
-//   param lr       : learning rate used to train the RBM
-//   param momentum : value for momentum coefficient on learning
-//   param k        : number of Gibbs steps to do in CD-k
-double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
+// This function implements one step of CD-k
+//   param input      : matrix input from batch data (batch_size x visible)
+//   param lr         : learning rate used to train the RBM
+//   param momentum   : value for momentum coefficient on learning
+//   param k          : number of Gibbs steps to do in CD-k
+double cdk_RBM (RBM* rbm, gsl_matrix* input, double lr, double momentum, int k)
 {
 	// compute positive phase (awake)
-	double** ph_means = matrix_zeros(rbm->batch_size, rbm->n_hidden);
-	double** ph_sample = matrix_zeros(rbm->batch_size, rbm->n_hidden);
+	gsl_matrix* ph_means = gsl_matrix_calloc(rbm->batch_size, rbm->n_hidden);
+	gsl_matrix* ph_sample = gsl_matrix_calloc(rbm->batch_size, rbm->n_hidden);
 	visible_state_to_hidden_probabilities_rbm (rbm, input, &ph_means, &ph_sample);
 
 	// perform negative phase (asleep)
-	double** nv_means = matrix_zeros(rbm->batch_size, rbm->n_visible);
-	double** nv_sample = matrix_zeros(rbm->batch_size, rbm->n_visible);
-	double** nh_means = matrix_zeros(rbm->batch_size, rbm->n_hidden);
-	double** nh_sample = matrix_copy(ph_sample, rbm->batch_size, rbm->n_hidden);
+	gsl_matrix* nv_means = gsl_matrix_calloc(rbm->batch_size, rbm->n_visible);
+	gsl_matrix* nv_sample = gsl_matrix_calloc(rbm->batch_size, rbm->n_visible);
+	gsl_matrix* nh_means = gsl_matrix_calloc(rbm->batch_size, rbm->n_hidden);
+	gsl_matrix* nh_sample = gsl_matrix_calloc(rbm->batch_size, rbm->n_hidden);
+
+	int res1P =  gsl_matrix_memcpy(nh_sample, ph_sample);
 	for (int step = 0; step < k; step++)
 	{
 		hidden_state_to_visible_probabilities_rbm (rbm, nh_sample, &nv_means, &nv_sample);
@@ -190,46 +161,66 @@ double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
 	}
 
 	// applies gradients on RBM: Delta_W, Delta_h, Delta_v
-	double** delta_W = delta_function_rbm_1(input, ph_means, nv_sample, nh_means, rbm->n_visible, rbm->batch_size, rbm->n_hidden);
-	double* delta_h = delta_function_rbm_2(ph_means, nh_means, rbm->batch_size, rbm->n_visible);
-	double* delta_v = delta_function_rbm_2(input, nv_sample, rbm->batch_size, rbm->n_visible);
 
 	double ratio = lr / rbm->batch_size;
 
-	for(int i = 0; i < rbm->n_visible; i++)
-	{
-		for(int j = 0; j < rbm->n_hidden; j++)
-		{
-			rbm->vel_W[i][j] = rbm->vel_W[i][j] * momentum + delta_W[i][j] * ratio;
-			rbm->W[i][j] += rbm->vel_W[i][j];
-		}
-		rbm->vel_v[i] = rbm->vel_v[i] * momentum + delta_v[i] * ratio;
-		rbm->vbias[i] += rbm->vel_v[i];
-	}
+	gsl_matrix* identity_h = gsl_matrix_alloc(rbm->n_hidden, rbm->n_hidden);
+	gsl_matrix_set_all(identity_h, 1.0);
+	gsl_matrix_set_identity(identity_h);
 
-	for(int i = 0; i < rbm->n_hidden; i++)
-	{
-		rbm->vel_h[i] = rbm->vel_h[i] * momentum + delta_h[i] * ratio;
-		rbm->hbias[i] += rbm->vel_h[i];
-	}
+	gsl_matrix* identity_v = gsl_matrix_alloc(rbm->n_visible, rbm->n_visible);
+	gsl_matrix_set_all(identity_v, 1.0);
+	gsl_matrix_set_identity(identity_v);
+
+	gsl_vector* ones = gsl_vector_alloc(rbm->batch_size);
+	gsl_vector_set_all(ones, 1.0);
+
+	// Compute and apply Delta_W
+	gsl_matrix* delta_W = gsl_matrix_calloc(rbm->n_visible, rbm->n_hidden);
+	int res1W = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input, ph_means, 1.0, delta_W);
+	int res2W = gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, nv_sample, nh_means, 1.0, delta_W);
+	int res3W = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_W, identity_h, momentum, rbm->vel_W);
+	int res4W = gsl_matrix_add(rbm->W, rbm->vel_W);
+	gsl_matrix_free(delta_W);
+
+	// Compute and apply Delta_v
+	int res1V = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_sample); // we don't need nv_sample anymore
+	int res2V = gsl_blas_dgemv(CblasTrans, ratio, nv_sample, ones, momentum, rbm->vel_v);
+	int res3V = gsl_vector_add(rbm->vbias, rbm->vel_v);
+
+	// Compute and apply Delta_h
+	int res1H = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, ph_means, identity_h, -1.0, nh_means); // we don't need nh_mean anymore
+	int res2H = gsl_blas_dgemv(CblasTrans, ratio, nh_means, ones, momentum, rbm->vel_h);
+	int res3H = gsl_vector_add(rbm->hbias, rbm->vel_h);
 
 	// approximation to the reconstruction error: sum over dimensions, mean over cases
+	int res1R = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_means); // we don't need nv_mean anymore
+	gsl_matrix* pow_res = gsl_matrix_alloc(rbm->batch_size, rbm->n_visible);
+	gsl_matrix_memcpy(pow_res, nv_means);
+	int res2R = gsl_matrix_mul_elements(pow_res, nv_means);
+	gsl_vector* pow_sum = gsl_vector_calloc(rbm->n_visible);
+
+	int res3R = gsl_blas_dgemv(CblasTrans, 1.0, pow_res, ones, 1.0, pow_sum);
+
 	double recon = 0;
-	for(int i = 0; i < rbm->batch_size; i++)
-		for(int j = 0; j < rbm->n_visible; j++)
-			recon += pow(input[i][j] - nv_means[i][j],2);
-	recon /= rbm->batch_size;
+	for(int j = 0; j < rbm->n_visible; j++)
+		recon += gsl_vector_get(pow_sum, j);
+	recon /= rbm->n_visible;
 
-	matrix_free(ph_means, rbm->batch_size);
-	matrix_free(ph_sample, rbm->batch_size);
-	matrix_free(nv_means, rbm->batch_size);
-	matrix_free(nv_sample, rbm->batch_size);
-	matrix_free(nh_means, rbm->batch_size);
-	matrix_free(nh_sample, rbm->batch_size);
+	gsl_matrix_free(pow_res);
+	gsl_vector_free(pow_sum);
 
-	matrix_free(delta_W, rbm->n_visible);
-	free(delta_v);
-	free(delta_h);
+	// free the used space
+	gsl_matrix_free(ph_means);
+	gsl_matrix_free(ph_sample);
+	gsl_matrix_free(nv_means);
+	gsl_matrix_free(nv_sample);
+	gsl_matrix_free(nh_means);
+	gsl_matrix_free(nh_sample);
+
+	gsl_matrix_free(identity_h);
+	gsl_matrix_free(identity_v);
+	gsl_vector_free(ones);
 
 	return recon;
 }
@@ -245,7 +236,7 @@ double cdk_RBM (RBM* rbm, double** input, double lr, double momentum, int k)
 //   param training_epochs : number of epochs used for training the RBM
 //   param learning_rate   : learning rate used for training the RBM
 //   param momentum        : momentum weight used for training the RBM
-void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size,
+void train_rbm (RBM* rbm, gsl_matrix* batchdata, int nrow, int ncol, int batch_size,
                 int n_hidden, int training_epochs, double learning_rate,
 		double momentum, int rand_seed)
 {
@@ -272,22 +263,23 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 
 			if (idx_aux_fin >= nrow) break;
 
-			double** input = (double**) malloc(sizeof(double*) * batch_size);
+			gsl_matrix* input = gsl_matrix_alloc(rbm->batch_size, rbm->n_visible);
 			for (int i = 0; i < batch_size; i++)
 			{
 				int index = permindex[i + idx_aux_ini];
 
-				input[i] = (double*) malloc(sizeof(double) * ncol);
-				memcpy(input[i], batchdata[index], sizeof(double) * ncol);
+				for (int j = 0; j < rbm->n_visible; j++)
+					gsl_matrix_set(input, i, j, gsl_matrix_get(batchdata, index, j));
 			}
 
 			// get the cost and the gradient corresponding to one step of CD-k
 			mean_cost += cdk_RBM (rbm, input, learning_rate, momentum, 1);
 
-			matrix_free(input, batch_size);
+			gsl_matrix_free(input);
 		}
-		mean_cost /= batch_size;
-		if (epoch % 100 == 0) printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
+		mean_cost /= n_train_batches;
+//		if (epoch % 100 == 0)
+			printf("Training epoch %d, cost is %f\n", epoch, mean_cost);
 	}
 	free(permindex);
 
@@ -299,56 +291,32 @@ void train_rbm (RBM* rbm, double** batchdata, int nrow, int ncol, int batch_size
 /* PREDICT AND RECONSTRUCT USING THE RBM                                     */
 /*---------------------------------------------------------------------------*/
 
-// This function computes the activation of Vector V
-//   param v       : vector to predict
-double* activation_vector_RBM (RBM* rbm, double* v)
+// This function makes a reconstruction of Matrix v_sample
+//   param pv_sample   : matrix to reconstruct from
+//   param activations : matrix to store activations
+//   param reconstruct : matrix to store reconstruction
+void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations, gsl_matrix** reconstruct)
 {
-	double* activation = (double*) malloc(sizeof(double) * rbm->n_hidden);
-	for (int i = 0; i < rbm->n_hidden; i++)
-	{
-		double pre_sigmoid_activation = rbm->hbias[i];
-		for(int j = 0; j < rbm->n_visible; j++) pre_sigmoid_activation += rbm->W[j][i] * v[j];
-		activation[i] = sigmoid(pre_sigmoid_activation);
-	}
-	return activation;
-}
+	int nrow = pv_sample->size1;
 
-// This function computes the activation of Matrix V
-//   param v : matrix to predict
-double** activation_RBM (RBM* rbm, double** v, int nrow)
-{
-	double** activation = (double**) malloc(sizeof(double) * nrow);
-	for (int i = 0; i < nrow; i++)
-		activation[i] = activation_vector_RBM(rbm, v[i]);
-	return activation;
-}
+	// Activation and Reconstruction process
+	gsl_matrix* nh_means = gsl_matrix_calloc(nrow, rbm->n_hidden);
+	gsl_matrix* nh_sample = gsl_matrix_calloc(nrow, rbm->n_hidden);
+	gsl_matrix* nv_means = gsl_matrix_calloc(nrow, rbm->n_visible);
+	gsl_matrix* nv_sample = gsl_matrix_calloc(nrow, rbm->n_visible);
 
-// This function makes a reconstruction of Vector V
-//   param v : vector to reconstruct
-double* reconstruct_vector_RBM (RBM* rbm, double* h)
-{
-	double* reconstructed = (double*) malloc(sizeof(double) * rbm->n_visible);
-	for (int i = 0; i < rbm->n_visible; i++)
-	{
-		double pre_sigmoid_activation = rbm->vbias[i];
-		for(int j = 0; j < rbm->n_hidden; j++) pre_sigmoid_activation += rbm->W[i][j] * h[j];
-		reconstructed[i] = sigmoid(pre_sigmoid_activation);
-	}
-	return reconstructed;
-}
+	visible_state_to_hidden_probabilities_rbm (rbm, pv_sample, &nh_means, &nh_sample);
+	hidden_state_to_visible_probabilities_rbm (rbm, nh_sample, &nv_means, &nv_sample);
 
-// This function makes a reconstruction of Matrix V
-//   param v : matrix to reconstruct
-double** reconstruct_RBM (RBM* rbm, double** v, int nrow)
-{
-	double** reconstruct = (double**) malloc(sizeof(double) * nrow);
-	for (int i = 0; i < nrow; i++)
-	{
-		double* h = activation_vector_RBM (rbm, v[i]);
-		reconstruct[i] = reconstruct_vector_RBM(rbm, h);
-		free(h);
-	}
-	return reconstruct;
+	// Copy results to activation and reconstruction matrix (and padding for delay)
+	gsl_matrix_memcpy(*activations, nh_means);
+	gsl_matrix_memcpy(*reconstruct, nv_sample);
+
+	// Free auxiliar structures
+	gsl_matrix_free(nh_means);
+	gsl_matrix_free(nh_sample);
+	gsl_matrix_free(nv_means);
+	gsl_matrix_free(nv_sample);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -373,12 +341,10 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
  	double mome = NUMERIC_VALUE(momentum);
 
 	// Create Dataset Structure
-	double** train_X_p = malloc(sizeof(double*) * nrow);
+	gsl_matrix* train_X_p = gsl_matrix_alloc(nrow, ncol);
 	for (int i = 0; i < nrow; i++)
-	{
-		train_X_p[i] = malloc(sizeof(double) * ncol);
-		for (int j = 0; j < ncol; j++) train_X_p[i][j] = RMATRIX(dataset,i,j);
-	}
+		for (int j = 0; j < ncol; j++)
+			gsl_matrix_set(train_X_p, i, j, RMATRIX(dataset, i, j));
 
 	// Perform Training
 	RBM rbm;
@@ -404,19 +370,19 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	{
 		for (int j = 0; j < nhid; j++)
 		{
-			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = rbm.W[i][j];
-			REAL(VECTOR_ELT(retval, 6))[i * nhid + j] = rbm.vel_W[i][j];
+			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = gsl_matrix_get(rbm.W, i, j);
+			REAL(VECTOR_ELT(retval, 6))[i * nhid + j] = gsl_matrix_get(rbm.vel_W, i, j);
 		}
-		REAL(VECTOR_ELT(retval, 5))[i] = rbm.vbias[i];
-		REAL(VECTOR_ELT(retval, 8))[i] = rbm.vel_v[i];
+		REAL(VECTOR_ELT(retval, 5))[i] = gsl_vector_get(rbm.vbias, i);
+		REAL(VECTOR_ELT(retval, 8))[i] = gsl_vector_get(rbm.vel_v, i);
 	}
 
 	SET_VECTOR_ELT(retval, 4, allocVector(REALSXP, nhid));
 	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, nhid));
 	for (int i = 0; i < nhid; i++)
 	{
-		REAL(VECTOR_ELT(retval, 4))[i] = rbm.hbias[i];
-		REAL(VECTOR_ELT(retval, 7))[i] = rbm.vel_h[i];
+		REAL(VECTOR_ELT(retval, 4))[i] = gsl_vector_get(rbm.hbias, i);
+		REAL(VECTOR_ELT(retval, 7))[i] = gsl_vector_get(rbm.vel_h, i);
 	}
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 9));
@@ -434,11 +400,36 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	UNPROTECT(2);
 
 	// Free Dataset Structure
-	matrix_free(train_X_p, nrow);
 	free_RBM(&rbm);
+
+	gsl_matrix_free(train_X_p);
 
 	return retval;
 }
+
+// Function to Re-assemble the RBM
+void reassemble_RBM (RBM* rbm, SEXP W_input, SEXP hbias_input, SEXP vbias_input,
+	int nhid, int nvis)
+{
+ 	int wrow = INTEGER(GET_DIM(W_input))[0];
+ 	int wcol = INTEGER(GET_DIM(W_input))[1];
+
+	gsl_matrix* W = gsl_matrix_alloc(wrow, wcol);
+	for (int i = 0; i < wrow; i++)
+		for (int j = 0; j < wcol; j++)
+			gsl_matrix_set(W, i, j, RMATRIX(W_input, i, j));
+
+	gsl_vector* hbias = gsl_vector_calloc(nhid);
+	for (int i = 0; i < nhid; i++)
+		gsl_vector_set(hbias, i, RVECTOR(hbias_input, i));
+
+	gsl_vector* vbias = gsl_vector_calloc(nvis);
+	for (int i = 0; i < nvis; i++)
+		gsl_vector_set(vbias, i, RVECTOR(vbias_input, i));
+
+	create_RBM (rbm, 0, nvis, nhid, 1, W, hbias, vbias);
+}
+
 
 // Interface for Predicting and Reconstructing using an RBM
 SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, SEXP hbias_input, SEXP vbias_input)
@@ -448,56 +439,33 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 
 	int nhid = INTEGER_VALUE(n_hidden);
 
- 	int wrow = INTEGER(GET_DIM(W_input))[0];
- 	int wcol = INTEGER(GET_DIM(W_input))[1];
-
 	// Re-assemble the RBM
-	double** W = malloc(sizeof(double*) * wrow);
-	for (int i = 0; i < wrow; i++)
-	{
-		W[i] = malloc(sizeof(double) * wcol);
-		for (int j = 0; j < wcol; j++) W[i][j] = RMATRIX(W_input,i,j);
-	}
-
-	double* hbias = malloc(sizeof(double) * nhid);
-	for (int i = 0; i < nhid; i++) hbias[i] = RVECTOR(hbias_input,i);
-
-	double* vbias = malloc(sizeof(double) * ncol);
-	for (int i = 0; i < ncol; i++) vbias[i] = RVECTOR(vbias_input,i);
-
 	RBM rbm;
-	create_RBM (&rbm, 0, ncol, nhid, 1, W, hbias, vbias);
+	reassemble_RBM (&rbm, W_input, hbias_input, vbias_input, nhid, ncol);
 
 	// Prepare Test Dataset
-	double** test_X_p = malloc(sizeof(double*) * nrow);
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
 	for (int i = 0; i < nrow; i++)
-	{
-		test_X_p[i] = malloc(sizeof(double) * ncol);
-		for (int j = 0; j < ncol; j++) test_X_p[i][j] = RMATRIX(newdata,i,j);
-	}
-
-
+		for (int j = 0; j < ncol; j++)
+			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
 
 	// Pass through RBM
-	double** reconstruct_p = reconstruct_RBM(&rbm, test_X_p, nrow);
-	double** activation_p = activation_RBM(&rbm, test_X_p, nrow);
+	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, ncol);
+	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
+	reconstruct_RBM(&rbm, test_X_p, &activations, &reconstruction);
 
 	// Prepare Results
 	SEXP retval = PROTECT(allocVector(VECSXP, 2));
 
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(reconstruction, i, j);
+
 	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
 	for (int i = 0; i < nrow; i++)
-	{
-		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = reconstruct_p[i][j];
 		for (int j = 0; j < nhid; j++)
-			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = activation_p[i][j];
-		free(reconstruct_p[i]);
-		free(activation_p[i]);
-	}
-	free(reconstruct_p);
-	free(activation_p);
+			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = gsl_matrix_get(activations, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 2));
 	SET_STRING_ELT(nms, 0, mkChar("reconstruction"));
@@ -507,8 +475,11 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	UNPROTECT(2);
 
 	// Free the structures and the RBM
-	matrix_free(test_X_p, nrow);
 	free_RBM(&rbm);
+
+	gsl_matrix_free(reconstruction);
+	gsl_matrix_free(activations);
+	gsl_matrix_free(test_X_p);
 
 	return retval;
 }
