@@ -1,0 +1,6 @@
+S3method(predict, crbm)
+S3method(predict, rbm)
+export(forecast.crbm)
+export(train.crbm)
+export(train.rbm)
+importFrom("stats", "predict", "sd")
