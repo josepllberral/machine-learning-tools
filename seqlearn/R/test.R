@@ -1,8 +1,8 @@
 load.libs <- function()
 {
 	# This is for testing purposes
-	system("cd src; R CMD SHLIB crbm.c rbm.c matrix_ops.c -lgsl -lgslcblas -o librbm.so");
-	dyn.load("src/librbm.so");
+	system("cd seqlearn/src; R CMD SHLIB crbm.c crbm_r.c rbm.c rbm_r.c matrix_ops.c -lgsl -lgslcblas -o librbm.so");
+	dyn.load("seqlearn/src/librbm.so");
 	source("crbm.R");
 	source("rbm.R");
 }

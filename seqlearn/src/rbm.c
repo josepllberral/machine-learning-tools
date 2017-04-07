@@ -4,39 +4,10 @@
 
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
-// Inspired by the implementations from:
-// * David Buchaca   : https://github.com/davidbp/connectionist
-// * Andrew Landgraf : https://www.r-bloggers.com/restricted-boltzmann-machines-in-r/
-// * Graham Taylor   : http://www.uoguelph.ca/~gwtaylor/
-// * Yusuke Sugomori : https://github.com/yusugomori/DeepLearning/
+// File including Function Implementations
+// Compile using "gcc -c rbm.c matrix_ops.c -lgsl -lgslcblas -lm -o rbm"
 
-// Compile using "R CMD SHLIB rbm.c"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_blas.h>
-
-#include <R.h>
-#include <Rdefines.h>
-#include <Rinternals.h>
-
-#include "matrix_ops.h"
-
-typedef struct {
-	int N;
-	int n_visible;
-	int n_hidden;
-	gsl_matrix* W;
-	gsl_vector* hbias;
-	gsl_vector* vbias;
-	gsl_matrix* vel_W;
-	gsl_vector* vel_v;
-	gsl_vector* vel_h;
-	int batch_size;
-} RBM;
+#include "rbm.h"
 
 /*---------------------------------------------------------------------------*/
 /* RBM FUNCTIONS                                                             */
@@ -100,8 +71,8 @@ void visible_state_to_hidden_probabilities_rbm (RBM* rbm, gsl_matrix* v_sample, 
 	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, rbm->hbias);
 	int res2 = gsl_matrix_add(pre_sigmoid, M_bias);
 
-	*h_mean = matrix_sigmoid(pre_sigmoid);
-	*h_sample = matrix_bernoulli(*h_mean);
+	matrix_sigmoid(pre_sigmoid, *h_mean);
+	matrix_bernoulli(*h_mean, *h_sample);
 
 	gsl_matrix_free(M_bias);
 	gsl_matrix_free(pre_sigmoid);
@@ -127,9 +98,6 @@ void hidden_state_to_visible_probabilities_rbm (RBM* rbm, gsl_matrix* h_sample, 
 
 	int res3 =  gsl_matrix_memcpy(*v_mean, pre_sigmoid);
 	int res4 =  gsl_matrix_memcpy(*v_sample, pre_sigmoid);
-
-//	*v_mean = matrix_sigmoid(pre_sigmoid);
-//	*v_sample = matrix_bernoulli(*v_mean);
 
 	gsl_matrix_free(M_bias);
 	gsl_matrix_free(pre_sigmoid);
@@ -320,167 +288,102 @@ void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations,
 }
 
 /*---------------------------------------------------------------------------*/
-/* INTERFACE TO R                                                            */
+/* MAIN FUNCTION - TEST                                                      */
 /*---------------------------------------------------------------------------*/
 
-#define RMATRIX(m,i,j) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(j)+(i) ])
-#define RVECTOR(v,i) (REAL(v)[(i)])
-
-// Interface for Training an RBM
-SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_epochs,
-           SEXP learning_rate, SEXP momentum, SEXP rand_seed)
+/*int main (void)
 {
- 	int nrow = INTEGER(GET_DIM(dataset))[0];
- 	int ncol = INTEGER(GET_DIM(dataset))[1];
+	printf("Start\n");
 
- 	int basi = INTEGER_VALUE(batch_size);
-	int nhid = INTEGER_VALUE(n_hidden);
- 	int trep = INTEGER_VALUE(training_epochs);
- 	int rase = INTEGER_VALUE(rand_seed);
- 	double lera = NUMERIC_VALUE(learning_rate);
- 	double mome = NUMERIC_VALUE(momentum);
+	int basi = 10;
+	int nhid = 30;
+	int trep = 10;
+	double lera = 1e-3;
+	double mome = 0.5;
+	int rase = 1234;
 
-	// Create Dataset Structure
+	int nrow = 60000;
+	int ncol = 784;
+
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+
+	// Read Train Data
+	fp = fopen("../datasets/mnist_trainx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
 	gsl_matrix* train_X_p = gsl_matrix_alloc(nrow, ncol);
 	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
 		for (int j = 0; j < ncol; j++)
-			gsl_matrix_set(train_X_p, i, j, RMATRIX(dataset, i, j));
+		{
+			gsl_matrix_set(train_X_p, i, j, atof(ch));
+			ch = strtok(NULL, " ");
+		}
+		free(ch);
+	}
+	fclose(fp);
+
+	printf("Read Train Data\n");
 
 	// Perform Training
 	RBM rbm;
 	train_rbm (&rbm, train_X_p, nrow, ncol, basi, nhid, trep, lera, mome, rase);
 
-	// Return Structure
-	SEXP retval = PROTECT(allocVector(VECSXP, 9));
+	printf("Training Finished\n");
 
-	SET_VECTOR_ELT(retval, 0, allocVector(INTSXP, 1));
-	INTEGER(VECTOR_ELT(retval, 0))[0] = rbm.N;
+	// Read Test Data
+	fp = fopen("../datasets/mnist_testx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
 
-	SET_VECTOR_ELT(retval, 1, allocVector(INTSXP, 1));
-	INTEGER(VECTOR_ELT(retval, 1))[0] = rbm.n_visible;
+	nrow = 10000;
 
-	SET_VECTOR_ELT(retval, 2, allocVector(INTSXP, 1));
-	INTEGER(VECTOR_ELT(retval, 2))[0] = rbm.n_hidden;
-
-	SET_VECTOR_ELT(retval, 3, allocMatrix(REALSXP, ncol, nhid));
-	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, ncol));
-	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, ncol, nhid));
-	SET_VECTOR_ELT(retval, 8, allocVector(REALSXP, ncol));
-	for (int i = 0; i < ncol; i++)
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
 	{
-		for (int j = 0; j < nhid; j++)
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
+		for (int j = 0; j < ncol; j++)
 		{
-			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = gsl_matrix_get(rbm.W, i, j);
-			REAL(VECTOR_ELT(retval, 6))[i * nhid + j] = gsl_matrix_get(rbm.vel_W, i, j);
+			gsl_matrix_set(test_X_p, i, j, atof(ch));
+			ch = strtok(NULL, " ");
 		}
-		REAL(VECTOR_ELT(retval, 5))[i] = gsl_vector_get(rbm.vbias, i);
-		REAL(VECTOR_ELT(retval, 8))[i] = gsl_vector_get(rbm.vel_v, i);
+		free(ch);
 	}
+	fclose(fp);
 
-	SET_VECTOR_ELT(retval, 4, allocVector(REALSXP, nhid));
-	SET_VECTOR_ELT(retval, 7, allocVector(REALSXP, nhid));
-	for (int i = 0; i < nhid; i++)
-	{
-		REAL(VECTOR_ELT(retval, 4))[i] = gsl_vector_get(rbm.hbias, i);
-		REAL(VECTOR_ELT(retval, 7))[i] = gsl_vector_get(rbm.vel_h, i);
-	}
+	printf("Read Test Data\n");
 
-	SEXP nms = PROTECT(allocVector(STRSXP, 9));
-	SET_STRING_ELT(nms, 0, mkChar("N"));
-	SET_STRING_ELT(nms, 1, mkChar("n_visible"));
-	SET_STRING_ELT(nms, 2, mkChar("n_hidden"));
-	SET_STRING_ELT(nms, 3, mkChar("W"));
-	SET_STRING_ELT(nms, 4, mkChar("hbias"));
-	SET_STRING_ELT(nms, 5, mkChar("vbias"));
-	SET_STRING_ELT(nms, 6, mkChar("vel_W"));
-	SET_STRING_ELT(nms, 7, mkChar("vel_h"));
-	SET_STRING_ELT(nms, 8, mkChar("vel_v"));
+	if (line) free(line);
 
-	setAttrib(retval, R_NamesSymbol, nms);
-	UNPROTECT(2);
+	// Perform Testing
+	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, ncol);
+	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
+	reconstruct_RBM(&rbm, test_X_p, &activations, &reconstruction);
+
+	printf("Testing Finished\n");
+
+	// Check Error again
+	double error_recons = 0;
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+		{
+			double diff = gsl_matrix_get(test_X_p, i, j) - gsl_matrix_get(reconstruction, i, j);
+			error_recons += pow(diff, 2);
+		}
+	printf("Reconstruction Error: %f\n", error_recons / (nrow * ncol));
 
 	// Free Dataset Structure
 	free_RBM(&rbm);
 
 	gsl_matrix_free(train_X_p);
-
-	return retval;
-}
-
-// Function to Re-assemble the RBM
-void reassemble_RBM (RBM* rbm, SEXP W_input, SEXP hbias_input, SEXP vbias_input,
-	int nhid, int nvis)
-{
- 	int wrow = INTEGER(GET_DIM(W_input))[0];
- 	int wcol = INTEGER(GET_DIM(W_input))[1];
-
-	gsl_matrix* W = gsl_matrix_alloc(wrow, wcol);
-	for (int i = 0; i < wrow; i++)
-		for (int j = 0; j < wcol; j++)
-			gsl_matrix_set(W, i, j, RMATRIX(W_input, i, j));
-
-	gsl_vector* hbias = gsl_vector_calloc(nhid);
-	for (int i = 0; i < nhid; i++)
-		gsl_vector_set(hbias, i, RVECTOR(hbias_input, i));
-
-	gsl_vector* vbias = gsl_vector_calloc(nvis);
-	for (int i = 0; i < nvis; i++)
-		gsl_vector_set(vbias, i, RVECTOR(vbias_input, i));
-
-	create_RBM (rbm, 0, nvis, nhid, 1, W, hbias, vbias);
-}
-
-
-// Interface for Predicting and Reconstructing using an RBM
-SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, SEXP hbias_input, SEXP vbias_input)
-{
- 	int nrow = INTEGER(GET_DIM(newdata))[0];
- 	int ncol = INTEGER(GET_DIM(newdata))[1];
-
-	int nhid = INTEGER_VALUE(n_hidden);
-
-	// Re-assemble the RBM
-	RBM rbm;
-	reassemble_RBM (&rbm, W_input, hbias_input, vbias_input, nhid, ncol);
-
-	// Prepare Test Dataset
-	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
-
-	// Pass through RBM
-	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, ncol);
-	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
-	reconstruct_RBM(&rbm, test_X_p, &activations, &reconstruction);
-
-	// Prepare Results
-	SEXP retval = PROTECT(allocVector(VECSXP, 2));
-
-	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(reconstruction, i, j);
-
-	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < nhid; j++)
-			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = gsl_matrix_get(activations, i, j);
-
-	SEXP nms = PROTECT(allocVector(STRSXP, 2));
-	SET_STRING_ELT(nms, 0, mkChar("reconstruction"));
-	SET_STRING_ELT(nms, 1, mkChar("activation"));
-
-	setAttrib(retval, R_NamesSymbol, nms);
-	UNPROTECT(2);
-
-	// Free the structures and the RBM
-	free_RBM(&rbm);
-
+	gsl_matrix_free(test_X_p);
 	gsl_matrix_free(reconstruction);
 	gsl_matrix_free(activations);
-	gsl_matrix_free(test_X_p);
 
-	return retval;
+	return 0;
 }
-
+*/

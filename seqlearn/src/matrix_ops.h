@@ -14,8 +14,8 @@
 /* MATRIX OPERATIONS                                                         */
 /*---------------------------------------------------------------------------*/
 gsl_matrix* matrix_normal (int, int, double, double, double);
-gsl_matrix* matrix_sigmoid (gsl_matrix*);
-gsl_matrix* matrix_bernoulli (gsl_matrix*);
+void matrix_sigmoid (gsl_matrix*, gsl_matrix*);
+void matrix_bernoulli (gsl_matrix*, gsl_matrix*);
 int* sequence (int, int);
 int* shuffle (int);
 
