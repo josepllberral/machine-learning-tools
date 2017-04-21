@@ -77,22 +77,29 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 
 		y_grad <- array(1, dim(y));
 		x_grad <- backward(laux, y_grad, ...)[["dx"]];
+
 		x_grad;
 	}
 
 	g_approx <- approx_fprime(x0, fun, eps, ...);
 	g_true <- fun_grad(x0, ...);
 
-	if (!gradclose(g_approx, g_true, rtol, atol))
+	is_close <- gradclose(g_approx, g_true, rtol, atol);
+
+	if (!is_close)
 	{
-		message(paste("Incorrect Input Gradient:", g_approx, "[<A,T>]", g_true, '\n', sep = " "));
-		return(NULL);
+#		message(paste("Incorrect Input Gradient:", g_approx, "[<A,T>]", g_true, '\n', sep = " "));
+		message("Incorrect Input Gradient\n* Approx:\n");
+		print(g_approx[1,1,,]);	
+		message("True:\n");
+		print(g_true[1,1,,]);
+		return(FALSE);
 	}
 
 	# Check parameter gradients
 	fun <- function(x, p_idx, ...)
 	{
-		ns <- pnames(layer)[[p_idx]];
+		ns <- (pnames())[[p_idx]];
 		param_array <- layer[[ns]];
 		param_array <- param_array * 0;
 		param_array <- param_array + x;
@@ -103,7 +110,7 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 
 	fun_grad <- function(x, p_idx, ...)
 	{
-		ns <- pnames(layer)[[p_idx]];
+		ns <- (pnames())[[p_idx]];
 		param_array <- layer[[ns]];
 		param_array <- param_array * 0;
 		param_array <- param_array + x;
@@ -116,12 +123,13 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 		y_grad <- array(1, dim(out));
 		laux <- backward(laux, y_grad, ...)[["layer"]];
 
-		ns <- gnames(laux)[[p_idx]];
+		gnames <- laux$gnames;
+		ns <- (gnames())[[p_idx]];
 		param_grad <- laux[[ns]];
 		param_grad;
 	}
 
-	params <- pnames(layer);
+	params <- layer$pnames();
 	if (length(params) < 1) return();
 	for (i in 1:length(params))
 	{
@@ -132,7 +140,9 @@ check_grad <- function (layer, x0, seed = 1, eps = NULL, rtol = NULL, atol = NUL
 		if (!gradclose(g_approx, g_true, rtol, atol))
 		{
 			message(paste("Incorrect Parameter Gradient", i, ":", g_approx, "[<A,T>]", g_true, '\n', sep = " "));
+			return(FALSE);
 		}
 	}
+	return(TRUE);
 }
 

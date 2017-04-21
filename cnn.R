@@ -159,30 +159,18 @@ NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 #	out;
 #}
 
-## Adds padding to image
-cppFunction('
-NumericMatrix img_padding (NumericMatrix img, int pad_y, int pad_x)
-{
-	NumericMatrix out (img.nrow() + 2 * pad_y, img.ncol() + 2 * pad_x);
-	for(int i = pad_y; i < img.nrow() - pad_y; i++)
-		for(int j = pad_x; j < img.ncol() - pad_x; j++)
-			out(i,j) = img(i - pad_y, j - pad_x);
-	return out;
-}
-')
-
 ## Image Padding - Old Version in "Native R"
-#img_padding <- function(img, pad_y, pad_x)
-#{
-#	dims <- dim(img);
-#	imgs_pad <- array(0, c(dims[1] + 2 * pad_y, dims[2] + 2 * pad_x));
-#
-#	aux <- cbind(img, array(0, c(nrow(img), pad_y)));
-#	aux <- cbind(array(0, c(nrow(aux), pad_y)), aux);
-#	aux <- rbind(aux, array(0, c(pad_x, ncol(aux))));
-#	aux <- rbind(array(0, c(pad_x, ncol(aux))), aux);
-#	aux;
-#}
+img_padding <- function(img, pad_y, pad_x)
+{
+	dims <- dim(img);
+	imgs_pad <- array(0, c(dims[1] + 2 * pad_y, dims[2] + 2 * pad_x));
+
+	aux <- cbind(img, array(0, c(nrow(img), pad_y)));
+	aux <- cbind(array(0, c(nrow(aux), pad_y)), aux);
+	aux <- rbind(aux, array(0, c(pad_x, ncol(aux))));
+	aux <- rbind(array(0, c(pad_x, ncol(aux))), aux);
+	aux;
+}
 
 binarization <- function(vec)
 {
@@ -240,8 +228,7 @@ conv_bc01_orig <- function(imgs, filters, padding)
 	# Perform convolution
 	for (b in 1:batch_size)
 		for (f in 1:n_filters)
-			out_1[b,f,,] <- Reduce('+', lapply(1:n_channels, function(c) conv2D(imgs_pad[b,c,,], filters[f,c,,])))
-#			for (c in 1:n_channels)	out_1[b,f,,] <- out_1[b,f,,] + conv2D(imgs_pad[b,c,,], filters[f,c,,]);
+			for (c in 1:n_channels)	out_1[b,f,,] <- out_1[b,f,,] + conv2D(imgs_pad[b,c,,], filters[f,c,,]);
 
 	return(out_1);
 }
@@ -266,8 +253,8 @@ forward_conv_orig <- function(conv, x)
 forward_conv <- cmpfun(forward_conv_orig);
 
 ## Performs Backward Propagation
-##	param dy :	4D-image
-##	return   :	image
+##	param dy :	Array of shape (batch_size, n_filters, out_height, out_width)
+##	return   :	Array of shape (batch_size, n_channels, img_height, img_width)
 ##	updates  :	conv_layer
 backward_conv_orig <- function(conv, dy)
 {
@@ -277,8 +264,8 @@ backward_conv_orig <- function(conv, dy)
         # Transpose channel/filter dimensions of weights
 	w <- aperm(w, c(2, 1, 3, 4));
 
-        # Propagate gradients to x
-        dx <- conv_bc01(dy, w, conv$padding)
+	# Propagate gradients to x
+        dx <- conv_bc01(dy, w, conv$padding);
 
 	# Prepares padded image for convolution
 	x_pad <- array(0, dim(conv$x) + c(0, 0, 2 * conv$padding));
@@ -288,10 +275,10 @@ backward_conv_orig <- function(conv, dy)
 
         # Propagate gradients to weights and gradients to bias
 	grad_W <- array(0, dim(conv$W));
-	for (f in 1:dim(conv$W)[1])
-		for (c in 1:dim(conv$W)[2])
-			grad_W[f,c,,] <- Reduce('+', lapply(1:dim(dy)[1], function(b) conv2D(x_pad[b,c,,], dy[b,f,,])))
-#			for (b in 1:dim(dy)[1])	grad_W[f,c,,] <- grad_W[f,c,,] + conv2D(x_pad[b,c,,], dy[b,f,,]);
+	for (b in 1:dim(dy)[1])
+		for (f in 1:dim(conv$W)[1])
+			for (c in 1:dim(conv$W)[2])
+				grad_W[f,c,,] <- grad_W[f,c,,] + conv2D(x_pad[b,c,,], dy[b,f,,]);
 
 	conv[["grad_W"]] <- grad_W[,, (conv$w_shape[3]:1), (conv$w_shape[4]:1), drop = FALSE];
 	conv[["grad_b"]] <- array(apply(dy, MARGIN = 2, sum), dim(conv$b));
@@ -336,7 +323,7 @@ create_conv <- function(n_channels, n_filters, filter_size, scale = 0.01, border
 ## Driver for Convolutional Layer
 main_conv <- function()
 {
-	batch_size <- 2;
+	batch_size <- 10;
 	n_channels <- 1;
 	img_shape <- c(5, 5);
 	n_filters <- 2;
@@ -347,8 +334,8 @@ main_conv <- function()
 	x <- sample_normal(c(batch_size, n_channels, img_shape));
 	layer <- create_conv(n_channels, n_filters, filter_size, border_mode = border_mode);
 
-	check_grad(layer, x);
-	print('Gradient check passed')
+	ok <- check_grad(layer, x);
+	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
 ###############################################################################
@@ -451,8 +438,8 @@ main_pool <- function()
 	x <- sample_normal(c(batch_size, n_channels, img_shape));
 	layer <- create_pool(win_size = 3, stride = 2);
 
-	check_grad(layer, x);
-	print('Gradient check passed');
+	ok <- check_grad(layer, x);
+	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
 ###############################################################################
@@ -509,8 +496,8 @@ main_flat <- function()
 	x <- sample_normal(c(batch_size, n_channels, img_shape));
 	layer <- create_flat();
 
-	check_grad(layer, x);
-	print('Gradient check passed');
+	ok <- check_grad(layer, x);
+	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
 ###############################################################################
@@ -614,8 +601,8 @@ main_line <- function()
 	x <- sample_normal(c(batch_size, img_shape));
 	layer <- create_line(n_visible = 100, n_hidden = 64, scale = 0.01);
 
-	check_grad(layer, x);
-	print('Gradient check passed');
+	ok <- check_grad(layer, x);
+	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
 ###############################################################################

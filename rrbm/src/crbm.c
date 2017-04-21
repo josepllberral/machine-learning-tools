@@ -5,7 +5,7 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including Function Implementations
-// Compile using "gcc -c crbm.c matrix_ops.c -lgsl -lgslcblas -lm -o crbm"
+// Compile using "gcc crbm.c matrix_ops.c -lgsl -lgslcblas -lm -o crbm"
 
 #include "crbm.h"
 
