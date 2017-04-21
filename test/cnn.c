@@ -402,8 +402,6 @@ void create_CONV (CONV* conv, int n_channels, int n_filters, int filter_size,
 		for (int c = 0; c < n_channels; c++)
 		{
 			conv->W[f][c] = matrix_normal(filter_size, filter_size, 0, 1, scale);
-//			conv->W[f][c] = gsl_matrix_calloc(filter_size, filter_size);
-//			gsl_matrix_set_all(conv->W[f][c], 0.01);
 			conv->grad_W[f][c] = gsl_matrix_calloc(filter_size, filter_size);
 		}
 	}
@@ -451,8 +449,9 @@ void free_CONV (CONV* conv)
 	}
 	free(conv->W);
 	free(conv->grad_W);
-	free(conv->b);
-	free(conv->grad_b);
+
+	gsl_vector_free(conv->b);
+	gsl_vector_free(conv->grad_b);
 }
 
 // Function to copy a CONV layer
@@ -582,11 +581,7 @@ int main()
 	{
 		x[b] = (gsl_matrix**) malloc(n_channels * sizeof(gsl_matrix*));
 		for (int c = 0; c < n_channels; c++)
-		{
 			x[b][c] = matrix_normal(img_shape_h, img_shape_w, 0, 1, 10);
-			//x[b][c] = gsl_matrix_calloc(img_shape_h, img_shape_w);
-			//gsl_matrix_set_all(x[b][c], 1);
-		}
 	}
 
 	printf("Create Convolution Layer\n");
@@ -597,14 +592,12 @@ int main()
 	printf("Initialize gradients\n");
 
 	// Initialize just for gradient check
-	gsl_matrix*** ini = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
 	for (int b = 0; b < batch_size; b++)
-	{
-		ini[b] = (gsl_matrix**) malloc(n_channels * sizeof(gsl_matrix*));
 		for (int c = 0; c < n_channels; c++)
-			ini[b][c] = gsl_matrix_calloc(img_shape_h, img_shape_w);
-	}
-	conv.img = ini;
+		{
+			gsl_matrix_free(conv.img[b][c]);
+			conv.img[b][c] = gsl_matrix_calloc(img_shape_h, img_shape_w);
+		}
 
 	printf("Start Gradient Check\n");
 

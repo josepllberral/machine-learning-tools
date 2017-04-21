@@ -556,22 +556,30 @@ int check_grad (CONV* conv, gsl_matrix*** x0, int rand_seed, double eps, double 
 	}
 
 	// Free auxiliar structures
+
+	for (int b = 0; b < conv->batch_size; b++)
+	{
+		for (int c = 0; c < conv->n_channels; c++)
+		{
+			gsl_matrix_free(g_approx[b][c]);
+			gsl_matrix_free(g_true[b][c]);
+		}
+		free(g_approx[b]);
+		free(g_true[b]);
+	}
+	free(g_approx);
+	free(g_true);
+
 	for (int f = 0; f < conv->n_filters; f++)
 	{
 		for (int c = 0; c < conv->n_channels; c++)
 		{
-			gsl_matrix_free(g_approx[f][c]);
-			gsl_matrix_free(g_true[f][c]);
 			gsl_matrix_free(g_true_W[f][c]);
 			gsl_matrix_free(g_approx_W[f][c]);
 		}
-		free(g_approx[f]);
-		free(g_true[f]);
 		free(g_true_W[f]);
 		free(g_approx_W[f]);
 	}
-	free(g_approx);
-	free(g_true);
 	free(g_true_W);
 	free(g_approx_W);
 
