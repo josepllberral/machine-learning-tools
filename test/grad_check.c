@@ -728,3 +728,59 @@ int check_grad_flat (FLAT* flat, gsl_matrix*** x0, int rand_seed, double eps, do
 	return retval;
 }
 
+int check_grad_relu (RELU* relu, gsl_matrix*** x0, int rand_seed, double eps, double rtol, double atol)
+{
+	srand(rand_seed);
+
+	int retval = 0;
+
+	// Part 1: Checking Output
+	RELU relu_copy;
+	copy_RELU(&relu_copy, relu);
+
+	// Go forward
+	gsl_matrix*** y = forward_relu(&relu_copy, x0);
+
+	// Go backward
+	gsl_matrix*** dx = backward_relu(&relu_copy, y);
+
+	// Check output reconstruction
+	int img_h = x0[0][0]->size1;
+	int img_w = x0[0][0]->size2;
+
+	int is_equal = 0;
+	for (int b = 0; b < relu->batch_size; b++)
+		for (int c = 0; c < relu->n_channels; c++)
+			for (int h = 0; h < img_h; h++)
+				for (int w = 0; w < img_w; w++)
+				{
+					double value0 = gsl_matrix_get(x0[b][c], h, w);
+					double value1 = gsl_matrix_get(dx[b][c], h, w);
+					if ((value0 < 0 && value1 != 0) || (value0 >= 0 && value0 != value1)) is_equal += 1;
+				}
+
+	if (is_equal > 0)
+	{
+		printf("Incorrect Input Gradient:\n * Differences: %d\n", is_equal);
+		retval = 1;
+	}
+
+	// Free auxiliar structures
+	for (int b = 0; b < relu->batch_size; b++)
+	{
+		for (int c = 0; c < relu->n_channels; c++)
+		{
+			gsl_matrix_free(y[b][c]);
+			gsl_matrix_free(dx[b][c]);
+		}
+		free(y[b]);
+		free(dx[b]);
+	}
+	free(y);
+	free(dx);
+
+	free_RELU(&relu_copy);
+
+	return retval;
+}
+

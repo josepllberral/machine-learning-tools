@@ -218,7 +218,42 @@ int main_flat()
 // Driver for ReLU Layer
 int main_relu()
 {
-	// TODO - ...
+	int batch_size = 2;
+	int n_channels = 1;
+	int img_shape_h = 5;
+	int img_shape_w = 5;
+
+	// Create random image
+	gsl_matrix*** x = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
+	for (int b = 0; b < batch_size; b++)
+	{
+		x[b] = (gsl_matrix**) malloc(n_channels * sizeof(gsl_matrix*));
+		for (int c = 0; c < n_channels; c++)
+			x[b][c] = matrix_normal(img_shape_h, img_shape_w, 0, 1, 10);
+	}
+
+	printf("Create ReLU Layer\n");
+
+	RELU relu;
+	create_RELU(&relu, n_channels, batch_size);
+
+	printf("Start Gradient Check\n");
+
+	// Gradient check
+	int a = check_grad_relu((void*) &relu, x, 1234, -1, -1, -1);
+	if (a == 0) printf("Gradient check passed\n");
+
+	printf("Fin Gradient Check\n");
+
+	for (int b = 0; b < batch_size; b++)
+	{
+		for (int c = 0; c < n_channels; c++) gsl_matrix_free(x[b][c]);
+		free(x[b]);
+	}
+	free(x);
+
+	free_RELU(&relu);
+
 	return 0;
 }
 
@@ -228,5 +263,5 @@ int main_relu()
 
 int main()
 {
-	return main_conv();
+	return main_relu();
 }

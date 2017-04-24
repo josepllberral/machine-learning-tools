@@ -74,6 +74,7 @@ gsl_matrix*** fun_grad (void*, gsl_matrix***, int, int);
 int check_grad_conv (CONV*, gsl_matrix***, int, double, double, double);
 int check_grad_pool (POOL*, gsl_matrix***, int, double, double, double);
 int check_grad_flat (FLAT*, gsl_matrix***, int, double, double, double);
+int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
 
 double fun_b_conv (CONV*, gsl_vector*, gsl_matrix***);
 gsl_vector* approx_fprime_b_conv (CONV*, gsl_matrix***, double);
