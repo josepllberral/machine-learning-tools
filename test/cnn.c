@@ -5,7 +5,7 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including Function Implementations
-// Compile using "gcc cnn.c conv.c pool.c flat.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cnn.c conv.c pool.c flat.c relu.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
 
 #include "cnn.h"
 
@@ -215,6 +215,12 @@ int main_flat()
 	return 0;
 }
 
+// Driver for ReLU Layer
+int main_relu()
+{
+	// TODO - ...
+	return 0;
+}
 
 /*---------------------------------------------------------------------------*/
 /* MAIN FUNCTION - TEST                                                      */
@@ -222,5 +228,5 @@ int main_flat()
 
 int main()
 {
-	return main_flat();
+	return main_conv();
 }

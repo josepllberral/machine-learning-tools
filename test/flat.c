@@ -5,7 +5,6 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including Function Implementations
-// Compile using "gcc cnn.c conv.c pool.c flat.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
 
 #include "cnn.h"
 

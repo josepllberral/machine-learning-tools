@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cnn.c conv.c pool.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cnn.c conv.c pool.c flat.c relu.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,6 +57,12 @@ typedef struct {
 	int img_h;
 	int img_w;
 } FLAT;
+
+typedef struct {
+	int batch_size;
+	int n_channels;
+	gsl_matrix*** img;
+} RELU;
 
 // Gradiend Check Functions
 int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
@@ -107,5 +113,14 @@ void create_FLAT (FLAT*, int, int);
 void free_FLAT (FLAT*);
 void copy_FLAT (FLAT*, FLAT*);
 int compare_FLAT (FLAT*, FLAT*);
+
+// Rectified Linear Layer
+gsl_matrix*** forward_relu(RELU*, gsl_matrix***);
+gsl_matrix*** backward_relu (RELU*, gsl_matrix***);
+void get_updates_relu (RELU*, double);
+void create_RELU (RELU*, int, int);
+void free_RELU (RELU*);
+void copy_RELU (RELU*, RELU*);
+int compare_RELU (RELU*, RELU*);
 
 #endif
