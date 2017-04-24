@@ -59,7 +59,7 @@ void hidden_state_to_visible_probabilities_crbm (CRBM* crbm, gsl_matrix* h_sampl
 double cdk_CRBM (CRBM* crbm, gsl_matrix* input, gsl_matrix* input_history, double lr, double momentum, int k);
 void train_crbm (CRBM* crbm, gsl_matrix* batchdata, int* seqlen, int nseq, int nrow, int ncol, int batch_size, int n_hidden, int training_epochs, double learning_rate, double momentum, int delay, int rand_seed);
 void reconstruct_CRBM (CRBM* crbm, gsl_matrix* v_sample, gsl_matrix** activations, gsl_matrix** reconstruct);
-gsl_vector* sample_fn(CRBM* crbm, int n_gibbs, gsl_vector** vis_sample, gsl_matrix** v_history);
-gsl_matrix* generate_samples(CRBM* crbm, gsl_matrix* sequence, int n_samples, int n_gibbs);
+gsl_vector* sample_fn (CRBM* crbm, int n_gibbs, gsl_vector** vis_sample, gsl_matrix** v_history);
+gsl_matrix* generate_samples (CRBM* crbm, gsl_matrix* sequence, int n_samples, int n_gibbs);
 
 #endif
