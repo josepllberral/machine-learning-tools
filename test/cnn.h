@@ -75,8 +75,18 @@ typedef struct {
 	gsl_matrix* x;
 } LINE;
 
+typedef struct {
+	int batch_size;
+	int n_units;
+	gsl_matrix* a;
+} SOFT;
+
+typedef struct {
+	double loss;
+} CELL;
+
 // Auxiliar Functions
-void replace_image(gsl_matrix****, gsl_matrix****, int, int);
+void replace_image (gsl_matrix****, gsl_matrix****, int, int);
 
 // Convolutional Auxiliar Functions
 gsl_matrix* conv2D (gsl_matrix*, gsl_matrix*, int);
@@ -111,7 +121,7 @@ void copy_FLAT (FLAT*, FLAT*);
 int compare_FLAT (FLAT*, FLAT*);
 
 // Rectified Linear Layer
-gsl_matrix*** forward_relu(RELU*, gsl_matrix***);
+gsl_matrix*** forward_relu (RELU*, gsl_matrix***);
 gsl_matrix*** backward_relu (RELU*, gsl_matrix***);
 void get_updates_relu (RELU*, double);
 void create_RELU (RELU*, int, int);
@@ -120,13 +130,31 @@ void copy_RELU (RELU*, RELU*);
 int compare_RELU (RELU*, RELU*);
 
 // Linear Layer
-gsl_matrix* forward_line(LINE*, gsl_matrix*);
-gsl_matrix* backward_line(LINE*, gsl_matrix*);
+gsl_matrix* forward_line (LINE*, gsl_matrix*);
+gsl_matrix* backward_line (LINE*, gsl_matrix*);
 void get_updates_line (LINE*, double);
 void create_LINE (LINE*, int, int, double, int);
 void free_LINE (LINE*);
 void copy_LINE (LINE*, LINE*);
 int compare_LINE (LINE*, LINE*);
+
+// SoftMax Layer
+gsl_matrix* forward_soft (SOFT*, gsl_matrix*);
+gsl_matrix* backward_soft (SOFT*, gsl_matrix*);
+void get_updates_soft (SOFT*, double);
+void create_SOFT (SOFT*, int, int);
+void free_SOFT (SOFT*);
+void copy_SOFT (SOFT*, SOFT*);
+int compare_SOFT (SOFT*, SOFT*);
+
+// Cross-Entropy Layer
+gsl_matrix* forward_cell (CELL*, gsl_matrix*, gsl_matrix*);
+gsl_matrix* backward_cell (CELL*, gsl_matrix*, gsl_matrix*);
+void get_updates_cell (CELL*, double);
+void create_CELL (CELL*);
+void free_CELL (CELL*);
+void copy_CELL (CELL*, CELL*);
+int compare_CELL (CELL*, CELL*);
 
 // Gradiend Check Functions
 int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
@@ -153,5 +181,7 @@ int check_grad_pool (POOL*, gsl_matrix***, int, double, double, double);
 int check_grad_flat (FLAT*, gsl_matrix***, int, double, double, double);
 int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
 int check_grad_line (LINE*, gsl_matrix*, int, double, double, double);
+int check_grad_soft (SOFT*, gsl_matrix*, int, double, double, double);
+int check_grad_cell (CELL*, gsl_matrix*, gsl_matrix*, int, double, double, double);
 
 #endif

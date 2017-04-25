@@ -1130,3 +1130,66 @@ int check_grad_line (LINE* line, gsl_matrix* x0, int rand_seed, double eps, doub
 
 	return retval;
 }
+
+/*---------------------------------------------------------------------------*/
+/* GRAD CHECK FOR SOFT AND CELL LAYERS                                       */
+/*---------------------------------------------------------------------------*/
+
+// Return: 0 means OK, 1 means KO
+int check_grad_soft (SOFT* soft, gsl_matrix* x0, int rand_seed, double eps, double rtol, double atol)
+{
+	srand(rand_seed);
+
+	int retval = 0;
+
+	// Part 1: Checking Output
+	SOFT soft_copy;
+	copy_SOFT(&soft_copy, soft);
+
+	// Go forward
+	gsl_matrix* y = forward_soft(&soft_copy, x0);
+
+	// Go backward
+	gsl_matrix* dx = backward_soft(&soft_copy, y);
+
+	// Check output reconstruction
+	// ... actually, we don't check anything, just "valgrinding" the layer
+
+	// Free auxiliar structures
+	gsl_matrix_free(y);
+	gsl_matrix_free(dx);
+
+	free_SOFT(&soft_copy);
+
+	return retval;
+}
+
+// Return: 0 means OK, 1 means KO
+int check_grad_cell (CELL* cell, gsl_matrix* x0, gsl_matrix* y0, int rand_seed, double eps, double rtol, double atol)
+{
+	srand(rand_seed);
+
+	int retval = 0;
+
+	// Part 1: Checking Output
+	CELL cell_copy;
+	copy_CELL(&cell_copy, cell);
+
+	// Go forward
+	gsl_matrix* y = forward_cell(&cell_copy, x0, y0);
+
+	// Go backward
+	gsl_matrix* dx = backward_cell(&cell_copy, y, y0);
+
+	// Check output reconstruction
+	// ... actually, we don't check anything, just "valgrinding" the layer
+	printf("Loss : %f\n", cell_copy.loss);
+
+	// Free auxiliar structures
+	gsl_matrix_free(y);
+	gsl_matrix_free(dx);
+
+	free_CELL(&cell_copy);
+
+	return retval;
+}

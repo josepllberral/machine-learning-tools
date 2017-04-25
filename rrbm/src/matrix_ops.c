@@ -68,6 +68,25 @@ void matrix_bernoulli (gsl_matrix* M, gsl_matrix* B)
 	return;
 }
 
+// Function for Log over Matrix
+//   param M      : Input Matrix
+//   param L      : Results Matrix
+void matrix_log (gsl_matrix* M, gsl_matrix* L)
+{
+	int nrow = M->size1;
+	int ncol = M->size2;
+
+	gsl_matrix* logm = gsl_matrix_calloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+			gsl_matrix_set(logm, i, j, log(gsl_matrix_get(M, i, j)));
+
+	int aux = gsl_matrix_memcpy(L, logm);
+	gsl_matrix_free(logm);
+
+	return;
+}
+
 // Function to produce a sequence from 1 to limit
 //   param offset : starting point
 //   param limit  : length of the vector

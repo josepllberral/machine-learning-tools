@@ -5,7 +5,7 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including Function Implementations
-// Compile using "gcc cnn.c conv.c pool.c flat.c relu.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cnn.c conv.c pool.c flat.c relu.c line.c soft.c cell.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
 
 #include "cnn.h"
 
@@ -287,11 +287,76 @@ int main_line()
 	return 0;
 }
 
+int main_soft()
+{
+	int batch_size = 2;
+	int n_units = 10;
+
+	// Create random input
+	gsl_matrix* x = matrix_normal(batch_size, n_units, 0, 1, 10);
+
+	printf("Create Soft Layer\n");
+
+	SOFT soft;
+	create_SOFT(&soft, n_units, batch_size);
+
+	printf("Start Gradient Check\n");
+
+	// Gradient check
+	int a = check_grad_soft(&soft, x, 1234, -1, -1, -1);
+	if (a == 0) printf("Gradient check passed\n");
+
+	printf("Fin Gradient Check\n");
+
+	gsl_matrix_free(x);
+
+	free_SOFT(&soft);
+
+	return 0;
+}
+
+int main_cell()
+{
+	int batch_size = 10;
+	int n_units = 2;
+
+	// Create random input and output
+	gsl_matrix* x = matrix_normal(batch_size, n_units, 0, 1, 10);
+	gsl_matrix* y = matrix_normal(batch_size, n_units, 0, 1, 10);
+
+	for (int i = 0; i < batch_size; i++)
+		for (int j = 0; j < n_units; j++)
+		{
+			gsl_matrix_set(x, i, j, abs(gsl_matrix_get(x, i, j)));
+			gsl_matrix_set(y, i, j, abs(gsl_matrix_get(y, i, j)));
+		}
+
+	printf("Create Cross-Entropy Layer\n");
+
+	CELL cell;
+	create_CELL(&cell);
+
+	printf("Start Gradient Check\n");
+
+	// Gradient check
+	int a = check_grad_cell(&cell, x, y, 1234, -1, -1, -1);
+	if (a == 0) printf("Gradient check passed\n");
+
+	printf("Fin Gradient Check\n");
+
+	gsl_matrix_free(x);
+	gsl_matrix_free(y);
+
+	free_CELL(&cell);
+
+	return 0;
+}
+
 /*---------------------------------------------------------------------------*/
 /* MAIN FUNCTION - TEST                                                      */
 /*---------------------------------------------------------------------------*/
 
 int main()
 {
-	return main_line();
+	return main_cell();
 }

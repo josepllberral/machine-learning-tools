@@ -628,7 +628,7 @@ backward_soft <- function(soft, dy)
 	list(layer = soft, dx = dx);
 }
 
-## Updates the ReLU Layer (Does Nothing)
+## Updates the SoftMax Layer (Does Nothing)
 get_updates_soft <- function(soft, lr) { soft; }
 
 ## Get names of parameters and gradients (for testing functions)

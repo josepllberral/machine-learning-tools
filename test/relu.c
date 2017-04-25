@@ -77,7 +77,6 @@ void get_updates_relu (RELU* relu, double lr)
 	return;
 }
 
-
 // Initializes a ReLU layer
 void create_RELU (RELU* relu, int n_channels, int batch_size)
 {
