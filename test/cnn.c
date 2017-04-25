@@ -102,7 +102,7 @@ int main_conv()
 	printf("Start Gradient Check\n");
 
 	// Gradient check
-	int a = check_grad_conv((void*) &conv, x, 1234, -1, -1, -1);
+	int a = check_grad_conv(&conv, x, 1234, -1, -1, -1);
 	if (a == 0) printf("Gradient check passed\n");
 
 	printf("Fin Gradient Check\n");
@@ -156,7 +156,7 @@ int main_pool()
 	printf("Start Gradient Check\n");
 
 	// Gradient check
-	int a = check_grad_pool((void*) &pool, x, 1234, -1, -1, -1);
+	int a = check_grad_pool(&pool, x, 1234, -1, -1, -1);
 	if (a == 0) printf("Gradient check passed\n");
 
 	printf("Fin Gradient Check\n");
@@ -198,7 +198,7 @@ int main_flat()
 	printf("Start Gradient Check\n");
 
 	// Gradient check
-	int a = check_grad_flat((void*) &flat, x, 1234, -1, -1, -1);
+	int a = check_grad_flat(&flat, x, 1234, -1, -1, -1);
 	if (a == 0) printf("Gradient check passed\n");
 
 	printf("Fin Gradient Check\n");
@@ -240,7 +240,7 @@ int main_relu()
 	printf("Start Gradient Check\n");
 
 	// Gradient check
-	int a = check_grad_relu((void*) &relu, x, 1234, -1, -1, -1);
+	int a = check_grad_relu(&relu, x, 1234, -1, -1, -1);
 	if (a == 0) printf("Gradient check passed\n");
 
 	printf("Fin Gradient Check\n");
@@ -257,11 +257,41 @@ int main_relu()
 	return 0;
 }
 
+// Driver for Linear Layer
+int main_line()
+{
+	int batch_size = 2;
+	int n_visible = 10;
+	int n_hidden = 5;
+
+	// Create random input
+	gsl_matrix* x = matrix_normal(batch_size, n_visible, 0, 1, 10);
+
+	printf("Create Linear Layer\n");
+
+	LINE line;
+	create_LINE(&line, n_visible, n_hidden, 0.01, batch_size);
+
+	printf("Start Gradient Check\n");
+
+	// Gradient check
+	int a = check_grad_line(&line, x, 1234, -1, -1, -1);
+	if (a == 0) printf("Gradient check passed\n");
+
+	printf("Fin Gradient Check\n");
+
+	gsl_matrix_free(x);
+
+	free_LINE(&line);
+
+	return 0;
+}
+
 /*---------------------------------------------------------------------------*/
 /* MAIN FUNCTION - TEST                                                      */
 /*---------------------------------------------------------------------------*/
 
 int main()
 {
-	return main_relu();
+	return main_line();
 }

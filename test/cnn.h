@@ -64,21 +64,16 @@ typedef struct {
 	gsl_matrix*** img;
 } RELU;
 
-// Gradiend Check Functions
-int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
-int gradclose_vec (gsl_vector*, gsl_vector*, int, double, double);
-
-double fun (void*, gsl_matrix***, gsl_matrix***, int);
-gsl_matrix*** approx_fprime (void*, gsl_matrix***, gsl_matrix***, double, int, int, int);
-gsl_matrix*** fun_grad (void*, gsl_matrix***, int, int);
-int check_grad_conv (CONV*, gsl_matrix***, int, double, double, double);
-int check_grad_pool (POOL*, gsl_matrix***, int, double, double, double);
-int check_grad_flat (FLAT*, gsl_matrix***, int, double, double, double);
-int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
-
-double fun_b_conv (CONV*, gsl_vector*, gsl_matrix***);
-gsl_vector* approx_fprime_b_conv (CONV*, gsl_matrix***, double);
-gsl_vector* fun_grad_b_conv (CONV*, gsl_matrix***);
+typedef struct {
+	int batch_size;
+	int n_hidden;
+	int n_visible;
+	gsl_matrix* W;
+	gsl_matrix* grad_W;
+	gsl_vector* b;
+	gsl_vector* grad_b;
+	gsl_matrix* x;
+} LINE;
 
 // Auxiliar Functions
 void replace_image(gsl_matrix****, gsl_matrix****, int, int);
@@ -123,5 +118,40 @@ void create_RELU (RELU*, int, int);
 void free_RELU (RELU*);
 void copy_RELU (RELU*, RELU*);
 int compare_RELU (RELU*, RELU*);
+
+// Linear Layer
+gsl_matrix* forward_line(LINE*, gsl_matrix*);
+gsl_matrix* backward_line(LINE*, gsl_matrix*);
+void get_updates_line (LINE*, double);
+void create_LINE (LINE*, int, int, double, int);
+void free_LINE (LINE*);
+void copy_LINE (LINE*, LINE*);
+int compare_LINE (LINE*, LINE*);
+
+// Gradiend Check Functions
+int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
+int gradclose_vec (gsl_vector*, gsl_vector*, int, double, double);
+
+double fun (void*, gsl_matrix***, gsl_matrix***, int);
+gsl_matrix*** approx_fprime (void*, gsl_matrix***, gsl_matrix***, double, int, int, int);
+gsl_matrix*** fun_grad (void*, gsl_matrix***, int, int);
+
+double fun_b_conv (CONV*, gsl_vector*, gsl_matrix***);
+gsl_vector* approx_fprime_b_conv (CONV*, gsl_matrix***, double);
+gsl_vector* fun_grad_b_conv (CONV*, gsl_matrix***);
+
+int gradclose_line (gsl_matrix*, gsl_matrix*, double, double);
+double fun_line (LINE*, gsl_matrix*, gsl_matrix*);
+double fun_b_line (LINE*, gsl_vector*, gsl_matrix*);
+gsl_matrix* fun_grad_line (LINE*, gsl_matrix*, int);
+gsl_vector* fun_grad_b_line (LINE*, gsl_matrix*);
+gsl_matrix* approx_fprime_line (LINE*, gsl_matrix*, gsl_matrix*, double);
+gsl_vector* approx_fprime_b_line (LINE*, gsl_matrix*, double);
+
+int check_grad_conv (CONV*, gsl_matrix***, int, double, double, double);
+int check_grad_pool (POOL*, gsl_matrix***, int, double, double, double);
+int check_grad_flat (FLAT*, gsl_matrix***, int, double, double, double);
+int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
+int check_grad_line (LINE*, gsl_matrix*, int, double, double, double);
 
 #endif

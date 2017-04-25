@@ -683,6 +683,10 @@ int check_grad_pool (POOL* pool, gsl_matrix*** x0, int rand_seed, double eps, do
 	return retval;
 }
 
+/*---------------------------------------------------------------------------*/
+/* GRAD CHECK FOR FLAT LAYERS                                                */
+/*---------------------------------------------------------------------------*/
+
 // Return: 0 means OK, 1 means KO
 int check_grad_flat (FLAT* flat, gsl_matrix*** x0, int rand_seed, double eps, double rtol, double atol)
 {
@@ -728,6 +732,11 @@ int check_grad_flat (FLAT* flat, gsl_matrix*** x0, int rand_seed, double eps, do
 	return retval;
 }
 
+/*---------------------------------------------------------------------------*/
+/* GRAD CHECK FOR RELU LAYERS                                                */
+/*---------------------------------------------------------------------------*/
+
+// Return: 0 means OK, 1 means KO
 int check_grad_relu (RELU* relu, gsl_matrix*** x0, int rand_seed, double eps, double rtol, double atol)
 {
 	srand(rand_seed);
@@ -784,3 +793,340 @@ int check_grad_relu (RELU* relu, gsl_matrix*** x0, int rand_seed, double eps, do
 	return retval;
 }
 
+/*---------------------------------------------------------------------------*/
+/* GRAD CHECK FOR LINEAR LAYERS                                              */
+/*---------------------------------------------------------------------------*/
+
+double fun_line (LINE* line, gsl_matrix* g, gsl_matrix* x)
+{
+	LINE line_copy;
+	copy_LINE(&line_copy, line);
+
+	// assign W to the line_copy.W
+	if (g != NULL) gsl_matrix_memcpy(line_copy.W, g);
+
+	// Go forward
+	gsl_matrix* y = forward_line(&line_copy, x);
+
+	// Sum values
+	double saux = 0;
+	for (int h = 0; h < y->size1; h++)
+		for (int w = 0; w < y->size2; w++)
+			saux += gsl_matrix_get(y, h, w);
+
+	// Free all stuff
+	gsl_matrix_free(y);
+	free_LINE(&line_copy);
+
+	return saux;
+}
+
+gsl_matrix* fun_grad_line (LINE* line, gsl_matrix* x, int get_W)
+{
+	// Make a copy of layer
+	LINE line_copy;
+	copy_LINE(&line_copy, line);
+
+	// Go forward
+	gsl_matrix* y = forward_line(&line_copy, x);
+
+	// Compute gradients of param
+	gsl_matrix* ygrad = gsl_matrix_alloc(y->size1, y->size2);
+	gsl_matrix_set_all(ygrad, 1.0);
+
+	// Go backward
+	gsl_matrix* xgrad = backward_line(&line_copy, ygrad);
+
+	gsl_matrix* retval = xgrad;
+	if (get_W == 1)
+	{
+		// Rescue grad_W and return
+		gsl_matrix* grad_W = gsl_matrix_calloc(line->n_hidden, line->n_visible);
+		gsl_matrix_memcpy(grad_W, line_copy.grad_W);
+
+		// Free xgrad
+		gsl_matrix_free(xgrad);
+		retval = grad_W;
+	}
+
+	// Free line_copy
+	free_LINE(&line_copy);
+
+	// Free y and ygrad
+	gsl_matrix_free(y);
+	gsl_matrix_free(ygrad);
+
+	return retval;
+}
+
+gsl_matrix* approx_fprime_line (LINE* line, gsl_matrix* x, gsl_matrix* x0, double eps)
+{
+	if (eps == -1) eps = 1.4901161193847656e-08;
+
+	int dim1 = x->size1;
+	int dim2 = x->size2;
+
+	// Copy X matrix and create grad
+	gsl_matrix* x1 = gsl_matrix_alloc(dim1, dim2);
+	gsl_matrix* x2 = gsl_matrix_alloc(dim1, dim2);
+	gsl_matrix_memcpy(x1, x);
+	gsl_matrix_memcpy(x2, x);
+	gsl_matrix* grad = gsl_matrix_calloc(dim1, dim2);
+
+	// Compute gradient for each point in X
+	for (int h = 0; h < dim1; h++)
+		for (int w = 0; w < dim2; w++)
+		{
+			double xval = gsl_matrix_get(x, h, w);
+			double step = eps * max(abs(xval), 1.0);
+
+			gsl_matrix_set(x1, h, w, xval + step);
+			gsl_matrix_set(x2, h, w, xval - step);
+
+			double aux1 = 0;
+			double aux2 = 0;
+			if (x0 == NULL)
+			{
+				aux1 = fun_line(line, NULL, x1);
+				aux2 = fun_line(line, NULL, x2);
+			} else {
+				aux1 = fun_line(line, x1, x0);
+				aux2 = fun_line(line, x2, x0);
+			}
+
+			double g = (aux1 - aux2) / (2 * step);
+
+			gsl_matrix_set(x1, h, w, xval);
+			gsl_matrix_set(x2, h, w, xval);
+			gsl_matrix_set(grad, h, w, g);
+		}
+
+	// Free structures
+	gsl_matrix_free(x1);
+	gsl_matrix_free(x2);
+
+	return grad;
+}
+
+// Return: 1 = TRUE, 0 = FALSE
+int gradclose_line (gsl_matrix* x , gsl_matrix* y, double rtol, double atol)
+{
+	if (rtol == -1) rtol = 1e-05;
+	if (atol == -1) atol = 1e-08;
+
+	int is_close = 1;
+	for (int h = 0; h < x->size1; h++)
+	{
+		for (int w = 0; w < x->size2; w++)
+		{
+			double xval = gsl_matrix_get(x, h, w);
+			double yval = gsl_matrix_get(y, h, w);
+			double diff = abs(xval - yval) - atol - rtol * (abs(xval) + abs(yval));
+			if (diff >= 0) is_close = 0;
+		}
+	}
+
+	if (is_close == 0)
+	{
+		double max_re = -9e+15;
+		double max_ae = -9e+15;
+
+		for (int h = 0; h < x->size1; h++)
+		{
+			for (int w = 0; w < x->size2; w++)
+			{
+				double xval = gsl_matrix_get(x, h, w);
+				double yval = gsl_matrix_get(y, h, w);
+
+				double rel_error = 0;
+				double denom = abs(xval) - abs(yval);
+				if (denom != 0) rel_error = abs(xval - yval) / denom;
+
+				if (rel_error > max_re) max_re = rel_error;
+				if (abs(xval - yval) > max_ae) max_ae = abs(xval - yval);
+			}
+		}
+	        printf("rel_error=%f, abs_error=%f, rtol=%f, atol=%f\n", max_re, max_ae, rtol, atol);
+	}
+	return is_close;
+}
+
+gsl_vector* fun_grad_b_line (LINE* line, gsl_matrix* x0)
+{
+	// Make a copy of layer
+	LINE line_copy;
+	copy_LINE(&line_copy, line);
+
+	// Go forward
+	gsl_matrix* y = forward_line(&line_copy, x0);
+
+	// Compute gradients of param
+	gsl_matrix* ygrad = gsl_matrix_alloc(line->batch_size, line->n_hidden);
+	gsl_matrix_set_all(ygrad, 1.0);
+
+	// Go backward
+	gsl_matrix* xgrad = backward_line(&line_copy, ygrad);
+
+	// Rescue grad_b and return
+	gsl_vector* grad_b = gsl_vector_calloc(line_copy.n_hidden);
+	gsl_vector_memcpy(grad_b, line_copy.grad_b);
+
+	// Free y, ygrad and xgrad
+	gsl_matrix_free(y);
+	gsl_matrix_free(ygrad);
+	gsl_matrix_free(xgrad);
+
+	// Free conv_copy
+	free_LINE(&line_copy);
+
+	return grad_b;
+}
+
+double fun_b_line (LINE* line, gsl_vector* g, gsl_matrix* x0)
+{
+	LINE line_copy;
+	copy_LINE(&line_copy, line);
+
+	gsl_vector_memcpy(line_copy.b, g);
+
+	gsl_matrix* y = forward_line(&line_copy, x0);
+
+	double saux = 0;
+	for (int h = 0; h < y->size1; h++)
+		for (int w = 0; w < y->size2; w++)
+			saux += gsl_matrix_get(y, h, w);
+	gsl_matrix_free(y);
+
+	free_LINE(&line_copy);
+
+	return saux;
+}
+
+
+gsl_vector* approx_fprime_b_line (LINE* line, gsl_matrix* x0, double eps)
+{
+	if (eps == -1) eps = 1.4901161193847656e-08;
+
+	gsl_vector* x1 = gsl_vector_calloc(line->n_hidden);
+	gsl_vector* x2 = gsl_vector_calloc(line->n_hidden);
+	gsl_vector_memcpy(x1, line->b);
+	gsl_vector_memcpy(x2, line->b);
+	gsl_vector* grad = gsl_vector_calloc(line->n_hidden);
+
+	// Compute gradient for each point in X
+	for (int f = 0; f < line->n_hidden; f++)
+	{
+		double xval = gsl_vector_get(line->b, f);
+		double step = eps * max(abs(xval), 1.0);
+
+		gsl_vector_set(x1, f, xval + step);
+		gsl_vector_set(x2, f, xval - step);
+
+		double aux1 = fun_b_line (line, x1, x0);
+		double aux2 = fun_b_line (line, x2, x0);
+
+		double g = (aux1 - aux2) / (2 * step);
+
+		gsl_vector_set(x1, f, xval);
+		gsl_vector_set(x2, f, xval);
+		gsl_vector_set(grad, f, g);
+	}
+
+	// Free structures
+	gsl_vector_free(x1);
+	gsl_vector_free(x2);
+
+	return grad;
+}
+
+// Return: 0 means OK, 1 means KO
+int check_grad_line (LINE* line, gsl_matrix* x0, int rand_seed, double eps, double rtol, double atol)
+{
+	srand(rand_seed);
+
+	int retval = 0;
+
+	// Part 1: Checking Output
+	gsl_matrix* g_approx = approx_fprime_line(line, x0, NULL, eps);
+	gsl_matrix* g_true = fun_grad_line(line, x0, 0);
+	if (gradclose_line(g_approx, g_true, rtol, atol) == 0)
+	{
+		printf("Incorrect Input Gradient:\n * Approx:\n");
+		for (int h = 0; h < g_approx->size1; h++)
+		{
+			for (int w = 0; w < g_approx->size2; w++)
+				printf("%f ", gsl_matrix_get(g_approx, h, w));
+			printf("\n");
+		}
+
+		printf(" * True:\n");
+		for (int h = 0; h < g_true->size1; h++)
+		{
+			for (int w = 0; w < g_true->size2; w++)
+				printf("%f ", gsl_matrix_get(g_true, h, w));
+			printf("\n");
+		}
+		retval = 1;
+	}
+
+	// Free auxiliar structures
+	gsl_matrix_free(g_approx);
+	gsl_matrix_free(g_true);
+
+	// Part 2: Checking Gradient Params
+
+	// Check grad_W
+	gsl_matrix* g_approx_W = approx_fprime_line(line, line->W, x0, eps);
+	gsl_matrix* g_true_W = fun_grad_line(line, x0, 1);
+	if (gradclose_line(g_approx_W, g_true_W, rtol, atol) == 0)
+	{
+		printf("Incorrect Parameter W Gradient:\n * Approx:\n");
+		printf("------------------------------------------\n");
+		for (int h = 0; h < g_approx_W->size1; h++)
+		{
+			for (int w = 0; w < g_approx_W->size2; w++)
+				printf("%f ", gsl_matrix_get(g_approx_W, h, w));
+			printf("\n");
+		}
+		printf("------------------------------------------\n");
+
+		printf(" * True:\n");
+		printf("------------------------------------------\n");
+		for (int h = 0; h < g_true_W->size1; h++)
+		{
+			for (int w = 0; w < g_true_W->size2; w++)
+				printf("%f ", gsl_matrix_get(g_true_W, h, w));
+			printf("\n");
+		}
+		printf("------------------------------------------\n");
+		retval = 1;
+	}
+
+	// Check grad_b
+	gsl_vector* g_approx_b = approx_fprime_b_line(line, x0, eps);
+	gsl_vector* g_true_b = fun_grad_b_line (line, x0);
+	if (gradclose_vec(g_approx_b, g_true_b, line->n_hidden, rtol, atol) == 0)
+	{
+		printf("Incorrect Parameter b Gradient:\n * Approx:\n");
+		printf("------------------------------------------\n");
+		for (int f = 0; f < line->n_hidden; f++)
+			printf("%f ", gsl_vector_get(g_approx_b, f));
+		printf("\n");
+		printf("------------------------------------------\n");
+		printf(" * True:\n");
+		printf("------------------------------------------\n");
+		for (int f = 0; f < line->n_hidden; f++)
+			printf("%f ", gsl_vector_get(g_true_b, f));
+		printf("\n");
+		printf("------------------------------------------\n");
+	}
+
+	// Free auxiliar structures
+	gsl_matrix_free(g_true_W);
+	gsl_matrix_free(g_approx_W);
+
+	gsl_vector_free(g_approx_b);
+	gsl_vector_free(g_true_b);
+
+	return retval;
+}

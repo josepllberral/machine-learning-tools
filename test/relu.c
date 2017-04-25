@@ -109,6 +109,7 @@ void free_RELU (RELU* relu)
 
 
 // Function to copy a ReLU layer
+// Important: destination must NOT be initialized
 void copy_RELU (RELU* destination, RELU* origin)
 {
 	destination->batch_size = origin->batch_size;
@@ -139,17 +140,9 @@ int compare_RELU (RELU* C1, RELU* C2)
 		C1->n_channels != C2->n_channels
 	) equal = 0;
 
-	int img_h = C2->img[0][0]->size1;
-	int img_w = C2->img[0][0]->size2;
 	for (int b = 0; b < C2->batch_size; b++)
 		for (int c = 0; c < C2->n_channels; c++)
-			for (int h = 0; h < img_h; h++)
-				for (int w = 0; w < img_w; w++)
-				{
-					double i = gsl_matrix_get(C1->img[b][c], h, w);
-					double j = gsl_matrix_get(C2->img[b][c], h, w);
-					if (i != j) equal = 0;
-				}
+			equal = equal * gsl_matrix_equal(C1->img[b][c], C2->img[b][c]);
 
 	return equal;
 }

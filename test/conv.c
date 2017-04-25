@@ -380,6 +380,7 @@ void free_CONV (CONV* conv)
 }
 
 // Function to copy a CONV layer
+// Important: destination must NOT be initialized
 void copy_CONV (CONV* destination, CONV* origin)
 {
 	destination->batch_size = origin->batch_size;
@@ -453,36 +454,17 @@ int compare_CONV (CONV* C1, CONV* C2)
 	) equal = 0;
 
 	for (int f = 0; f < C2->n_filters; f++)
-	{
 		for (int c = 0; c < C2->n_channels; c++)
-			for (int h = 0; h < C2->win_h; h++)
-				for (int w = 0; w < C2->win_w; w++)
-				{
-					double i = gsl_matrix_get(C1->W[f][c], h, w);
-					double j = gsl_matrix_get(C2->W[f][c], h, w);
-					double k = gsl_matrix_get(C1->grad_W[f][c], h, w);
-					double l = gsl_matrix_get(C2->grad_W[f][c], h, w);
-					if (i != j || k != l) equal = 0;
-				}
+		{
+			equal = equal * gsl_matrix_equal(C1->W[f][c], C2->W[f][c]);
+			equal = equal * gsl_matrix_equal(C1->grad_W[f][c], C2->grad_W[f][c]);
+		}
+	equal = equal * gsl_vector_equal(C1->b, C2->b);
+	equal = equal * gsl_vector_equal(C1->grad_b, C2->grad_b);
 
-		double i = gsl_vector_get(C1->b, f);
-		double j = gsl_vector_get(C2->b, f);
-		double k = gsl_vector_get(C1->grad_b, f);
-		double l = gsl_vector_get(C2->grad_b, f);
-		if (i != j | k != l) equal = 0;
-	}
-
-	int img_h = C2->img[0][0]->size1;
-	int img_w = C2->img[0][0]->size2;
 	for (int b = 0; b < C2->batch_size; b++)
 		for (int c = 0; c < C2->n_channels; c++)
-			for (int h = 0; h < img_h; h++)
-				for (int w = 0; w < img_w; w++)
-				{
-					double i = gsl_matrix_get(C1->img[b][c], h, w);
-					double j = gsl_matrix_get(C2->img[b][c], h, w);
-					if (i != j) equal = 0;
-				}
+			equal = equal * gsl_matrix_equal(C1->img[b][c], C2->img[b][c]);
 
 	return equal;
 }
