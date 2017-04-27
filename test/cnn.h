@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
@@ -65,6 +66,10 @@ typedef struct {
 } RELU;
 
 typedef struct {
+	gsl_matrix* img;
+} RELV;
+
+typedef struct {
 	int batch_size;
 	int n_hidden;
 	int n_visible;
@@ -84,6 +89,19 @@ typedef struct {
 typedef struct {
 	double loss;
 } CELL;
+
+typedef struct {
+	// Layer Type:
+	// 1: convolutional,
+	// 2: pooling,
+	// 3: rectifier linear,
+	// 4: flattening,
+	// 5: linear,
+	// 6: softmax,
+	// 7: cross-entropy
+	int type;
+	void* layer;
+} LAYER;
 
 // Auxiliar Functions
 void replace_image (gsl_matrix****, gsl_matrix****, int, int);
@@ -155,6 +173,20 @@ void create_CELL (CELL*);
 void free_CELL (CELL*);
 void copy_CELL (CELL*, CELL*);
 int compare_CELL (CELL*, CELL*);
+
+// Rectified Linear Layer - Matrix Versions
+gsl_matrix* forward_relv (RELV*, gsl_matrix*);
+gsl_matrix* backward_relv (RELV*, gsl_matrix*);
+void get_updates_relv (RELV*, double);
+void create_RELV (RELV*);
+void free_RELV (RELV*);
+void copy_RELV (RELV*, RELV*);
+int compare_RELV (RELV*, RELV*);
+
+// General Functions
+void* forward (LAYER*, void*);
+void* backward (LAYER*, void*);
+void get_updates (LAYER*, double);
 
 // Gradiend Check Functions
 int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
