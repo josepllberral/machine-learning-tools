@@ -20,7 +20,7 @@ gsl_matrix* forward_line(LINE* line, gsl_matrix* x)
 {
 	// Save "x" for back-propagation
 	gsl_matrix_free(line->x);
-	line->x = gsl_matrix_alloc(x->size1, x->size2);
+	line->x = gsl_matrix_calloc(x->size1, x->size2);
 	gsl_matrix_memcpy(line->x, x);
 
 	// Perform operation: y <- (x %*% t(line$W)) + line$b;
@@ -73,7 +73,10 @@ gsl_matrix* backward_line(LINE* line, gsl_matrix* dy)
 // Updates the Linear Layer
 void get_updates_line (LINE* line, double lr)
 {
-	gsl_matrix* identity = gsl_matrix_alloc(line->W->size1, line->W->size2);
+	int size1 = (int)line->W->size1;
+	int size2 = (int)line->W->size2;
+
+	gsl_matrix* identity = gsl_matrix_calloc(size2, size2);
 	gsl_matrix_set_all(identity, 1.0);
 	gsl_matrix_set_identity(identity);
 

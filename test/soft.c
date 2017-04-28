@@ -71,7 +71,7 @@ void copy_SOFT (SOFT* destination, SOFT* origin)
 	destination->batch_size = origin->batch_size;
 	destination->n_units = origin->n_units;
 
-	destination->a = gsl_matrix_alloc(origin->batch_size, origin->n_units);
+	destination->a = gsl_matrix_alloc(origin->a->size1, origin->a->size2);
 	gsl_matrix_memcpy(destination->a, origin->a);
 }
 

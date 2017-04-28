@@ -20,8 +20,8 @@
 gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 {
 	// Performs: l <- -targets * log(x + 1e-08)
-	gsl_matrix* pre_log = gsl_matrix_alloc(x->size1, x->size2);
-	gsl_matrix* l = gsl_matrix_alloc(x->size1, x->size2);
+	gsl_matrix* pre_log = gsl_matrix_calloc(x->size1, x->size2);
+	gsl_matrix* l = gsl_matrix_calloc(x->size1, x->size2);
 	gsl_matrix_memcpy(pre_log, x);
 	gsl_matrix_add_constant(pre_log, 1e-08);
 	matrix_log(pre_log, l);
@@ -40,7 +40,7 @@ gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 
 	cell->loss = acc;
 
-	gsl_matrix* y = gsl_matrix_alloc(x->size1, x->size2);
+	gsl_matrix* y = gsl_matrix_calloc(x->size1, x->size2);
 	gsl_matrix_memcpy(x, y);
 	return y;
 }
@@ -52,7 +52,7 @@ gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 gsl_matrix* backward_cell (CELL* cell, gsl_matrix* dy, gsl_matrix* targets)
 {
 	// Performs: dx <- (1.0 / num_batches) * (dy - targets)
-	gsl_matrix* dx = gsl_matrix_alloc(dy->size1, dy->size2);
+	gsl_matrix* dx = gsl_matrix_calloc(dy->size1, dy->size2);
 	gsl_matrix_memcpy(dx, dy);
 	gsl_matrix_scale(dx, -1.0);
 	gsl_matrix_add(dx, targets);

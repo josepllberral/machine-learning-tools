@@ -63,7 +63,7 @@ gsl_matrix*** backward_relu (RELU* relu, gsl_matrix*** dy)
 			gsl_matrix_memcpy(out[b][c], dy[b][c]);
 			for (int h = 0; h < img_h; h++)
 				for (int w = 0; w < img_w; w++)
-					if (gsl_matrix_get(out[b][c], h, w) < 0)
+					if (gsl_matrix_get(relu->img[b][c], h, w) < 0)
 						gsl_matrix_set(out[b][c], h, w, 0); // FIXME - Check in the future...
 		}
 	}

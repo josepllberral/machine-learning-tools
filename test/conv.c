@@ -294,14 +294,17 @@ gsl_matrix*** backward_conv (CONV* conv, gsl_matrix*** dy)
 // Updates the Convolutional Layer
 void get_updates_conv (CONV* conv, double lr)
 {
-	gsl_matrix* identity = gsl_matrix_alloc(conv->n_filters, conv->n_channels);
+	int size1 = conv->W[0][0]->size1;
+	int size2 = conv->W[0][0]->size2;
+
+	gsl_matrix* identity = gsl_matrix_calloc(size2, size2);
 	gsl_matrix_set_all(identity, 1.0);
 	gsl_matrix_set_identity(identity);
 
 	for (int f = 0; f < conv->n_filters; f++)
 		for (int c = 0; c < conv->n_channels; c++)
 			gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr, conv->grad_W[f][c], identity, 1.0, conv->W[f][c]);
-	int res2 = gsl_blas_daxpy(-1.0 * lr, conv->grad_b, conv->b);
+	gsl_blas_daxpy(-1.0 * lr, conv->grad_b, conv->b);
 
 	gsl_matrix_free(identity);
 }

@@ -66,6 +66,7 @@ typedef struct {
 } RELU;
 
 typedef struct {
+	int batch_size;
 	gsl_matrix* img;
 } RELV;
 
@@ -99,9 +100,15 @@ typedef struct {
 	// 5: linear,
 	// 6: softmax,
 	// 7: cross-entropy
+	// 8: rectifier linear, matrix version
 	int type;
 	void* layer;
 } LAYER;
+
+typedef union {
+	gsl_matrix*** image;
+	gsl_matrix* matrix;
+} data;
 
 // Auxiliar Functions
 void replace_image (gsl_matrix****, gsl_matrix****, int, int);
@@ -178,14 +185,14 @@ int compare_CELL (CELL*, CELL*);
 gsl_matrix* forward_relv (RELV*, gsl_matrix*);
 gsl_matrix* backward_relv (RELV*, gsl_matrix*);
 void get_updates_relv (RELV*, double);
-void create_RELV (RELV*);
+void create_RELV (RELV*, int);
 void free_RELV (RELV*);
 void copy_RELV (RELV*, RELV*);
 int compare_RELV (RELV*, RELV*);
 
 // General Functions
-void* forward (LAYER*, void*);
-void* backward (LAYER*, void*);
+void forward (LAYER*, data*);
+void backward (LAYER*, data*);
 void get_updates (LAYER*, double);
 
 // Gradiend Check Functions
@@ -215,5 +222,15 @@ int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
 int check_grad_line (LINE*, gsl_matrix*, int, double, double, double);
 int check_grad_soft (SOFT*, gsl_matrix*, int, double, double, double);
 int check_grad_cell (CELL*, gsl_matrix*, gsl_matrix*, int, double, double, double);
+
+// Drivers for Layers
+int main_conv();
+int main_pool();
+int main_flat();
+int main_relu();
+int main_line();
+int main_soft();
+int main_cell();
+int main_cnn();
 
 #endif

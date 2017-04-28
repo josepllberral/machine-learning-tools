@@ -18,21 +18,22 @@
 //	updates :	relv_layer
 gsl_matrix* forward_relv (RELV* relv, gsl_matrix* x)
 {
-	int img_h = x->size1;
-	int img_w = x->size2;
+	int img_h = (int) x->size1;
+	int img_w = (int) x->size2;
 
 	// Process image
-	gsl_matrix* out = gsl_matrix_calloc(img_h, img_w);
+	gsl_matrix* out = gsl_matrix_alloc(img_h, img_w);
 	gsl_matrix_memcpy(out, x);
 	for (int h = 0; h < img_h; h++)
 		for (int w = 0; w < img_w; w++)
-			if (gsl_matrix_get(out, h, w) < 0)
+			if (gsl_matrix_get(x, h, w) < 0)
 				gsl_matrix_set(out, h, w, 0);
 
-	// Save modified image in relu
+	// Save modified image in relv
 	gsl_matrix_free(relv->img);
-	relv->img = out;
-	
+	relv->img = gsl_matrix_calloc(img_h, img_w);
+	gsl_matrix_memcpy(relv->img, out);
+
 	return out;
 }
 
@@ -50,7 +51,7 @@ gsl_matrix* backward_relv (RELV* relv, gsl_matrix* dy)
 	gsl_matrix_memcpy(out, dy);
 	for (int h = 0; h < img_h; h++)
 		for (int w = 0; w < img_w; w++)
-			if (gsl_matrix_get(out, h, w) < 0)
+			if (gsl_matrix_get(relv->img, h, w) < 0)
 				gsl_matrix_set(out, h, w, 0); // FIXME - Check in the future...
 
 	return out;
@@ -63,8 +64,9 @@ void get_updates_relv (RELV* relu, double lr)
 }
 
 // Initializes a ReLU-V layer
-void create_RELV (RELV* relv)
+void create_RELV (RELV* relv, int batch_size)
 {
+	relv->batch_size = batch_size;
 	relv->img = gsl_matrix_calloc(1, 1);
 }
 
