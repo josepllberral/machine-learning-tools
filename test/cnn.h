@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cnn.c conv.c pool.c flat.c relu.c grad_check.c matrix_ops.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc *.c -lgsl -lgslcblas -lm -o cnn"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,12 +84,21 @@ typedef struct {
 typedef struct {
 	int batch_size;
 	int n_units;
-	gsl_matrix* a;
 } SOFT;
+
+typedef struct {
+	int batch_size;
+	int n_units;
+	gsl_matrix* a;
+} SIGM;
 
 typedef struct {
 	double loss;
 } CELL;
+
+typedef struct {
+	double loss;
+} MSEL;
 
 typedef struct {
 	// Layer Type:
@@ -99,8 +108,9 @@ typedef struct {
 	// 4: flattening,
 	// 5: linear,
 	// 6: softmax,
-	// 7: cross-entropy
-	// 8: rectifier linear, matrix version
+	// 7: cross-entropy,
+	// 8: rectifier linear (matrix version),
+	// 9: sigmoid
 	int type;
 	void* layer;
 } LAYER;
@@ -112,6 +122,8 @@ typedef union {
 
 // Auxiliar Functions
 void replace_image (gsl_matrix****, gsl_matrix****, int, int);
+void print_image00 (gsl_matrix***, int, int);
+void classification_matrix_print (gsl_matrix* predicted, gsl_matrix* observed);
 
 // Convolutional Auxiliar Functions
 gsl_matrix* conv2D (gsl_matrix*, gsl_matrix*, int);
@@ -172,6 +184,15 @@ void free_SOFT (SOFT*);
 void copy_SOFT (SOFT*, SOFT*);
 int compare_SOFT (SOFT*, SOFT*);
 
+// Sigmoid Layer
+gsl_matrix* forward_sigm (SIGM*, gsl_matrix*);
+gsl_matrix* backward_sigm (SIGM*, gsl_matrix*);
+void get_updates_sigm (SIGM*, double);
+void create_SIGM (SIGM*, int, int);
+void free_SIGM (SIGM*);
+void copy_SIGM (SIGM*, SIGM*);
+int compare_SIGM (SIGM*, SIGM*);
+
 // Cross-Entropy Layer
 gsl_matrix* forward_cell (CELL*, gsl_matrix*, gsl_matrix*);
 gsl_matrix* backward_cell (CELL*, gsl_matrix*, gsl_matrix*);
@@ -180,6 +201,15 @@ void create_CELL (CELL*);
 void free_CELL (CELL*);
 void copy_CELL (CELL*, CELL*);
 int compare_CELL (CELL*, CELL*);
+
+// Mean-Squared Error Layer
+gsl_matrix* forward_msel (MSEL*, gsl_matrix*, gsl_matrix*);
+gsl_matrix* backward_msel (MSEL*, gsl_matrix*, gsl_matrix*);
+void get_updates_msel (MSEL*, double);
+void create_MSEL (MSEL*);
+void free_MSEL (MSEL*);
+void copy_MSEL (MSEL*, MSEL*);
+int compare_MSEL (MSEL*, MSEL*);
 
 // Rectified Linear Layer - Matrix Versions
 gsl_matrix* forward_relv (RELV*, gsl_matrix*);
@@ -194,6 +224,9 @@ int compare_RELV (RELV*, RELV*);
 void forward (LAYER*, data*);
 void backward (LAYER*, data*);
 void get_updates (LAYER*, double);
+double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, int, int, double, double, int);
+double train_mlp (gsl_matrix*, gsl_matrix*, LAYER*, int, int, int, double, double, int);
+double classification_accuracy (gsl_matrix*, gsl_matrix*);
 
 // Gradiend Check Functions
 int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
@@ -232,5 +265,6 @@ int main_line();
 int main_soft();
 int main_cell();
 int main_cnn();
+int main_mlp();
 
 #endif

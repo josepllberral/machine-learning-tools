@@ -80,8 +80,8 @@ void get_updates_line (LINE* line, double lr)
 	gsl_matrix_set_all(identity, 1.0);
 	gsl_matrix_set_identity(identity);
 
-	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr, line->grad_W, identity, 1.0, line->W);
-	gsl_blas_daxpy(-1.0 * lr, line->grad_b, line->b);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr / line->batch_size, line->grad_W, identity, 1.0, line->W);
+	gsl_blas_daxpy(-1.0 * lr / line->batch_size, line->grad_b, line->b);
 
 	gsl_matrix_free(identity);
 }
@@ -122,19 +122,17 @@ void copy_LINE (LINE* destination, LINE* origin)
 	destination->n_visible = origin->n_visible;
 
 	destination->W = gsl_matrix_alloc(origin->n_hidden, origin->n_visible);
+	destination->grad_W = gsl_matrix_alloc(origin->n_hidden, origin->n_visible);
+	destination->x = gsl_matrix_alloc(origin->batch_size, origin->n_visible);
+
 	gsl_matrix_memcpy(destination->W, origin->W);
+	gsl_matrix_memcpy(destination->grad_W, origin->grad_W);
+	gsl_matrix_memcpy(destination->x, origin->x);
 
 	destination->b = gsl_vector_alloc(origin->n_hidden);
-	gsl_vector_memcpy(destination->b, origin->b);
-
-	destination->grad_W = gsl_matrix_alloc(origin->n_hidden, origin->n_visible);
-	gsl_matrix_memcpy(destination->grad_W, origin->grad_W);
-
 	destination->grad_b = gsl_vector_alloc(origin->n_hidden);
+	gsl_vector_memcpy(destination->b, origin->b);
 	gsl_vector_memcpy(destination->grad_b, origin->grad_b);
-
-	destination->x = gsl_matrix_alloc(origin->batch_size, origin->n_visible);
-	gsl_matrix_memcpy(destination->x, origin->x);
 }
 
 // Function to compare a CONV layer

@@ -615,7 +615,7 @@ main_line <- function()
 ##	updates :	softmax_layer
 forward_soft <- function(soft, x)
 {
-	soft[["a"]] <- sigmoid_func(x);
+	soft[["a"]] <- sigmoid_func(x);	# TODO - DO A REAL SOFTMAX
 	list(layer = soft, y = soft$a);
 }
 
@@ -624,7 +624,7 @@ forward_soft <- function(soft, x)
 ##	returns :	Numeric vector <n_visible>
 backward_soft <- function(soft, dy)
 {
-	dx <- soft$a * (1 - soft$a) * dy;
+	dx <- soft$a * (1 - soft$a) * dy; # TODO - DO A REAL SOFTMAX
 	list(layer = soft, dx = dx);
 }
 
@@ -642,6 +642,42 @@ create_soft <- function()
 		backward = backward_soft, get_updates = get_updates_soft);
 }
 
+###############################################################################
+# SIGMOID LAYER                                                               #
+###############################################################################
+
+## Forward through a sigmoid function
+##	param x :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_hidden>
+##	updates :	sigmoid_layer
+forward_sigm <- function(sigm, x)
+{
+	sigm[["a"]] <- sigmoid_func(x);
+	list(layer = sigm, y = sigm$a);
+}
+
+## Backward through the sigmoid layer
+##	param x :	Numeric vector <n_hidden>
+##	returns :	Numeric vector <n_visible>
+backward_sigm <- function(sigm, dy)
+{
+	dx <- sigm$a * (1 - sigm$a) * dy;
+	list(layer = sigm, dx = dx);
+}
+
+## Updates the sigmoid Layer (Does Nothing)
+get_updates_sigm <- function(sigm, lr) { sigm; }
+
+## Get names of parameters and gradients (for testing functions)
+pnames_sigm <- function(sigm) { character(0); }
+gnames_sigm <- function(sigm) { character(0); }
+
+## Returns a sigmoid layer
+create_sigm <- function()
+{
+	list(	pnames = pnames_sigm, gnames = gnames_sigm, forward = forward_sigm,
+		backward = backward_sigm, get_updates = get_updates_sigm);
+}
 
 ###############################################################################
 # CROSS-ENTROPY LOSS LAYER                                                    #

@@ -52,7 +52,7 @@ gsl_matrix* backward_relv (RELV* relv, gsl_matrix* dy)
 	for (int h = 0; h < img_h; h++)
 		for (int w = 0; w < img_w; w++)
 			if (gsl_matrix_get(relv->img, h, w) < 0)
-				gsl_matrix_set(out, h, w, 0); // FIXME - Check in the future...
+				gsl_matrix_set(out, h, w, 0);
 
 	return out;
 }

@@ -19,7 +19,7 @@
 //      updates       : cell layer
 gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 {
-	// Performs: l <- -targets * log(x + 1e-08)
+	// Performs: l <- -1.0 * targets * log(x + 1e-08)
 	gsl_matrix* pre_log = gsl_matrix_calloc(x->size1, x->size2);
 	gsl_matrix* l = gsl_matrix_calloc(x->size1, x->size2);
 	gsl_matrix_memcpy(pre_log, x);
@@ -29,19 +29,13 @@ gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 	gsl_matrix_mul_elements(l, targets);
 
 	// Performs: mean(apply(l, MARGIN = 1, sum))
-	double acc = 0;
-	for (int i = 0; i < l->size1; i++)
-		for (int j = 0; j < l->size2; j++)
-			acc += gsl_matrix_get(l, i, j);
-	acc = acc / l->size1;
+	cell->loss = matrix_sum(l) / l->size1;
 
 	gsl_matrix_free(pre_log);
 	gsl_matrix_free(l);
 
-	cell->loss = acc;
-
 	gsl_matrix* y = gsl_matrix_calloc(x->size1, x->size2);
-	gsl_matrix_memcpy(x, y);
+	gsl_matrix_memcpy(y, x);
 	return y;
 }
 

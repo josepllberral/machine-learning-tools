@@ -123,37 +123,28 @@ gsl_matrix*** conv_op (	gsl_matrix*** imgs, int batch_size, int n_channels_img,
 	int out_h = (img_h - win_h + 2 * pad_y) + 1;
 	int out_w = (img_w - win_w + 2 * pad_x) + 1;
 
-	// Create output array and Prepare padded image for convolution
+	// Create output array and Prepare padded image. Then perform convolution
 	gsl_matrix*** out = (gsl_matrix ***) malloc(batch_size * sizeof(gsl_matrix**));
-	gsl_matrix*** imgs_pad = (gsl_matrix ***) malloc(batch_size * sizeof(gsl_matrix**));
-	for (int i = 0; i < batch_size; i++)
-	{
-		out[i] = (gsl_matrix**) malloc(n_filters * sizeof(gsl_matrix*));
-		for (int j = 0; j < n_filters; j++)
-			out[i][j] = gsl_matrix_calloc(out_h, out_w);
-
-		imgs_pad[i] = (gsl_matrix**) malloc(n_channels * sizeof(gsl_matrix*));
-		for (int j = 0; j < n_channels; j++)
-			imgs_pad[i][j] = img_padding(imgs[i][j], pad_y, pad_x);
-	}
-
-	// Perform convolution
 	for (int b = 0; b < batch_size; b++)
+	{
+		gsl_matrix** imgs_pad = (gsl_matrix**) malloc(n_channels * sizeof(gsl_matrix*));
+		for (int c = 0; c < n_channels; c++) imgs_pad[c] = img_padding(imgs[b][c], pad_y, pad_x);
+
+		out[b] = (gsl_matrix**) malloc(n_filters * sizeof(gsl_matrix*));
 		for (int f = 0; f < n_filters; f++)
+		{
+			out[b][f] = gsl_matrix_calloc(out_h, out_w);
 			for (int c = 0; c < n_channels; c++)
 			{
-				gsl_matrix* conv_aux = conv2D(imgs_pad[b][c], filters[f][c], 1);
-				int res1 = gsl_matrix_add(out[b][f], conv_aux);
+				gsl_matrix* conv_aux = conv2D(imgs_pad[c], filters[f][c], 1);
+				gsl_matrix_add(out[b][f], conv_aux);
 				gsl_matrix_free(conv_aux);
 			}
+		}
 
-	// Free auxiliar structures
-	for (int i = 0; i < batch_size; i++)
-	{
-		for (int j = 0; j < n_channels; j++) gsl_matrix_free(imgs_pad[i][j]);
-		free(imgs_pad[i]);
+		for (int c = 0; c < n_channels; c++) gsl_matrix_free(imgs_pad[c]);
+		free(imgs_pad);
 	}
-	free(imgs_pad);
 
 	return out;
 }
@@ -205,16 +196,7 @@ gsl_matrix*** backward_conv (CONV* conv, gsl_matrix*** dy)
 	gsl_matrix*** dx = conv_op(dy, conv->batch_size, conv->n_filters,
 		waux, conv->n_channels, conv->n_filters, conv->pad_y, conv->pad_x);
 
-	// Prepares padded image for convolution
-	gsl_matrix*** x_pad = (gsl_matrix ***) malloc(conv->batch_size * sizeof(gsl_matrix**));
-	for (int b = 0; b < conv->batch_size; b++)
-	{
-		x_pad[b] = (gsl_matrix**) malloc(conv->n_channels * sizeof(gsl_matrix*));
-		for (int c = 0; c < conv->n_channels; c++)
-			x_pad[b][c] = img_padding(conv->img[b][c], conv->pad_y, conv->pad_x);
-	}
-
-	// Propagate gradients to weights
+	// Propagates gradients to weights and bias
 	gsl_matrix*** grad_W = (gsl_matrix***) malloc(conv->n_filters * sizeof(gsl_matrix**));
 	for (int f = 0; f < conv->n_filters; f++)
 	{
@@ -222,71 +204,69 @@ gsl_matrix*** backward_conv (CONV* conv, gsl_matrix*** dy)
 		for (int c = 0; c < conv->n_channels; c++)
 			grad_W[f][c] = gsl_matrix_calloc(conv->win_h, conv->win_w);
 	}
+	gsl_vector* grad_b = gsl_vector_calloc(conv->n_filters);
 
 	int dy_h = dy[0][0]->size1;
 	int dy_w = dy[0][0]->size2;
 	for (int b = 0; b < conv->batch_size; b++)
+	{
+		// Prepares padded image
+		gsl_matrix** x_pad = (gsl_matrix**) malloc(conv->n_channels * sizeof(gsl_matrix*));
+		for (int c = 0; c < conv->n_channels; c++)
+			x_pad[c] = img_padding(conv->img[b][c], conv->pad_y, conv->pad_x);
+
+		// Propagates weights and bias
 		for (int f = 0; f < conv->n_filters; f++)
 		{
+			// Propagate Weights
 			for (int c = 0; c < conv->n_channels; c++)
 			{
-				gsl_matrix* conv_aux = conv2D(x_pad[b][c], dy[b][f], 1);
+				gsl_matrix* conv_aux = conv2D(x_pad[c], dy[b][f], 1);
 				gsl_matrix_add(grad_W[f][c], conv_aux);
 				gsl_matrix_free(conv_aux);
 			}
-		}
 
-	// Propagate gradients to bias
-	gsl_vector* grad_b = gsl_vector_calloc(conv->n_filters);
-	for (int b = 0; b < conv->batch_size; b++)
-		for (int f = 0; f < conv->n_filters; f++)
-		{
-			double acc = gsl_vector_get(grad_b, f);
-			for (int i = 0; i < dy_h; i++)
-				for (int j = 0; j < dy_w; j++)
-					acc += gsl_matrix_get(dy[b][f], i, j);
+			// Propagate Bias
+			double acc = gsl_vector_get(grad_b, f) + matrix_sum(dy[b][f]);
 			gsl_vector_set(grad_b, f, acc);
 		}
 
-	// Flip back grad_W
+		for (int c = 0; c < conv->n_channels; c++)
+			gsl_matrix_free(x_pad[c]);
+		free(x_pad);
+	}
+
+	// Upgrade gradient values
 	for (int f = 0; f < conv->n_filters; f++)
+	{
 		for (int c = 0; c < conv->n_channels; c++)
 		{
+			// Flip back grad_W frames
 			for (int h = 0; h < conv->win_h/2; h++)
 				gsl_matrix_swap_rows(grad_W[f][c], h, conv->win_h - h - 1);
 			for (int w = 0; w < conv->win_w/2; w++)
 				gsl_matrix_swap_columns(grad_W[f][c], w, conv->win_w - w - 1);
-		}
 
-	// Update gradient values
-	for (int f = 0; f < conv->n_filters; f++)
-		for (int c = 0; c < conv->n_channels; c++)
+			// Update gradient values
 			gsl_matrix_memcpy(conv->grad_W[f][c], grad_W[f][c]);
-	gsl_vector_memcpy(conv->grad_b, grad_b);
 
-	// Free auxiliar structures
+			// Free the local gradient frame
+			gsl_matrix_free(grad_W[f][c]);
+		}
+		free(grad_W[f]);
+	}
+	free(grad_W);
+
+	gsl_vector_memcpy(conv->grad_b, grad_b);
+	gsl_vector_free(grad_b);
+
+	// Free other auxiliar structures
 	for (int c = 0; c < conv->n_channels; c++)
 	{
 		for (int f = 0; f < conv->n_filters; f++) gsl_matrix_free(waux[c][f]);
 		free(waux[c]);
 	}
 	free(waux);
-
-	for (int i = 0; i < conv->batch_size; i++)
-	{
-		for (int j = 0; j < conv->n_channels; j++) gsl_matrix_free(x_pad[i][j]);
-		free(x_pad[i]);
-	}
-	free(x_pad);
-
-	for (int f = 0; f < conv->n_filters; f++)
-	{
-		for (int c = 0; c < conv->n_channels; c++) gsl_matrix_free(grad_W[f][c]);
-		free(grad_W[f]);
-	}
-	free(grad_W);
-
-	gsl_vector_free(grad_b);
 
 	return dx;
 }
@@ -303,8 +283,8 @@ void get_updates_conv (CONV* conv, double lr)
 
 	for (int f = 0; f < conv->n_filters; f++)
 		for (int c = 0; c < conv->n_channels; c++)
-			gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr, conv->grad_W[f][c], identity, 1.0, conv->W[f][c]);
-	gsl_blas_daxpy(-1.0 * lr, conv->grad_b, conv->b);
+			gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr / conv->batch_size, conv->grad_W[f][c], identity, 1.0, conv->W[f][c]);
+	gsl_blas_daxpy(-1.0 * lr / conv->batch_size, conv->grad_b, conv->b);
 
 	gsl_matrix_free(identity);
 }
@@ -394,22 +374,28 @@ void copy_CONV (CONV* destination, CONV* origin)
 	destination->win_h = origin->win_h;
 	destination->win_w = origin->win_w;
 
+	destination->pad_y = origin->pad_y;
+	destination->pad_x = origin->pad_x;
+
 	destination->W = (gsl_matrix***) malloc(origin->n_filters * sizeof(gsl_matrix**));
+	destination->grad_W = (gsl_matrix***) malloc(origin->n_filters * sizeof(gsl_matrix**));
 	for (int f = 0; f < origin->n_filters; f++)
 	{
 		destination->W[f] = (gsl_matrix**) malloc(origin->n_channels * sizeof(gsl_matrix*));
+		destination->grad_W[f] = (gsl_matrix**) malloc(origin->n_channels * sizeof(gsl_matrix*));
 		for (int c = 0; c < origin->n_channels; c++)
 		{
 			destination->W[f][c] = gsl_matrix_alloc(origin->win_h, origin->win_w);
+			destination->grad_W[f][c] = gsl_matrix_alloc(origin->win_h, origin->win_w);
 			gsl_matrix_memcpy(destination->W[f][c], origin->W[f][c]);
+			gsl_matrix_memcpy(destination->grad_W[f][c], origin->grad_W[f][c]);
 		}
 	}
 
 	destination->b = gsl_vector_calloc(origin->n_filters);
+	destination->grad_b = gsl_vector_calloc(origin->n_filters);
 	gsl_vector_memcpy(destination->b, origin->b);
-
-	destination->pad_y = origin->pad_y;
-	destination->pad_x = origin->pad_x;
+	gsl_vector_memcpy(destination->grad_b, origin->grad_b);
 
 	int img_h = origin->img[0][0]->size1;
 	int img_w = origin->img[0][0]->size2;
@@ -424,20 +410,6 @@ void copy_CONV (CONV* destination, CONV* origin)
 			gsl_matrix_memcpy(destination->img[b][c], origin->img[b][c]);
 		}
 	}
-
-	destination->grad_W = (gsl_matrix***) malloc(origin->n_filters * sizeof(gsl_matrix**));
-	for (int f = 0; f < destination->n_filters; f++)
-	{
-		destination->grad_W[f] = (gsl_matrix**) malloc(origin->n_channels * sizeof(gsl_matrix*));
-		for (int c = 0; c < destination->n_channels; c++)
-		{
-			destination->grad_W[f][c] = gsl_matrix_alloc(origin->win_h, origin->win_w);
-			gsl_matrix_memcpy(destination->grad_W[f][c], origin->grad_W[f][c]);
-		}
-	}
-
-	destination->grad_b = gsl_vector_calloc(origin->n_filters);
-	gsl_vector_memcpy(destination->grad_b, origin->grad_b);
 }
 
 // Function to compare a CONV layer

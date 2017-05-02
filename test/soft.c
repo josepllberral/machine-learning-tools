@@ -15,17 +15,26 @@
 // Forward through a sigmoid function
 //	param x :	Numeric matrix (batch_size, n_units)
 //	returns :	Numeric matrix (batch_size, n_units)
-//	updates :	softmax_layer
 gsl_matrix* forward_soft (SOFT* soft, gsl_matrix* x)
 {
-	// Perform operation: a <- sigmoid(x)
-	gsl_matrix* a = gsl_matrix_alloc(x->size1, x->size2);
-	matrix_sigmoid(x, a);
+	// Perform operation: y <- exp(x) / rowSums(exp(x))
+	gsl_matrix* x_exp = gsl_matrix_alloc(x->size1, x->size2);
 
-	// Save sigmoid into Layer
-	gsl_matrix_memcpy(soft->a, a);
+	matrix_exponent(x, x_exp);
+	for (int i = 0; i < x_exp->size1; i++)
+	{
+		gsl_vector* aux = gsl_vector_alloc(x_exp->size2);
+		gsl_matrix_get_row(aux, x_exp, i);
+	
+		double acc = 0;
+		for (int j = 0; j < x_exp->size2; j++) acc += gsl_vector_get(aux, j);
+		gsl_vector_scale(aux, 1.0 / acc);
 
-	return a;
+		gsl_matrix_set_row(x_exp, i, aux);
+		gsl_vector_free(aux);
+	}
+
+	return x_exp;
 }
 
 // Backward through the softmax layer
@@ -33,13 +42,10 @@ gsl_matrix* forward_soft (SOFT* soft, gsl_matrix* x)
 //	returns :	Numeric matrix (batch_data, n_units)
 gsl_matrix* backward_soft (SOFT* soft, gsl_matrix* dy)
 {
-	// Perform operation: dx <- soft$a * (1 - soft$a) * dy
+	// Passes data back
 	gsl_matrix* dx = gsl_matrix_alloc(dy->size1, dy->size2);
-	gsl_matrix_memcpy(dx, soft->a);
-	gsl_matrix_scale (dx, -1.0);
-	gsl_matrix_add_constant(dx, 1.0);
-	gsl_matrix_mul_elements(dx, soft->a);
-	gsl_matrix_mul_elements(dx, dy);
+	gsl_matrix_memcpy(dx, dy);
+
 	return dx;
 }
 
@@ -54,13 +60,12 @@ void create_SOFT (SOFT* soft, int n_units, int batch_size)
 {
 	soft->batch_size = batch_size;
 	soft->n_units = n_units;
-	soft->a = gsl_matrix_calloc(batch_size, n_units);
 }
 
-// Destructor of SoftMax Layer
+// Destructor of SoftMax Layer (Does Nothing)
 void free_SOFT (SOFT* soft)
 {
-	gsl_matrix_free(soft->a);
+	return;
 }
 
 
@@ -70,9 +75,6 @@ void copy_SOFT (SOFT* destination, SOFT* origin)
 {
 	destination->batch_size = origin->batch_size;
 	destination->n_units = origin->n_units;
-
-	destination->a = gsl_matrix_alloc(origin->a->size1, origin->a->size2);
-	gsl_matrix_memcpy(destination->a, origin->a);
 }
 
 // Function to compare a SOFT layer
@@ -84,8 +86,6 @@ int compare_SOFT (SOFT* C1, SOFT* C2)
 		C1->batch_size != C2->batch_size ||
 		C1->n_units != C2->n_units
 	) equal = 0;
-
-	equal = equal * gsl_matrix_equal(C1->a, C2->a);
 
 	return equal;
 }

@@ -236,6 +236,7 @@ int main_line()
 	return 0;
 }
 
+// Driver for Softmax Layer
 int main_soft()
 {
 	int batch_size = 2;
@@ -264,6 +265,7 @@ int main_soft()
 	return 0;
 }
 
+// Driver for Cross-Entropy Layer
 int main_cell()
 {
 	int batch_size = 10;
@@ -301,3 +303,316 @@ int main_cell()
 	return 0;
 }
 
+// Driver for Full CNN network using MNIST
+int main_cnn()
+{
+	printf("Start\n");
+
+	int nrow = 60000;
+	int ncol = 784;
+
+	int num_channels = 1;
+	int img_h = 28;
+	int img_w = 28;
+
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+
+	// Read Train Data (MNIST)
+	fp = fopen("../rrbm/datasets/mnist_trainx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix*** training_x = (gsl_matrix***) malloc(nrow * sizeof(gsl_matrix**));
+	for (int i = 0; i < nrow; i++)
+	{
+		training_x[i] = (gsl_matrix**) malloc(1 * sizeof(gsl_matrix*));
+		// ...because num_channels = 1
+		training_x[i][0] = gsl_matrix_alloc(img_h, img_w);
+
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
+		for (int j = 0; j < ncol; j++)
+		{
+			int idx_h = j % img_h;
+			int idx_w = j / img_w;
+			gsl_matrix_set(training_x[i][0], idx_h, idx_w, atof(ch));
+			ch = strtok(NULL, " ");
+		}
+		free(ch);
+	}
+	fclose(fp);
+
+	fp = fopen("../rrbm/datasets/mnist_trainy.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix* training_y = gsl_matrix_calloc(nrow, 10);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		int y = atoi(line);
+		gsl_matrix_set(training_y, i, y, 1.0);
+	}
+	fclose(fp);
+
+	printf("Training Dataset Read\n");
+
+	// Read Test Data (MNIST)
+	fp = fopen("../rrbm/datasets/mnist_testx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	nrow = 10000;
+
+	gsl_matrix*** testing_x = (gsl_matrix***) malloc(nrow * sizeof(gsl_matrix**));
+	for (int i = 0; i < nrow; i++)
+	{
+		testing_x[i] = (gsl_matrix**) malloc(1 * sizeof(gsl_matrix*));
+		// ...because num_channels = 1
+		testing_x[i][0] = gsl_matrix_alloc(img_h, img_w);
+
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
+		for (int j = 0; j < ncol; j++)
+		{
+			int idx_h = j % img_h;
+			int idx_w = j / img_w;
+			gsl_matrix_set(testing_x[i][0], idx_h, idx_w, atof(ch));
+			ch = strtok(NULL, " ");
+		}
+		free(ch);
+	}
+	fclose(fp);
+
+	fp = fopen("../rrbm/datasets/mnist_testy.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix* testing_y = gsl_matrix_calloc(nrow, 10);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		int y = atoi(line);
+		gsl_matrix_set(testing_y, i, y, 1.0);
+	}
+	fclose(fp);
+
+	printf("Testing Dataset Read\n");
+
+	// Prepare the CNN
+
+	int batch_size = 10;
+	int border_mode = 2;
+	int filter_size = 5;
+
+	int win_size = 3;
+	int stride = 2;
+
+	CONV conv1; create_CONV(&conv1, 1, 4, filter_size, 0.1, border_mode, batch_size);
+	POOL pool1; create_POOL(&pool1, 4, 0.1, batch_size, win_size, stride);
+	RELU relu1; create_RELU(&relu1, 4, batch_size);
+	CONV conv2; create_CONV(&conv2, 4, 16, filter_size, 0.1, border_mode, batch_size);
+	POOL pool2; create_POOL(&pool2, 16, 0.1, batch_size, win_size, stride);
+	RELU relu2; create_RELU(&relu2, 16, batch_size);
+	FLAT flat1; create_FLAT(&flat1, 16, batch_size);
+	LINE line1; create_LINE(&line1, 784, 64, 0.01, batch_size);
+	RELV relv1; create_RELV(&relv1, batch_size);
+	LINE line2; create_LINE(&line2, 64, 10, 0.1, batch_size);
+	SOFT soft1; create_SOFT(&soft1, 10, batch_size);
+
+	LAYER* layers = (LAYER*) malloc(11 * sizeof(LAYER));
+	layers[0].type = 1; layers[0].layer = (void*) &conv1;
+	layers[1].type = 2; layers[1].layer = (void*) &pool1;
+	layers[2].type = 3; layers[2].layer = (void*) &relu1;
+	layers[3].type = 1; layers[3].layer = (void*) &conv2;
+	layers[4].type = 2; layers[4].layer = (void*) &pool2;
+	layers[5].type = 3; layers[5].layer = (void*) &relu2;
+	layers[6].type = 4; layers[6].layer = (void*) &flat1;
+	layers[7].type = 5; layers[7].layer = (void*) &line1;
+	layers[8].type = 8; layers[8].layer = (void*) &relv1;
+	layers[9].type = 5; layers[9].layer = (void*) &line2;
+	layers[10].type = 6; layers[10].layer = (void*) &soft1;
+
+	printf("CNN created\n");
+
+	// Train a CNN to learn MNIST
+	int training_epochs = 10;
+	double learning_rate = 5e-3;
+	double momentum = 1;
+
+	double loss = train_cnn (training_x, training_y, nrow, num_channels,
+		layers, 11, training_epochs, batch_size, learning_rate, momentum, 1234);
+
+	printf("CNN trained\n");
+
+	// Free the Network
+	free_CONV(&conv1);
+	free_POOL(&pool1);
+	free_RELU(&relu1);
+	free_CONV(&conv2);
+	free_POOL(&pool2);
+	free_RELU(&relu2);
+	free_FLAT(&flat1);
+	free_LINE(&line1);
+	free_RELV(&relv1);
+	free_LINE(&line2);
+	free_SOFT(&soft1);
+
+	free(layers);
+
+	// Free the data
+	if (line) free(line);
+
+	for (int i = 0; i < 60000; i++)
+	{
+		gsl_matrix_free(training_x[i][0]);
+		free(training_x[i]);
+	}
+	free(training_x);
+	gsl_matrix_free(training_y);
+
+	for (int i = 0; i < 10000; i++)
+	{
+		gsl_matrix_free(testing_x[i][0]);
+		free(testing_x[i]);
+	}
+	free(testing_x);
+	gsl_matrix_free(testing_y);
+
+	return 0;
+}
+
+// Driver for Full MLP network using MNIST
+int main_mlp()
+{
+	printf("Start\n");
+
+	int nrow = 60000;
+	int ncol = 784;
+
+	int num_channels = 1;
+	int img_h = 28;
+	int img_w = 28;
+
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+
+	// Read Train Data (MNIST)
+	fp = fopen("../rrbm/datasets/mnist_trainx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix* training_x = gsl_matrix_alloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
+		for (int j = 0; j < ncol; j++)
+		{
+			gsl_matrix_set(training_x, i, j, atof(ch));
+			ch = strtok(NULL, " ");
+		}
+		free(ch);
+	}
+	fclose(fp);
+
+	fp = fopen("../rrbm/datasets/mnist_trainy.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix* training_y = gsl_matrix_calloc(nrow, 10);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		int y = atoi(line);
+		gsl_matrix_set(training_y, i, y, 1.0);
+	}
+	fclose(fp);
+
+	printf("Training Dataset Read\n");
+
+	// Read Test Data (MNIST)
+	fp = fopen("../rrbm/datasets/mnist_testx.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	nrow = 10000;
+
+	gsl_matrix* testing_x = gsl_matrix_alloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		char *ch = strtok(line, " ");
+		for (int j = 0; j < ncol; j++)
+		{
+			gsl_matrix_set(testing_x, i, j, atof(ch));
+			ch = strtok(NULL, " ");
+		}
+		free(ch);
+	}
+	fclose(fp);
+
+	fp = fopen("../rrbm/datasets/mnist_testy.data", "r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	gsl_matrix* testing_y = gsl_matrix_calloc(nrow, 10);
+	for (int i = 0; i < nrow; i++)
+	{
+		ssize_t read = getline(&line, &len, fp);
+		int y = atoi(line);
+		gsl_matrix_set(testing_y, i, y, 1.0);
+	}
+	fclose(fp);
+
+	printf("Testing Dataset Read\n");
+
+	// Prepare the MLP
+	int batch_size = 10;
+
+	LINE line1; create_LINE(&line1, 784, 64, 0.01, batch_size);
+	RELV relv1; create_RELV(&relv1, batch_size);
+	LINE line2; create_LINE(&line2, 64, 10, 0.1, batch_size);
+	SOFT soft1; create_SOFT(&soft1, 10, batch_size);
+
+	LAYER* layers = (LAYER*) malloc(4 * sizeof(LAYER));
+	layers[0].type = 5; layers[0].layer = (void*) &line1;
+	layers[1].type = 8; layers[1].layer = (void*) &relv1;
+	layers[2].type = 5; layers[2].layer = (void*) &line2;
+	layers[3].type = 6; layers[3].layer = (void*) &soft1;
+
+	printf("MLP created\n");
+
+	// Train a MLP to learn MNIST
+	int training_epochs = 20;
+	double learning_rate = 1e-2;
+	double momentum = 1;
+
+	double loss = train_mlp (training_x, training_y, layers, 4,
+		training_epochs, batch_size, learning_rate, momentum, 1234);
+
+	printf("MLP trained\n");
+
+	// Free the Network
+	free_LINE(&line1);
+	free_RELV(&relv1);
+	free_LINE(&line2);
+	free_SOFT(&soft1);
+
+	free(layers);
+
+	// Free the data
+	if (line) free(line);
+
+	gsl_matrix_free(training_x);
+	gsl_matrix_free(training_y);
+
+	gsl_matrix_free(testing_x);
+	gsl_matrix_free(testing_y);
+
+	return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+/* MAIN FUNCTION - TEST                                                      */
+/*---------------------------------------------------------------------------*/
+
+int main()
+{
+	return main_mlp();
+}

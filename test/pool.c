@@ -21,26 +21,21 @@ gsl_matrix*** forward_pool(POOL* pool, gsl_matrix*** imgs)
 	// Save "imgs" for back-propagation
 	replace_image(&(pool->img), &imgs, pool->batch_size, pool->n_channels);
 
-	// Create output array and Prepare padded image for convolution
+	// Prepare padded image for convolution
 	int img_h = imgs[0][0]->size1;
 	int img_w = imgs[0][0]->size2;
-
 	int out_h = (img_h - pool->win_size + 2 * pool->padding) / pool->stride + 1;
 	int out_w = (img_w - pool->win_size + 2 * pool->padding) / pool->stride + 1;
 
+	// Then perform average pooling
+	double ws2 = 1.0 / (pool->win_size * pool->win_size);
 	gsl_matrix*** out = (gsl_matrix ***) malloc(pool->batch_size * sizeof(gsl_matrix**));
-	for (int i = 0; i < pool->batch_size; i++)
-	{
-		out[i] = (gsl_matrix**) malloc(pool->n_channels * sizeof(gsl_matrix*));
-		for (int j = 0; j < pool->n_channels; j++)
-			out[i][j] = gsl_matrix_calloc(out_h, out_w);
-	}
-
-	// Perform average pooling
-	double ws2 = 1 / (pool->win_size * pool->win_size);
 	for (int b = 0; b < pool->batch_size; b++)
+	{
+		out[b] = (gsl_matrix**) malloc(pool->n_channels * sizeof(gsl_matrix*));
 		for (int c = 0; c < pool->n_channels; c++)
 		{
+			out[b][c] = gsl_matrix_calloc(out_h, out_w);
 			gsl_matrix_scale(imgs[b][c], ws2);
 			for (int h = 0; h < out_h; h++)
 			{
@@ -63,6 +58,7 @@ gsl_matrix*** forward_pool(POOL* pool, gsl_matrix*** imgs)
 				}
 			}
 		}
+	}
 	return out;
 }
 
@@ -79,8 +75,8 @@ gsl_matrix*** backward_pool(POOL* pool, gsl_matrix*** dy)
 	int dy_w = dy[0][0]->size2;
 
 	// Un-do pooling
+	double ws2 = 1.0 / (pool->win_size * pool->win_size);
 	gsl_matrix*** dx = (gsl_matrix ***) malloc(pool->batch_size * sizeof(gsl_matrix**));
-	double ws2 = 1 / (pool->win_size * pool->win_size);
 	for (int b = 0; b < pool->batch_size; b++)
 	{
 		dx[b] = (gsl_matrix**) malloc(pool->n_channels * sizeof(gsl_matrix*));
