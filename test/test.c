@@ -418,7 +418,8 @@ int main_cnn()
 	LINE line2; create_LINE(&line2, 64, 10, 0.1, batch_size);
 	SOFT soft1; create_SOFT(&soft1, 10, batch_size);
 
-	LAYER* layers = (LAYER*) malloc(11 * sizeof(LAYER));
+	int num_layers = 11;
+	LAYER* layers = (LAYER*) malloc(num_layers * sizeof(LAYER));
 	layers[0].type = 1; layers[0].layer = (void*) &conv1;
 	layers[1].type = 2; layers[1].layer = (void*) &pool1;
 	layers[2].type = 3; layers[2].layer = (void*) &relu1;
@@ -434,12 +435,12 @@ int main_cnn()
 	printf("CNN created\n");
 
 	// Train a CNN to learn MNIST
-	int training_epochs = 10;
-	double learning_rate = 5e-3;
+	int training_epochs = 15;
+	double learning_rate = 1e-2;
 	double momentum = 1;
 
 	double loss = train_cnn (training_x, training_y, nrow, num_channels,
-		layers, 11, training_epochs, batch_size, learning_rate, momentum, 1234);
+		layers, num_layers, training_epochs, batch_size, learning_rate, momentum, 1234);
 
 	printf("CNN trained\n");
 
@@ -614,5 +615,5 @@ int main_mlp()
 
 int main()
 {
-	return main_mlp();
+	return main_cnn();
 }

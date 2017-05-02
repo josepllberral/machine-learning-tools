@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc *.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,7 +110,8 @@ typedef struct {
 	// 6: softmax,
 	// 7: cross-entropy,
 	// 8: rectifier linear (matrix version),
-	// 9: sigmoid
+	// 9: sigmoid,
+	// 10: mean-squared-error
 	int type;
 	void* layer;
 } LAYER;

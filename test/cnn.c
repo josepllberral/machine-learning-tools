@@ -421,11 +421,11 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 			acc_loss += loss_layer.loss;
 			acc_class += classification_accuracy(pred_y, targets);
 
-			if (j == num_batches - 1 && epoch == training_epochs - 1)
-			{
-				printf("Last batch confusion matrix:");
-				classification_matrix_print(pred_y, targets);
-			}
+//			if (j == num_batches - 1 && epoch == training_epochs - 1)
+//			{
+//				printf("Last batch confusion matrix:");
+//				classification_matrix_print(pred_y, targets);
+//			}
 
 			gsl_matrix_free(pred_y);
 			gsl_matrix_free(output);
