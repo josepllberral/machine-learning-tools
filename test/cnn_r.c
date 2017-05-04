@@ -5,7 +5,7 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including R interface for CNNs
-// Compile using "R CMD SHLIB cnn_r.c cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn.so"
+// Compile using "R CMD SHLIB cnn_r.c cell.c dire.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn.so"
 
 #include "cnn.h"
 
@@ -117,6 +117,16 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			create_SIGM(sigm, nunits_sigm, bsize_sigm);
 			retval[i].type = 9; retval[i].layer = (void*) sigm;
 		}
+		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "DIRE") == 0)
+		{
+			DIRE* dire = (DIRE*) malloc(sizeof(DIRE));
+
+			int nunits_dire = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
+			int bsize_dire = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
+
+			create_DIRE(dire, nunits_dire, bsize_dire);
+			retval[i].type = 11; retval[i].layer = (void*) dire;
+		}
 	}
 
 	return retval;
@@ -133,7 +143,8 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 5) free_LINE((LINE*) layers[i].layer);
 		else if (layers[i].type == 6) free_SOFT((SOFT*) layers[i].layer);
 		else if (layers[i].type == 8) free_RELV((RELV*) layers[i].layer);
-		else if (layers[i].type == 10) free_SIGM((SIGM*) layers[i].layer);
+		else if (layers[i].type == 9) free_SIGM((SIGM*) layers[i].layer);
+		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
 	}
 	return;
 }
@@ -405,6 +416,39 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
+		else if (pipeline[i].type == 11) // DIRE Layer
+		{
+			DIRE* aux = (DIRE*) pipeline[i].layer;
+
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 5));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
+			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("DIRE"));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_units;
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocMatrix(REALSXP, aux->batch_size, aux->n_units));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocMatrix(REALSXP, aux->batch_size, aux->n_units));
+			for (int j = 0; j < aux->batch_size; j++)
+				for (int k = 0; k < aux->n_units; k++)
+				{
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[j * aux->n_units + k] = gsl_matrix_get(aux->buff_x, j, k);
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j * aux->n_units + k] = gsl_matrix_get(aux->buff_dy, j, k);
+				}
+
+			SEXP naux = PROTECT(allocVector(STRSXP, 5));
+			SET_STRING_ELT(naux, 0, mkChar("type"));
+			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
+			SET_STRING_ELT(naux, 2, mkChar("n_units"));
+			SET_STRING_ELT(naux, 3, mkChar("buffer_x"));
+			SET_STRING_ELT(naux, 4, mkChar("buffer_dy"));
+
+			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
+		}
 		else // CELL, MSEL, others...
 		{
 			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
@@ -424,7 +468,7 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 	}
 }
 
-// Interface for Training a CRBM
+// Interface for Training a CNN
 SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
 	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed)
 {
@@ -466,8 +510,6 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Train a CNN
 	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
 
-printf("Preparing Return\n");
-
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
 
@@ -508,8 +550,7 @@ printf("Preparing Return\n");
 
 	UNPROTECT(2 + nlays);
 
-printf("Returning\n");
-
+	// Free basic structures
 	free_pipeline (pipeline, nlays);
 
 	for (int i = 0; i < nrows; i++)
@@ -524,101 +565,397 @@ printf("Returning\n");
 	return retval;
 }
 
-// Function to Re-assemble the CNN
-void reassemble_CNN() { return; }
-/*	(CRBM* crbm, SEXP W_input, SEXP B_input, SEXP A_input,
-	SEXP hbias_input, SEXP vbias_input, int nhid, int nvis,	int dely)
+// Function to get elements by name from a R list
+SEXP getListElement(SEXP list, const char *str)
 {
- 	int wrow = INTEGER(GET_DIM(W_input))[0];
- 	int wcol = INTEGER(GET_DIM(W_input))[1];
+	SEXP elmt = R_NilValue, names = getAttrib(list, R_NamesSymbol);
 
-	gsl_matrix* W = gsl_matrix_alloc(wrow, wcol);
-	for (int i = 0; i < wrow; i++)
-		for (int j = 0; j < wcol; j++)
-			gsl_matrix_set(W, i, j, RMATRIX(W_input, i, j));
+	for (R_len_t i = 0; i < length(list); i++)
+		if (strcmp(CHAR(STRING_ELT(names, i)), str) == 0)
+		{
+			elmt = VECTOR_ELT(list, i);
+			break;
+		}
+	return elmt;
+}
 
- 	int brow = INTEGER(GET_DIM(B_input))[0];
- 	int bcol = INTEGER(GET_DIM(B_input))[1];
+// Function to Re-assemble the CNN
+LAYER* reassemble_CNN (SEXP layers, int num_layers)
+{
+	LAYER* pipeline = (LAYER*) malloc(num_layers * sizeof(LAYER));
 
-	gsl_matrix* B = gsl_matrix_alloc(brow, bcol);
-	for (int i = 0; i < brow; i++)
-		for (int j = 0; j < bcol; j++)
-			gsl_matrix_set(B, i, j, RMATRIX(B_input, i, j));
+	for (int i = 0; i < num_layers; i++)
+	{
+		const char* s = CHAR(STRING_ELT(getListElement(VECTOR_ELT(layers, i), "type"),0));
+		if (strcmp(s, "CONV") == 0)
+		{
+			CONV* aux = (CONV*) malloc(sizeof(CONV));
 
- 	int arow = INTEGER(GET_DIM(A_input))[0];
- 	int acol = INTEGER(GET_DIM(A_input))[1];
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->filter_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "filter_size"))[0];
+			aux->n_filters = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_filters"))[0];
+			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
+			aux->win_h = INTEGER(getListElement(VECTOR_ELT(layers, i), "win_size"))[0];
+			aux->win_w = INTEGER(getListElement(VECTOR_ELT(layers, i), "win_size"))[1];
 
-	gsl_matrix* A = gsl_matrix_alloc(arow, acol);
-	for (int i = 0; i < arow; i++)
-		for (int j = 0; j < acol; j++)
-			gsl_matrix_set(A, i, j, RMATRIX(A_input, i, j));
+			SEXP W = PROTECT(getListElement(VECTOR_ELT(layers, i), "W"));
+			SEXP grad_W = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_W"));
+			SEXP b = PROTECT(getListElement(VECTOR_ELT(layers, i), "b"));
+			SEXP grad_b = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_b"));
 
-	gsl_vector* hbias = gsl_vector_calloc(nhid);
-	for (int i = 0; i < nhid; i++)
-		gsl_vector_set(hbias, i, RVECTOR(hbias_input, i));
+			aux->W = (gsl_matrix***) malloc(aux->n_filters * sizeof(gsl_matrix**));
+			aux->grad_W = (gsl_matrix***) malloc(aux->n_filters * sizeof(gsl_matrix**));
+			aux->b = gsl_vector_calloc(aux->n_filters);
+			aux->grad_b = gsl_vector_calloc(aux->n_filters);
+			for (int f = 0; f < aux->n_filters; f++)
+			{
+				aux->W[f] = (gsl_matrix**) malloc(aux->n_channels * sizeof(gsl_matrix*));
+				aux->grad_W[f] = (gsl_matrix**) malloc(aux->n_channels * sizeof(gsl_matrix*));
+				for (int c = 0; c < aux->n_channels; c++)
+				{
+					aux->W[f][c] = gsl_matrix_calloc(aux->filter_size, aux->filter_size);
+					aux->grad_W[f][c] = gsl_matrix_calloc(aux->filter_size, aux->filter_size);
+					for (int h = 0; h < aux->filter_size; h++)
+						for (int w = 0; w < aux->filter_size; w++)
+						{
+							gsl_matrix_set(aux->W[f][c], h, w, RARRAY(W,f,c,h,w));
+							gsl_matrix_set(aux->grad_W[f][c], h, w, RARRAY(grad_W,f,c,h,w));  
+						}
+				}
+				gsl_vector_set(aux->b, f, RVECTOR(b, f));
+				gsl_vector_set(aux->grad_b, f, RVECTOR(grad_b, f));
 
-	gsl_vector* vbias = gsl_vector_calloc(nvis);
-	for (int i = 0; i < nvis; i++)
-		gsl_vector_set(vbias, i, RVECTOR(vbias_input, i));
+			}
+			UNPROTECT(4);
 
-	create_CRBM (crbm, 0, nvis, nhid, dely, 1, A, B, W, hbias, vbias);
-}*/
+			aux->pad_y = INTEGER(getListElement(VECTOR_ELT(layers, i), "padding"))[0];
+			aux->pad_x = INTEGER(getListElement(VECTOR_ELT(layers, i), "padding"))[1];
+
+			aux->img = (gsl_matrix***) malloc(aux->batch_size * sizeof(gsl_matrix**));
+			for (int b = 0; b < aux->batch_size; b++)
+			{
+				aux->img[b] = (gsl_matrix**) malloc(aux->n_channels * sizeof(gsl_matrix*));
+				for (int c = 0; c < aux->n_channels; c++)
+					aux->img[b][c] = gsl_matrix_calloc(1, 1);
+			}
+
+			pipeline[i].type = 1;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "POOL") == 0)
+		{
+			POOL* aux = (POOL*) malloc(sizeof(POOL));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
+			aux->win_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "win_size"))[0];
+			aux->stride = INTEGER(getListElement(VECTOR_ELT(layers, i), "stride"))[0];
+			aux->padding = INTEGER(getListElement(VECTOR_ELT(layers, i), "padding"))[0];
+
+			aux->img = (gsl_matrix***) malloc(aux->batch_size * sizeof(gsl_matrix**));
+			for (int b = 0; b < aux->batch_size; b++)
+			{
+				aux->img[b] = (gsl_matrix**) malloc(aux->n_channels * sizeof(gsl_matrix*));
+				for (int c = 0; c < aux->n_channels; c++)
+					aux->img[b][c] = gsl_matrix_calloc(1, 1);
+			}
+
+			pipeline[i].type = 2;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "RELU") == 0)
+		{
+			RELU* aux = (RELU*) malloc(sizeof(RELU));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
+
+			aux->img = (gsl_matrix***) malloc(aux->batch_size * sizeof(gsl_matrix**));
+			for (int b = 0; b < aux->batch_size; b++)
+			{
+				aux->img[b] = (gsl_matrix**) malloc(aux->n_channels * sizeof(gsl_matrix*));
+				for (int c = 0; c < aux->n_channels; c++)
+					aux->img[b][c] = gsl_matrix_calloc(1, 1);
+			}
+
+			pipeline[i].type = 3;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "FLAT") == 0)
+		{
+			FLAT* aux = (FLAT*) malloc(sizeof(FLAT));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
+			aux->img_h = INTEGER(getListElement(VECTOR_ELT(layers, i), "img_dims"))[0];
+			aux->img_w = INTEGER(getListElement(VECTOR_ELT(layers, i), "img_dims"))[1];
+
+			pipeline[i].type = 4;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "LINE") == 0)
+		{
+			LINE* aux = (LINE*) malloc(sizeof(LINE));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_visible = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_visible"))[0];
+			aux->n_hidden = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_hidden"))[0];
+
+			SEXP W = PROTECT(getListElement(VECTOR_ELT(layers, i), "W"));
+			SEXP grad_W = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_W"));
+			SEXP b = PROTECT(getListElement(VECTOR_ELT(layers, i), "b"));
+			SEXP grad_b = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_b"));
+
+			aux->W = gsl_matrix_calloc(aux->n_hidden, aux->n_visible);
+			aux->grad_W = gsl_matrix_calloc(aux->n_hidden, aux->n_visible);
+			aux->b = gsl_vector_calloc(aux->n_hidden);
+			aux->grad_b = gsl_vector_calloc(aux->n_hidden);
+
+			for (int h = 0; h < aux->n_hidden; h++)
+			{
+				for (int v = 0; v < aux->n_visible; v++)
+				{
+					gsl_matrix_set(aux->W, h, v, RMATRIX(W,h,v));
+					gsl_matrix_set(aux->grad_W, h, v, RMATRIX(grad_W,h,v));
+				}
+				gsl_vector_set(aux->b, h, RVECTOR(b, h));
+				gsl_vector_set(aux->grad_b, h, RVECTOR(grad_b, h));
+
+			}
+			UNPROTECT(4);
+
+			aux->x = gsl_matrix_calloc(aux->batch_size, aux->n_visible);
+
+			pipeline[i].type = 5;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "SOFT") == 0)
+		{
+			SOFT* aux = (SOFT*) malloc(sizeof(SOFT));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
+
+			pipeline[i].type = 6;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "RELV") == 0)
+		{
+			RELV* aux = (RELV*) malloc(sizeof(RELV));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+
+			aux->img = gsl_matrix_calloc(1, 1);
+
+			pipeline[i].type = 8;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "SIGM") == 0)
+		{
+			SIGM* aux = (SIGM*) malloc(sizeof(SIGM));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
+
+			aux->a = gsl_matrix_calloc(aux->batch_size, aux->n_units);
+
+			pipeline[i].type = 9;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "DIRE") == 0)
+		{
+			DIRE* aux = (DIRE*) malloc(sizeof(DIRE));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
+
+			aux->buff_x = gsl_matrix_calloc(aux->batch_size, aux->n_units);
+			aux->buff_dy = gsl_matrix_calloc(aux->batch_size, aux->n_units);
+
+			pipeline[i].type = 11;
+			pipeline[i].layer = (void*) aux;
+		}
+		else // CELL, MSEL, others...
+		{
+			pipeline[i].type = 0;
+			pipeline[i].layer = NULL; // Let the system explode, for now...
+		}
+	}
+
+	return pipeline;
+}
 
 // Interface for Predicting and Reconstructing using a CNN
-SEXP _C_CNN_predict() { return NULL; }
-/*	(SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
-	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
+SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 {
-	int nrow = INTEGER(GET_DIM(newdata))[0];
- 	int ncol = INTEGER(GET_DIM(newdata))[1];
+ 	int nrows = INTEGER(GET_DIM(newdata))[0];
+ 	int nchan = INTEGER(GET_DIM(newdata))[1];
+ 	int img_h = INTEGER(GET_DIM(newdata))[2];
+ 	int img_w = INTEGER(GET_DIM(newdata))[3];
 
-	int nvis = INTEGER_VALUE(n_visible);
-	int nhid = INTEGER_VALUE(n_hidden);
-	int dely = INTEGER_VALUE(delay);
+ 	int nlay = INTEGER_VALUE(num_layers);
 
-	// Re-assemble the CRBM
-	CRBM crbm;
-	reassemble_CRBM (&crbm, W_input, B_input, A_input, hbias_input, vbias_input,
-		nhid, nvis, dely);
+	// Re-assemble the CNN (build pipeline)
+	LAYER* pipeline = reassemble_CNN(layers, nlay);
 
 	// Prepare Test Dataset
-	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
+	gsl_matrix*** test_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
+	for (int r = 0; r < nrows; r++)
+	{
+		test_X[r] = (gsl_matrix**) malloc(nchan * sizeof(gsl_matrix*));
+		for (int c = 0; c < nchan; c++)
+		{
+			test_X[r][c] = gsl_matrix_alloc(img_h, img_w);
+			for (int h = 0; h < img_h; h++)
+				for (int w = 0; w < img_w; w++)
+					gsl_matrix_set(test_X[r][c], h, w, RARRAY(newdata, r, c, h, w));
+		}
+	}
 
-	// Pass through CRBM
-	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, ncol);
-	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
-	reconstruct_CRBM(&crbm, test_X_p, &activations, &reconstruction);
+	// Pass through CNN
+	gsl_matrix* predictions = prediction_cnn (test_X, nrows, nchan, pipeline, nlay);
+	int nouts = (int) predictions->size2;
 
 	// Prepare Results
-	SEXP retval = PROTECT(allocVector(VECSXP, 2));
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrows, nouts));
+	for (int i = 0; i < nrows; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(retval)[i * nouts + j] = gsl_matrix_get(predictions, i, j);
 
-	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(reconstruction, i, j);
+	// Free the structures and the CNN
+	free_pipeline (pipeline, nlay);
 
-	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
-	for (int i = 0; i < nrow; i++)
-		for (int j = 0; j < nhid; j++)
-			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = gsl_matrix_get(activations, i, j);
+	for (int i = 0; i < nrows; i++)
+	{
+		for (int j = 0; j < nchan; j++)
+			gsl_matrix_free(test_X[i][j]);
+		free(test_X[i]);
+	}
+	free(test_X);
+	gsl_matrix_free(predictions);
 
-	SEXP nms = PROTECT(allocVector(STRSXP, 2));
-	SET_STRING_ELT(nms, 0, mkChar("reconstruction"));
-	SET_STRING_ELT(nms, 1, mkChar("activation"));
-
-	setAttrib(retval, R_NamesSymbol, nms);
-	UNPROTECT(2);
-
-	// Free the structures and the CRBM
-	free_CRBM(&crbm);
-
-	gsl_matrix_free(reconstruction);
-	gsl_matrix_free(activations);
-	gsl_matrix_free(test_X_p);
+	UNPROTECT(1);
 
 	return retval;
-}*/
+}
+
+// Interface for Training a MLP
+SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
+	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed)
+{
+ 	int nrows = INTEGER(GET_DIM(dataset))[0];
+ 	int ncols = INTEGER(GET_DIM(dataset))[1];
+
+ 	int nouts = INTEGER(GET_DIM(targets))[1];
+
+ 	int basi = INTEGER_VALUE(batch_size);
+ 	int trep = INTEGER_VALUE(training_epochs);
+ 	int rase = INTEGER_VALUE(rand_seed);
+ 	double lera = NUMERIC_VALUE(learning_rate);
+ 	double mome = NUMERIC_VALUE(momentum);
+
+	int nlays = INTEGER_VALUE(num_layers);
+
+	// Create Dataset Structure
+	gsl_matrix* train_X = gsl_matrix_alloc(nrows, ncols);
+	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
+	for (int r = 0; r < nrows; r++)
+	{
+		for (int c = 0; c < ncols; c++)
+			gsl_matrix_set(train_X, r, c, RMATRIX(dataset, r, c));
+
+		for (int o = 0; o < nouts; o++)
+			gsl_matrix_set(train_Y, r, o, RMATRIX(targets, r, o));
+	}
+
+	// Build the Layers pipeline
+	LAYER* pipeline = build_pipeline(layers, nlays);
+
+	// Train a CNN
+	double loss = train_mlp (train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
+
+	// Return Structure
+	SEXP retval = PROTECT(allocVector(VECSXP, 7));
+
+	SET_VECTOR_ELT(retval, 0, allocVector(INTSXP, 2));
+	INTEGER(VECTOR_ELT(retval, 0))[0] = nrows;
+	INTEGER(VECTOR_ELT(retval, 0))[1] = ncols;
+
+	SET_VECTOR_ELT(retval, 1, allocVector(INTSXP, 2));
+	INTEGER(VECTOR_ELT(retval, 1))[0] = nrows;
+	INTEGER(VECTOR_ELT(retval, 1))[1] = nouts;
+
+	SET_VECTOR_ELT(retval, 2, allocVector(VECSXP, nlays));
+	return_pipeline (&retval, pipeline, nlays);
+
+	SET_VECTOR_ELT(retval, 3, allocVector(INTSXP, 1));
+	INTEGER(VECTOR_ELT(retval, 3))[0] = nlays;
+
+	SET_VECTOR_ELT(retval, 4, allocVector(INTSXP, 1)); // TODO - Confidence Matrix at Output
+	INTEGER(VECTOR_ELT(retval, 4))[0] = 0;
+
+	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
+	REAL(VECTOR_ELT(retval, 5))[0] = loss;
+
+	SET_VECTOR_ELT(retval, 6, allocVector(REALSXP, 1)); // TODO - Fitted Values at Output
+	REAL(VECTOR_ELT(retval, 6))[0] = 0;
+
+	SEXP nms = PROTECT(allocVector(STRSXP, 7));
+	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
+	SET_STRING_ELT(nms, 1, mkChar("dims.out"));
+	SET_STRING_ELT(nms, 2, mkChar("layers"));
+	SET_STRING_ELT(nms, 3, mkChar("n.layers"));
+	SET_STRING_ELT(nms, 4, mkChar("conf.matrix"));
+	SET_STRING_ELT(nms, 5, mkChar("mean.loss"));
+	SET_STRING_ELT(nms, 6, mkChar("fitted.values"));
+	setAttrib(retval, R_NamesSymbol, nms);
+
+	UNPROTECT(2 + nlays);
+
+	// Free basic structures
+	free_pipeline (pipeline, nlays);
+
+	gsl_matrix_free(train_X);
+	gsl_matrix_free(train_Y);
+
+	return retval;
+}
+
+// Interface for Predicting and Reconstructing using a MLP
+SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
+{
+ 	int nrows = INTEGER(GET_DIM(newdata))[0];
+ 	int ncols = INTEGER(GET_DIM(newdata))[1];
+
+ 	int nlay = INTEGER_VALUE(num_layers);
+
+	// Re-assemble the CNN (build pipeline)
+	LAYER* pipeline = reassemble_CNN(layers, nlay);
+
+	// Prepare Test Dataset
+	gsl_matrix* test_X = gsl_matrix_alloc(nrows, ncols);
+	for (int r = 0; r < nrows; r++)
+		for (int c = 0; c < ncols; c++)
+			gsl_matrix_set(test_X, r, c, RMATRIX(newdata, r, c));
+
+	// Pass through CNN
+	gsl_matrix* predictions = prediction_mlp (test_X, pipeline, nlay);
+	int nouts = (int) predictions->size2;
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrows, nouts));
+	for (int i = 0; i < nrows; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(retval)[i * nouts + j] = gsl_matrix_get(predictions, i, j);
+
+	// Free the structures and the CNN
+	free_pipeline (pipeline, nlay);
+
+	gsl_matrix_free(test_X);
+	gsl_matrix_free(predictions);
+
+	UNPROTECT(1);
+
+	return retval;
+}
 

@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c -lgsl -lgslcblas -lm -o cnn"
 
 // Information for "Type" attributes:
 // Layer Type:
@@ -26,6 +26,7 @@
 // 8: rectifier linear (2D matrix version),
 // 9: sigmoid,
 // 10: mean-squared-error
+// 11: direct buffer
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,6 +105,13 @@ typedef struct {
 	int n_units;
 	gsl_matrix* a;
 } SIGM;
+
+typedef struct {
+	int batch_size;
+	int n_units;
+	gsl_matrix* buff_x;
+	gsl_matrix* buff_dy;
+} DIRE;
 
 typedef struct {
 	double loss;
@@ -196,6 +204,15 @@ void free_SIGM (SIGM*);
 void copy_SIGM (SIGM*, SIGM*);
 int compare_SIGM (SIGM*, SIGM*);
 
+// Direct Layer
+gsl_matrix* forward_dire (DIRE*, gsl_matrix*);
+gsl_matrix* backward_dire (DIRE*, gsl_matrix*);
+void get_updates_dire (DIRE*, double);
+void create_DIRE (DIRE*, int, int);
+void free_DIRE (DIRE*);
+void copy_DIRE (DIRE*, DIRE*);
+int compare_DIRE (DIRE*, DIRE*);
+
 // Cross-Entropy Layer
 gsl_matrix* forward_cell (CELL*, gsl_matrix*, gsl_matrix*);
 gsl_matrix* backward_cell (CELL*, gsl_matrix*, gsl_matrix*);
@@ -227,8 +244,11 @@ int compare_RELV (RELV*, RELV*);
 void forward (LAYER*, data*);
 void backward (LAYER*, data*);
 void get_updates (LAYER*, double);
+void update_batch_size (LAYER*, int);
 double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, int, int, double, double, int);
 double train_mlp (gsl_matrix*, gsl_matrix*, LAYER*, int, int, int, double, double, int);
+gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers);
+gsl_matrix* prediction_cnn (gsl_matrix***, int, int, LAYER*, int);
 double classification_accuracy (gsl_matrix*, gsl_matrix*);
 
 // Gradiend Check Functions

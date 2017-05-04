@@ -8,6 +8,9 @@
 
 #include "cnn.h"
 
+// Additional functions to manage forward and backward propagation
+// are found in cnn.c file
+
 /*---------------------------------------------------------------------------*/
 /* HOW TO TRAIN YOUR MLP                                                     */
 /*---------------------------------------------------------------------------*/
@@ -109,5 +112,89 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 	free_CELL(&loss_layer);
 
 	return (acc_loss / num_batches);
+}
+
+/*---------------------------------------------------------------------------*/
+/* PREDICTION USING THE MLP                                                  */
+/*---------------------------------------------------------------------------*/
+
+// Function to predict the results of a matrix
+gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers)
+{
+	int num_samples = (int) testing_x->size1;
+	int num_columns = (int) testing_x->size2;
+
+	int batch_size = min(100, num_samples);
+	int num_batches = num_samples / batch_size;
+	if (num_samples % batch_size > 0) num_batches++;
+
+	int num_outputs = 1;
+	if (layers[num_layers - 1].type == 5) // LINE
+		num_outputs = ((LINE*)(layers[num_layers - 1].layer))->n_hidden;
+	else if (layers[num_layers - 1].type == 6) // SOFT
+		num_outputs = ((SOFT*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 9) // SIGM
+		num_outputs = ((SIGM*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 11) // DIRE
+		num_outputs = ((DIRE*)(layers[num_layers - 1].layer))->n_units;
+
+	gsl_matrix* result = gsl_matrix_alloc(num_samples, num_outputs);
+
+	data batchdata;
+
+	// Update batch_size for layers
+	for (int i = 0; i < num_layers; i++)
+		update_batch_size(&(layers[i]), batch_size);
+
+	// Loop through examples
+	for (int j = 0; j < num_batches; j++)
+	{
+		// Select mini_batch
+		int idx_ini = j * batch_size;
+		int idx_fin = idx_ini + batch_size - 1;
+
+		int real_batch_size = batch_size;
+		if (idx_fin >= num_samples) real_batch_size = num_samples % batch_size;
+
+		gsl_matrix* minibatch = gsl_matrix_alloc(batch_size, num_columns);
+		for (int b = 0; b < real_batch_size; b++)
+		{
+			gsl_vector* aux1 = gsl_vector_alloc(num_columns);
+			gsl_matrix_get_row(aux1, testing_x, idx_ini + b);
+			gsl_matrix_set_row(minibatch, b, aux1);
+			gsl_vector_free(aux1);
+		}
+
+		// Completar el Mini-Batch
+		if (batch_size > real_batch_size)
+			for (int b = real_batch_size; b < batch_size; b++)
+			{
+				gsl_vector* aux1 = gsl_vector_alloc(num_columns);
+				gsl_matrix_get_row(aux1, testing_x, idx_ini + b);
+				gsl_matrix_set_row(minibatch, b, aux1);
+				gsl_vector_free(aux1);
+			}
+
+		// Forward through layers
+		batchdata.matrix = minibatch;
+		for (int i = 0; i < num_layers; i++)
+			forward(&(layers[i]), &batchdata);
+
+		// Calculate Forward Loss and Negdata
+		gsl_matrix* output = batchdata.matrix;
+
+		// Add output to results
+		for (int b = 0; b < real_batch_size; b++)
+		{
+			gsl_vector* aux = gsl_vector_alloc(num_outputs);
+			gsl_matrix_get_row(aux, output, b);
+			gsl_matrix_set_row(result, j * batch_size + b, aux);
+			gsl_vector_free(aux);
+		}
+
+		gsl_matrix_free(output);
+	}
+
+	return result;
 }
 
