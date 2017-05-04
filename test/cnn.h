@@ -14,6 +14,19 @@
 
 // Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn"
 
+// Information for "Type" attributes:
+// Layer Type:
+// 1: convolutional,
+// 2: pooling,
+// 3: rectifier linear (4D image version),
+// 4: flattening,
+// 5: linear,
+// 6: softmax,
+// 7: cross-entropy,
+// 8: rectifier linear (2D matrix version),
+// 9: sigmoid,
+// 10: mean-squared-error
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -101,17 +114,6 @@ typedef struct {
 } MSEL;
 
 typedef struct {
-	// Layer Type:
-	// 1: convolutional,
-	// 2: pooling,
-	// 3: rectifier linear,
-	// 4: flattening,
-	// 5: linear,
-	// 6: softmax,
-	// 7: cross-entropy,
-	// 8: rectifier linear (matrix version),
-	// 9: sigmoid,
-	// 10: mean-squared-error
 	int type;
 	void* layer;
 } LAYER;

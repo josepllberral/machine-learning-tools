@@ -384,7 +384,7 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 		for (int j = 0; j < num_batches; j++)
 		{
-			if (j % 100 == 0) printf("Batch number %d\n", j);
+//			if (j % 100 == 0) printf("Batch number %d\n", j);
 
 			// Select mini_batch
 			int idx_ini = j * batch_size;
