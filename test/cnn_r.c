@@ -545,6 +545,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	// Pass the Training set through the CNN
 	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays);
+	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
 
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
@@ -565,8 +566,10 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 3, allocVector(INTSXP, 1));
 	INTEGER(VECTOR_ELT(retval, 3))[0] = nlays;
 
-	SET_VECTOR_ELT(retval, 4, allocVector(INTSXP, 1)); // TODO - Confidence Matrix at Output
-	INTEGER(VECTOR_ELT(retval, 4))[0] = 0;
+	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
+	for (int i = 0; i < nouts; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 4))[i * nouts + j] = gsl_matrix_get(confusion, i, j);
 
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
@@ -600,6 +603,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	free(train_X);
 	gsl_matrix_free(train_Y);
 	gsl_matrix_free(predictions);
+	gsl_matrix_free(confusion);
 
 	return retval;
 }
@@ -923,10 +927,11 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	LAYER* pipeline = build_pipeline(layers, nlays);
 
 	// Train a CNN
-	double loss = train_mlp (train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
+	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the MLP
-	gsl_matrix* predictions = prediction_mlp (train_X, pipeline, nlays);
+	gsl_matrix* predictions = prediction_mlp(train_X, pipeline, nlays);
+	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
 
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
@@ -945,8 +950,10 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 3, allocVector(INTSXP, 1));
 	INTEGER(VECTOR_ELT(retval, 3))[0] = nlays;
 
-	SET_VECTOR_ELT(retval, 4, allocVector(INTSXP, 1)); // TODO - Confidence Matrix at Output
-	INTEGER(VECTOR_ELT(retval, 4))[0] = 0;
+	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
+	for (int i = 0; i < nouts; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 4))[i * nouts + j] = gsl_matrix_get(confusion, i, j);
 
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
@@ -974,6 +981,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	gsl_matrix_free(train_X);
 	gsl_matrix_free(train_Y);
 	gsl_matrix_free(predictions);
+	gsl_matrix_free(confusion);
 
 	return retval;
 }

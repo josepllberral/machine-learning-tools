@@ -71,8 +71,8 @@ double classification_accuracy (gsl_matrix* predicted, gsl_matrix* observed)
 	return ((double) correct / (double) nrows);
 }
 
-// Function to print the Confusion Matrix
-void classification_matrix_print (gsl_matrix* predicted, gsl_matrix* observed)
+// Function to produce a Confusion Matrix
+gsl_matrix* classification_matrix (gsl_matrix* predicted, gsl_matrix* observed)
 {
 	int nrows = predicted->size1;
 	int ncols = predicted->size2;
@@ -97,6 +97,16 @@ void classification_matrix_print (gsl_matrix* predicted, gsl_matrix* observed)
 		gsl_vector_free(obv);
 	}
 
+	return confusion; // Oh my...!
+}
+
+// Function to print the Confusion Matrix
+void classification_matrix_print (gsl_matrix* predicted, gsl_matrix* observed)
+{
+	int ncols = predicted->size2;
+
+	gsl_matrix* confusion = classification_matrix(predicted, observed);
+
 	printf("Observed VVV \\ Predicted >>>\n");
 	for (int i = 0; i < ncols; i++)
 	{
@@ -105,6 +115,8 @@ void classification_matrix_print (gsl_matrix* predicted, gsl_matrix* observed)
 		printf("\n");
 	}
 	printf("--------------------------------------\n");
+
+	gsl_matrix_free(confusion);
 }
 
 // Function to print a GSL Matrix
@@ -552,12 +564,6 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 			acc_loss += loss_layer.loss;
 			acc_class += classification_accuracy(pred_y, targets);
-
-//			if (j == num_batches - 1 && epoch == training_epochs - 1)
-//			{
-//				printf("Last batch confusion matrix:");
-//				classification_matrix_print(pred_y, targets);
-//			}
 
 			gsl_matrix_free(pred_y);
 			gsl_matrix_free(output);

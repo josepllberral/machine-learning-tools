@@ -33,16 +33,12 @@ load_mnist <- function()
 	list(train = train, test = test);
 }
 
-binarization <- function(vec)
-{
-	result <- array(0, c(length(vec),length(unique(vec))));
-	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
-	result;
-}
-
 ## Testing the CNN
 testing.cnn <- function()
 {
+#	dyn.load("cnn.so");
+#	source("wrapper.R");
+
 	aux <- load_mnist();
 	img_size <- c(28,28);
 
@@ -90,10 +86,6 @@ testing.cnn <- function()
 
 	check_layers(layers, dataset, targets, batch_size);
 
-	# This is for testing purposes
-#	dyn.load("cnn.so");
-#	source("wrapper.R");
-
 	start.time <- Sys.time()
 	retval <- train.cnn(dataset, targets, layers, 10, 2, 1e-3, 0.8, 1234);
 	end.time <- Sys.time()
@@ -107,6 +99,9 @@ testing.cnn <- function()
 ## Testing the MLP
 testing.mlp <- function()
 {
+#	dyn.load("cnn.so");
+#	source("wrapper.R");
+
 	aux <- load_mnist();
 	img_size <- c(28,28);
 
@@ -138,10 +133,6 @@ testing.mlp <- function()
 #		c("TANH", 10, batch_size)
 #		c("DIRE", 10, batch_size)
 	);
-
-	# This is for testing purposes
-#	dyn.load("cnn.so");
-#	source("wrapper.R");
 
 	check_layers(layers, dataset, targets, batch_size);
 

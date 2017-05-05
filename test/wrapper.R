@@ -2,6 +2,39 @@
 # Wrapper functions for CNN library                                           #
 ###############################################################################
 
+## Function to produce a confusion matrix
+conf.matrix <- function(a, b)
+{
+	if (all.equal(dim(a), dim(b)) != TRUE)
+	{
+		message("ERROR: Matrices have different dimensions");
+		return (NULL);
+	}
+
+	confusion <- matrix(0, ncol(a), ncol(a));
+
+	for (i in 1:nrow(a))
+	{
+		rowa <- a[i,];
+		rowb <- b[i,];
+
+		sel_a <- which(rowa == max(rowa));
+		sel_b <- which(rowb == max(rowb));
+
+		confusion[sel_a, sel_b] <- confusion[sel_a, sel_b] + 1;
+	}
+
+	confusion;
+}
+
+## Function to binarize vectors
+binarization <- function(vec)
+{
+	result <- array(0, c(length(vec),length(unique(vec))));
+	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
+	result;
+}
+
 ## Function to check the basic shape of data between Layers
 check_layers <- function (layers, dataset, target, batch_size)
 {
