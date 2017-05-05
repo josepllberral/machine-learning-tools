@@ -543,6 +543,9 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Train a CNN
 	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
 
+	// Pass the Training set through the CNN
+	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays);
+
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
 
@@ -568,8 +571,10 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
 
-	SET_VECTOR_ELT(retval, 6, allocVector(REALSXP, 1)); // TODO - Fitted Values at Output
-	REAL(VECTOR_ELT(retval, 6))[0] = 0;
+	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
+	for (int i = 0; i < nrows; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 6))[i * nouts + j] = gsl_matrix_get(predictions, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 7));
 	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
@@ -594,6 +599,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	}
 	free(train_X);
 	gsl_matrix_free(train_Y);
+	gsl_matrix_free(predictions);
 
 	return retval;
 }
@@ -919,6 +925,9 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Train a CNN
 	double loss = train_mlp (train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
 
+	// Pass the Training set through the MLP
+	gsl_matrix* predictions = prediction_mlp (train_X, pipeline, nlays);
+
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
 
@@ -942,8 +951,10 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
 
-	SET_VECTOR_ELT(retval, 6, allocVector(REALSXP, 1)); // TODO - Fitted Values at Output
-	REAL(VECTOR_ELT(retval, 6))[0] = 0;
+	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
+	for (int i = 0; i < nrows; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 6))[i * nouts + j] = gsl_matrix_get(predictions, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 7));
 	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
@@ -962,6 +973,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	gsl_matrix_free(train_X);
 	gsl_matrix_free(train_Y);
+	gsl_matrix_free(predictions);
 
 	return retval;
 }

@@ -84,6 +84,7 @@ testing.cnn <- function()
 		c("LINE", 64, 10, 0.1, batch_size),
 		c("SOFT", 10, batch_size)
 #		c("SIGM", 10, batch_size)
+#		c("TANH", 10, batch_size)
 #		c("DIRE", 10, batch_size)
 	);
 
@@ -134,6 +135,7 @@ testing.mlp <- function()
 		c("LINE", 64, 10, 0.1, batch_size),
 		c("SOFT", 10, batch_size)
 #		c("SIGM", 10, batch_size)
+#		c("TANH", 10, batch_size)
 #		c("DIRE", 10, batch_size)
 	);
 
