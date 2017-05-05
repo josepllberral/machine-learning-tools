@@ -108,13 +108,13 @@ check_layers <- function (layers, dataset, target, batch_size)
 				message("Current RELV input (batch_size) do not match previous LAYER output (batch_size)");
 				return (FALSE);
 			}
-		} else if (laux[1] %in% c("SOFT", "SIGM"))
+		} else if (laux[1] %in% c("SOFT", "SIGM", "TANH"))
 		{
 			# Check for Batch_size and Visible units
 			if (all.equal(input_dims, as.numeric(laux[3:2])) != TRUE)
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current SOFT/SIGM input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
+				message("Current SOFT/SIGM/TANH input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
 				return (FALSE);
 			}
 		} else if (laux[1] == "DIRE")
@@ -129,10 +129,10 @@ check_layers <- function (layers, dataset, target, batch_size)
 		}
 	}
 
-	if (!layers[[nlayers]][1] %in% c("SOFT","SIGM","LINE","DIRE"))
+	if (!layers[[nlayers]][1] %in% c("SOFT","SIGM","LINE","DIRE","TANH"))
 	{
 		message("Error in Output Layer");
-		message("Output layer must be a SOFT, SIGM, LINE or DIRE");
+		message("Output layer must be a SOFT, SIGM, TANH, LINE or DIRE");
 		return (FALSE);
 	}
 
@@ -216,7 +216,7 @@ train.mlp <- function (dataset, targets, layers,  batch_size = 10,
 
 	# Check that all layers are Matricial
 	for (i in 1:length(layers))
-		if (!(layers[[i]][1] %in% c("LINE","RELV","SOFT","SIGM","DIRE")))
+		if (!(layers[[i]][1] %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE")))
 		{
 			message(paste("Layers contain non-matricial layer", layers[[i]][1], "at", i, sep = " "));
 			return(NULL);

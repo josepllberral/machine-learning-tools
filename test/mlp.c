@@ -137,6 +137,8 @@ gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers
 		num_outputs = ((SIGM*)(layers[num_layers - 1].layer))->n_units;
 	else if (layers[num_layers - 1].type == 11) // DIRE
 		num_outputs = ((DIRE*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 12) // TANH
+		num_outputs = ((TANH*)(layers[num_layers - 1].layer))->n_units;
 
 	gsl_matrix* result = gsl_matrix_alloc(num_samples, num_outputs);
 

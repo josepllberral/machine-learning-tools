@@ -127,6 +127,16 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			create_DIRE(dire, nunits_dire, bsize_dire);
 			retval[i].type = 11; retval[i].layer = (void*) dire;
 		}
+		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "TANH") == 0)
+		{
+			TANH* tanh = (TANH*) malloc(sizeof(TANH));
+
+			int nunits_tanh = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
+			int bsize_tanh = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
+
+			create_TANH(tanh, nunits_tanh, bsize_tanh);
+			retval[i].type = 12; retval[i].layer = (void*) tanh;
+		}
 	}
 
 	return retval;
@@ -145,6 +155,7 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 8) free_RELV((RELV*) layers[i].layer);
 		else if (layers[i].type == 9) free_SIGM((SIGM*) layers[i].layer);
 		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
+		else if (layers[i].type == 12) free_TANH((TANH*) layers[i].layer);
 	}
 	return;
 }
@@ -446,6 +457,28 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 			SET_STRING_ELT(naux, 2, mkChar("n_units"));
 			SET_STRING_ELT(naux, 3, mkChar("buffer_x"));
 			SET_STRING_ELT(naux, 4, mkChar("buffer_dy"));
+
+			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
+		}
+		else if (pipeline[i].type == 12) // TANH Layer
+		{
+			TANH* aux = (TANH*) pipeline[i].layer;
+
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
+			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("TANH"));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_units;
+
+			SEXP naux = PROTECT(allocVector(STRSXP, 3));
+			SET_STRING_ELT(naux, 0, mkChar("type"));
+			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
+			SET_STRING_ELT(naux, 2, mkChar("n_units"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -773,6 +806,18 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 			aux->buff_dy = gsl_matrix_calloc(aux->batch_size, aux->n_units);
 
 			pipeline[i].type = 11;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "TANH") == 0)
+		{
+			TANH* aux = (TANH*) malloc(sizeof(TANH));
+
+			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
+
+			aux->a = gsl_matrix_calloc(aux->batch_size, aux->n_units);
+
+			pipeline[i].type = 12;
 			pipeline[i].layer = (void*) aux;
 		}
 		else // CELL, MSEL, others...

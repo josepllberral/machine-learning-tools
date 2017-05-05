@@ -12,21 +12,22 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c tanh.c -lgsl -lgslcblas -lm -o cnn"
 
 // Information for "Type" attributes:
 // Layer Type:
-// 1: convolutional,
-// 2: pooling,
-// 3: rectifier linear (4D image version),
-// 4: flattening,
-// 5: linear,
-// 6: softmax,
-// 7: cross-entropy,
-// 8: rectifier linear (2D matrix version),
-// 9: sigmoid,
+// 1: convolutional
+// 2: pooling
+// 3: rectifier linear (4D image version)
+// 4: flattening
+// 5: linear
+// 6: softmax
+// 7: cross-entropy
+// 8: rectifier linear (2D matrix version)
+// 9: sigmoid
 // 10: mean-squared-error
 // 11: direct buffer
+// 12: hyperbolic tangent
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +106,12 @@ typedef struct {
 	int n_units;
 	gsl_matrix* a;
 } SIGM;
+
+typedef struct {
+	int batch_size;
+	int n_units;
+	gsl_matrix* a;
+} TANH;
 
 typedef struct {
 	int batch_size;
@@ -212,6 +219,15 @@ void create_DIRE (DIRE*, int, int);
 void free_DIRE (DIRE*);
 void copy_DIRE (DIRE*, DIRE*);
 int compare_DIRE (DIRE*, DIRE*);
+
+// HyperTan Layer
+gsl_matrix* forward_tanh (TANH*, gsl_matrix*);
+gsl_matrix* backward_tanh (TANH*, gsl_matrix*);
+void get_updates_tanh (TANH*, double);
+void create_TANH (TANH*, int, int);
+void free_TANH (TANH*);
+void copy_TANH (TANH*, TANH*);
+int compare_TANH (TANH*, TANH*);
 
 // Cross-Entropy Layer
 gsl_matrix* forward_cell (CELL*, gsl_matrix*, gsl_matrix*);
