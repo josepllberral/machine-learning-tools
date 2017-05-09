@@ -1,0 +1,13 @@
+Package: rcnn
+Title: Convolutional Neural Networks (and MultiLayer Perceptrons) for R
+Version: 0.0.0.9000
+Authors@R: person("Josep Ll.", "Berral", email = "josep.berral@bsc.es", role = c("aut", "cre"))
+Author: Josep Ll. Berral
+Maintainer: Josep Ll. Berral <josep.berral@bsc.es>
+Description: This package provides an implementation of Convolutional Neural Networks, and MultiLayer Perceptrons, with modular construction capabilities from the user, with training and prediction functions. Implementations are in native R, and C using GSL-BLAS (default).
+Depends: R (>= 3.3.0)
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.0.1.9000
+Suggests: testthat
