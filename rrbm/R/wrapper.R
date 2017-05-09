@@ -63,9 +63,7 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 #' @examples
 #' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
 #'                     0, 0, 0, 1, 1, 0), c(6,2)));
-#' res <- predict.rbm(rbm1, test_X);
-#' ## Also works as
-#' \donttest{res <- predict(rbm1, test_X);}
+#' res <- predict(rbm1, test_X);
 #' 
 #' # The MNIST example
 #' data(mnist)
@@ -75,7 +73,7 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 #'                        learning_rate = 1e-3, training_epochs = 10,
 #'                        batch_size = 10, momentum = 0.5);
 #'
-#' reconstruction <- predict.rbm(rbm1, training.num);
+#' reconstruction <- predict(rbm_mnist, training.num);
 predict.rbm <- function (rbm, newdata)
 {
 	if (!"rbm" %in% class(rbm))
@@ -166,9 +164,7 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 #' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
 #'                     0, 1, 1, 1, 0, 0,
 #'                     0, 0, 0, 1, 1, 0), c(6,3)));
-#' res <- predict.crbm(crbm1, test_X);
-#' ## Also works as
-#' \donttest{res <- predict(crbm1, test_X);}
+#' res <- predict(crbm1, test_X);
 #'
 #' ## Motion (fragment) Example
 #' data(motionfrag)
@@ -178,7 +174,7 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 #'                          training_epochs = 200, learning_rate = 1e-3,
 #'                          momentum = 0.5, rand_seed = 1234);
 #'
-#' preds <- predict.crbm(crbm_mfrag, motionfrag$batchdata);
+#' preds <- predict(crbm_mfrag, motionfrag$batchdata);
 predict.crbm <- function (crbm, newdata)
 {
 	if (!"crbm" %in% class(crbm))

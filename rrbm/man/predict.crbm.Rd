@@ -20,9 +20,7 @@ and reconstruction.
 test_X <- t(array(c(1, 1, 0, 0, 0, 0,
                     0, 1, 1, 1, 0, 0,
                     0, 0, 0, 1, 1, 0), c(6,3)));
-res <- predict.crbm(crbm1, test_X);
-## Also works as
-\donttest{res <- predict(crbm1, test_X);}
+res <- predict(crbm1, test_X);
 
 ## Motion (fragment) Example
 data(motionfrag)
@@ -32,7 +30,7 @@ crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
                          training_epochs = 200, learning_rate = 1e-3,
                          momentum = 0.5, rand_seed = 1234);
 
-preds <- predict.crbm(crbm_mfrag, motionfrag$batchdata);
+preds <- predict(crbm_mfrag, motionfrag$batchdata);
 }
 \keyword{CRBM,}
 \keyword{RBM}

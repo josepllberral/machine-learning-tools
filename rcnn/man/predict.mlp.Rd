@@ -25,7 +25,7 @@ test_X <- array(c(1, 1, 1, 0, 0, 0,
                   0, 0, 1, 1, 1, 0),
                   c(6, 6));
 
-results <- predict.cnn(mlp1, test_X);
+results <- predict(mlp1, test_X);
 
 ## The MNIST example
 data(mnist)
@@ -59,6 +59,6 @@ layers <- list(
 mnist_mlp <- train.mlp(dataset, targets, layers, batch_size, training_epochs,
                        learning_rate, momentum, rand_seed);
 
-prediction <- predict.mlp(mnist_mlp, newdata);
+prediction <- predict(mnist_mlp, newdata);
 }
 \keyword{MLP}

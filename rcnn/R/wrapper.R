@@ -424,7 +424,7 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 #' test_X <- array(c(1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0,
 #'                   0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0),
 #'                   c(6, 1, 2, 3));
-#' results <- predict.cnn(cnn1, test_X);
+#' results <- predict(cnn1, test_X);
 #'
 #' ## The MNIST example
 #' data(mnist)
@@ -471,7 +471,7 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 #' mnist_cnn <- train.cnn(dataset, targets, layers, batch_size, training_epochs,
 #'                        learning_rate, momentum, rand_seed);
 #'
-#' prediction <- predict.cnn(mnist_cnn, newdata);
+#' prediction <- predict(mnist_cnn, newdata);
 predict.cnn <- function (cnn, newdata)
 {
 	if (!"cnn" %in% class(cnn))
@@ -649,7 +649,7 @@ train.mlp <- function (dataset, targets, layers,  batch_size = 10,
 #'                   0, 0, 1, 1, 1, 0),
 #'                   c(6, 6));
 #'
-#' results <- predict.cnn(mlp1, test_X);
+#' results <- predict(mlp1, test_X);
 #'
 #' ## The MNIST example
 #' data(mnist)
@@ -683,7 +683,7 @@ train.mlp <- function (dataset, targets, layers,  batch_size = 10,
 #' mnist_mlp <- train.mlp(dataset, targets, layers, batch_size, training_epochs,
 #'                        learning_rate, momentum, rand_seed);
 #'
-#' prediction <- predict.mlp(mnist_mlp, newdata);
+#' prediction <- predict(mnist_mlp, newdata);
 predict.mlp <- function (mlp, newdata)
 {
 	if (!"mlp" %in% class(mlp))

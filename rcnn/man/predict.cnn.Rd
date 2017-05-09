@@ -21,7 +21,7 @@ outputs.
 test_X <- array(c(1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0,
                   0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0),
                   c(6, 1, 2, 3));
-results <- predict.cnn(cnn1, test_X);
+results <- predict(cnn1, test_X);
 
 ## The MNIST example
 data(mnist)
@@ -68,6 +68,6 @@ layers <- list(
 mnist_cnn <- train.cnn(dataset, targets, layers, batch_size, training_epochs,
                        learning_rate, momentum, rand_seed);
 
-prediction <- predict.cnn(mnist_cnn, newdata);
+prediction <- predict(mnist_cnn, newdata);
 }
 \keyword{CNN}

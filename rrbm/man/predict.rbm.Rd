@@ -18,9 +18,7 @@ and reconstruction.
 \examples{
 test_X <- t(array(c(1, 1, 0, 0, 0, 0,
                     0, 0, 0, 1, 1, 0), c(6,2)));
-res <- predict.rbm(rbm1, test_X);
-## Also works as
-\donttest{res <- predict(rbm1, test_X);}
+res <- predict(rbm1, test_X);
 
 # The MNIST example
 data(mnist)
@@ -30,6 +28,6 @@ rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
                        learning_rate = 1e-3, training_epochs = 10,
                        batch_size = 10, momentum = 0.5);
 
-reconstruction <- predict.rbm(rbm1, training.num);
+reconstruction <- predict(rbm_mnist, training.num);
 }
 \keyword{RBM}
