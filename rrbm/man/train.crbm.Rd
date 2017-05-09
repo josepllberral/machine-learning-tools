@@ -44,6 +44,14 @@ train_X <- t(array(c(1, 1, 1, 0, 0, 0, # Sequence 1
                      0, 1, 1, 0, 1, 0,
                      1, 0, 1, 1, 1, 0), c(12, 6)));
 crbm1 <- train.crbm(train_X, seqlen = c(6, 6), delay = 2);
+
+## Motion (fragment) Example
+data(motionfrag)
+
+crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+                         batch_size = 100, n_hidden = 100, delay = 6,
+                         training_epochs = 200, learning_rate = 1e-3,
+                         momentum = 0.5, rand_seed = 1234);
 }
 \keyword{CRBM,}
 \keyword{RBM}

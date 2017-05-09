@@ -65,19 +65,20 @@ The attribute "batch_size" must be the same for all layers. The list of
 layers is checked before the process starts.
 }
 \examples{
-train_X <- t(array(c(1, 1, 1, 0, 0, 0,
-                     1, 0, 1, 0, 0, 0,
-                     1, 1, 1, 0, 0, 0,
-                     0, 0, 1, 1, 1, 0,
-                     0, 0, 1, 0, 1, 0,
-                     0, 0, 1, 1, 1, 0),
-                     c(6, 6)));
-train_Y <- t(array(c(1, 0,
-                     1, 0,
-                     1, 1,
-                     0, 0,
-                     0, 1,
-                     0, 1), c(6, 2)));
+## Simple example
+train_X <- array(c(1, 1, 1, 0, 0, 0,
+                   1, 0, 1, 0, 0, 0,
+                   1, 1, 1, 0, 0, 0,
+                   0, 0, 1, 1, 1, 0,
+                   0, 0, 1, 0, 1, 0,
+                   0, 0, 1, 1, 1, 0),
+                   c(6, 6));
+train_Y <- array(c(1, 0,
+                   1, 0,
+                   1, 1,
+                   0, 0,
+                   0, 1,
+                   0, 1), c(6, 2));
 
 batch_size <- 2;
 
@@ -87,5 +88,37 @@ layers <- list(
    c("SOFT", 2, batch_size)
 );
 mlp1 <- train.mlp(train_X, train_Y, layers);
+
+## The MNIST example
+data(mnist)
+
+train <- mnist$train;
+training_x <- train$x / 255;
+training_y <- binarization(train$y);
+
+test <- mnist$test;
+testing_x <- test$x / 255;
+testing_y <- binarization(test$y);
+
+dataset <- training_x[1:1000,, drop=FALSE];
+targets <- training_y[1:1000,, drop=FALSE];
+
+newdata <- testing_x[1:1000,, drop=FALSE];
+
+batch_size <- 10;
+training_epochs <- 10;
+learning_rate <- 1e-3;
+momentum <- 0.8;
+rand_seed <- 1234;
+
+layers <- list(
+             c("LINE", 784, 64, 0.1, batch_size),
+             c("RELV", batch_size),
+             c("LINE", 64, 10, 0.1, batch_size),
+             c("SOFT", 10, batch_size)
+);
+
+mnist_mlp <- train.mlp(dataset, targets, layers, batch_size, training_epochs,
+                       learning_rate, momentum, rand_seed);
 }
 \keyword{MLP}

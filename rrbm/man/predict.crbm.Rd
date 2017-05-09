@@ -22,7 +22,17 @@ test_X <- t(array(c(1, 1, 0, 0, 0, 0,
                     0, 0, 0, 1, 1, 0), c(6,3)));
 res <- predict.crbm(crbm1, test_X);
 ## Also works as
-res <- predict(crbm1, test_X);
+\donttest{res <- predict(crbm1, test_X);}
+
+## Motion (fragment) Example
+data(motionfrag)
+
+crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+                         batch_size = 100, n_hidden = 100, delay = 6,
+                         training_epochs = 200, learning_rate = 1e-3,
+                         momentum = 0.5, rand_seed = 1234);
+
+preds <- predict.crbm(crbm_mfrag, motionfrag$batchdata);
 }
 \keyword{CRBM,}
 \keyword{RBM}

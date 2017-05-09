@@ -33,5 +33,13 @@ train_X <- t(array(c(1, 1, 1, 0, 0, 0,
                      0, 0, 1, 0, 1, 0,
                      0, 0, 1, 1, 1, 0), c(6, 6)));
 rbm1 <- train.rbm(train_X);
+
+# The MNIST example
+data(mnist)
+
+training.num <- data.matrix(mnist$train$x)/255;
+rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+                       learning_rate = 1e-3, training_epochs = 10,
+                       batch_size = 10, momentum = 0.5);
 }
 \keyword{RBM}

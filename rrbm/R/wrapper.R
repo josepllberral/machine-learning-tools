@@ -22,6 +22,14 @@
 #'                      0, 0, 1, 0, 1, 0,
 #'                      0, 0, 1, 1, 1, 0), c(6, 6)));
 #' rbm1 <- train.rbm(train_X);
+#' 
+#' # The MNIST example
+#' data(mnist)
+#'
+#' training.num <- data.matrix(mnist$train$x)/255;
+#' rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+#'                        learning_rate = 1e-3, training_epochs = 10,
+#'                        batch_size = 10, momentum = 0.5);
 train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 			training_epochs = 1000, learning_rate = 0.01,
 			momentum = 0.8, rand_seed = 1234)
@@ -32,7 +40,6 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
 
-	#if (!is.loaded("rrbm")) library.dynam("rrbm", package=c("rrbm"), lib.loc=.libPaths());
 
 	retval <- .Call("_C_RBM_train", as.matrix(dataset),
 		as.integer(batch_size),	as.integer(n_hidden),
@@ -58,7 +65,17 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 #'                     0, 0, 0, 1, 1, 0), c(6,2)));
 #' res <- predict.rbm(rbm1, test_X);
 #' ## Also works as
-#' res <- predict(rbm1, test_X);
+#' \donttest{res <- predict(rbm1, test_X);}
+#' 
+#' # The MNIST example
+#' data(mnist)
+#'
+#' training.num <- data.matrix(mnist$train$x)/255;
+#' rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+#'                        learning_rate = 1e-3, training_epochs = 10,
+#'                        batch_size = 10, momentum = 0.5);
+#'
+#' reconstruction <- predict.rbm(rbm1, training.num);
 predict.rbm <- function (rbm, newdata)
 {
 	if (!"rbm" %in% class(rbm))
@@ -72,8 +89,6 @@ predict.rbm <- function (rbm, newdata)
 		message("Input matrix is Integer: Coercing to Numeric.");
 		newdata <- t(apply(newdata, 1, as.numeric));
 	}
-
-	#if (!is.loaded("rrbm")) library.dynam("rrbm", package=c("rrbm"), lib.loc=.libPaths());
 
 	.Call("_C_RBM_predict", as.matrix(newdata), as.integer(rbm$n_visible),
 		as.integer(rbm$n_hidden), as.matrix(rbm$W), as.numeric(rbm$hbias),
@@ -109,6 +124,14 @@ predict.rbm <- function (rbm, newdata)
 #'                      0, 1, 1, 0, 1, 0,
 #'                      1, 0, 1, 1, 1, 0), c(12, 6)));
 #' crbm1 <- train.crbm(train_X, seqlen = c(6, 6), delay = 2);
+#'
+#' ## Motion (fragment) Example
+#' data(motionfrag)
+#'
+#' crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+#'                          batch_size = 100, n_hidden = 100, delay = 6,
+#'                          training_epochs = 200, learning_rate = 1e-3,
+#'                          momentum = 0.5, rand_seed = 1234);
 train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6,
 			training_epochs = 1000, learning_rate = 0.01,
 			momentum = 0.8, rand_seed = 1234)
@@ -118,8 +141,6 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 		message("Input matrix is Integer: Coercing to Numeric.");
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
-
-	#if (!is.loaded("rrbm")) library.dynam("rrbm", package=c("rrbm"), lib.loc=.libPaths());
 
 	retval <- .Call("_C_CRBM_train", as.matrix(dataset), as.integer(seqlen),
 		as.integer(length(seqlen)), as.integer(batch_size),
@@ -147,7 +168,17 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 #'                     0, 0, 0, 1, 1, 0), c(6,3)));
 #' res <- predict.crbm(crbm1, test_X);
 #' ## Also works as
-#' res <- predict(crbm1, test_X);
+#' \donttest{res <- predict(crbm1, test_X);}
+#'
+#' ## Motion (fragment) Example
+#' data(motionfrag)
+#'
+#' crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+#'                          batch_size = 100, n_hidden = 100, delay = 6,
+#'                          training_epochs = 200, learning_rate = 1e-3,
+#'                          momentum = 0.5, rand_seed = 1234);
+#'
+#' preds <- predict.crbm(crbm_mfrag, motionfrag$batchdata);
 predict.crbm <- function (crbm, newdata)
 {
 	if (!"crbm" %in% class(crbm))
@@ -167,8 +198,6 @@ predict.crbm <- function (crbm, newdata)
 		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
 		newdata <- t(apply(newdata, 1, as.numeric));
 	}
-
-	#if (!is.loaded("rrbm")) library.dynam("rrbm", package=c("rrbm"), lib.loc=.libPaths());
 
 	.Call("_C_CRBM_predict", as.matrix(newdata), as.integer(crbm$n_visible),
 		as.integer(crbm$n_hidden), as.matrix(crbm$W), as.matrix(crbm$B),
@@ -213,6 +242,17 @@ predict.crbm <- function (crbm, newdata)
 #'                     1, 1, 1, 1, 0, 0,
 #'                     0, 0, 0, 1, 1, 0), c(6,8)));
 #' res3 <- forecast.crbm(crbm1, data_X[1:2, ], 5, 30);
+#'
+#' ## Motion (fragment) Example
+#' data(motionfrag)
+#'
+#' crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+#'                          batch_size = 100, n_hidden = 100, delay = 6,
+#'                          training_epochs = 200, learning_rate = 1e-3,
+#'                          momentum = 0.5, rand_seed = 1234);
+#'
+#' offset <- crbm_mfrag$delay + 1;
+#' fc <- forecast.crbm(crbm_mfrag, motionfrag$batchdata[1:offset,], 50, 30);
 forecast.crbm <- function(crbm, sequence, n_samples = 1, n_gibbs = 30)
 {
 	if (!"crbm" %in% class(crbm))
@@ -232,8 +272,6 @@ forecast.crbm <- function(crbm, sequence, n_samples = 1, n_gibbs = 30)
 		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
 		sequence <- t(apply(sequence, 1, as.numeric));
 	}
-
-	#if (!is.loaded("rrbm")) library.dynam("rrbm", package=c("rrbm"), lib.loc=.libPaths());
 
 	.Call("_C_CRBM_generate_samples", as.matrix(sequence), as.integer(crbm$n_visible),
 		as.integer(crbm$n_hidden), as.matrix(crbm$W), as.matrix(crbm$B),

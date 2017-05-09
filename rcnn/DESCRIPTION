@@ -1,6 +1,6 @@
 Package: rcnn
 Title: Convolutional Neural Networks (and MultiLayer Perceptrons) for R
-Version: 0.0.0.9000
+Version: 0.0.1.0000
 Authors@R: person("Josep Ll.", "Berral", email = "josep.berral@bsc.es", role = c("aut", "cre"))
 Author: Josep Ll. Berral
 Maintainer: Josep Ll. Berral <josep.berral@bsc.es>
@@ -10,4 +10,3 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.0.1.9000
-Suggests: testthat

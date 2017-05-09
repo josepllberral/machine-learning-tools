@@ -45,6 +45,17 @@ data_X <- t(array(c(1, 1, 0, 0, 0, 0,
                     1, 1, 1, 1, 0, 0,
                     0, 0, 0, 1, 1, 0), c(6,8)));
 res3 <- forecast.crbm(crbm1, data_X[1:2, ], 5, 30);
+
+## Motion (fragment) Example
+data(motionfrag)
+
+crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+                         batch_size = 100, n_hidden = 100, delay = 6,
+                         training_epochs = 200, learning_rate = 1e-3,
+                         momentum = 0.5, rand_seed = 1234);
+
+offset <- crbm_mfrag$delay + 1;
+fc <- forecast.crbm(crbm_mfrag, motionfrag$batchdata[1:offset,], 50, 30);
 }
 \keyword{CRBM,}
 \keyword{FORECAST}

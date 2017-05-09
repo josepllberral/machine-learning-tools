@@ -20,6 +20,16 @@ test_X <- t(array(c(1, 1, 0, 0, 0, 0,
                     0, 0, 0, 1, 1, 0), c(6,2)));
 res <- predict.rbm(rbm1, test_X);
 ## Also works as
-res <- predict(rbm1, test_X);
+\donttest{res <- predict(rbm1, test_X);}
+
+# The MNIST example
+data(mnist)
+
+training.num <- data.matrix(mnist$train$x)/255;
+rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+                       learning_rate = 1e-3, training_epochs = 10,
+                       batch_size = 10, momentum = 0.5);
+
+reconstruction <- predict.rbm(rbm1, training.num);
 }
 \keyword{RBM}

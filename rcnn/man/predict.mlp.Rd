@@ -17,13 +17,48 @@ the testing dataset, and a trained MLP. Returns a matrix of predicted
 outputs.
 }
 \examples{
-test_X <- t(array(c(1, 1, 1, 0, 0, 0,
-                    1, 0, 1, 0, 0, 0,
-                    1, 1, 1, 0, 0, 0,
-                    0, 0, 1, 1, 1, 0,
-                    0, 0, 1, 0, 1, 0,
-                    0, 0, 1, 1, 1, 0),
-                    c(6, 6)));
+test_X <- array(c(1, 1, 1, 0, 0, 0,
+                  1, 0, 1, 0, 0, 0,
+                  1, 1, 1, 0, 0, 0,
+                  0, 0, 1, 1, 1, 0,
+                  0, 0, 1, 0, 1, 0,
+                  0, 0, 1, 1, 1, 0),
+                  c(6, 6));
+
 results <- predict.cnn(mlp1, test_X);
+
+## The MNIST example
+data(mnist)
+
+train <- mnist$train;
+training_x <- train$x / 255;
+training_y <- binarization(train$y);
+
+test <- mnist$test;
+testing_x <- test$x / 255;
+testing_y <- binarization(test$y);
+
+dataset <- training_x[1:1000,, drop=FALSE];
+targets <- training_y[1:1000,, drop=FALSE];
+
+newdata <- testing_x[1:1000,, drop=FALSE];
+
+batch_size <- 10;
+training_epochs <- 10;
+learning_rate <- 1e-3;
+momentum <- 0.8;
+rand_seed <- 1234;
+
+layers <- list(
+             c("LINE", 784, 64, 0.1, batch_size),
+             c("RELV", batch_size),
+             c("LINE", 64, 10, 0.1, batch_size),
+             c("SOFT", 10, batch_size)
+);
+
+mnist_mlp <- train.mlp(dataset, targets, layers, batch_size, training_epochs,
+                       learning_rate, momentum, rand_seed);
+
+prediction <- predict.mlp(mnist_mlp, newdata);
 }
 \keyword{MLP}
