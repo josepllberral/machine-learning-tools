@@ -12,13 +12,17 @@ You can find the (C)RBMs, MLPs and CNNs ready to install and use, in the **packa
 
 As the packaged tools use a GSL implementation as kernel (written in C, but interfaced to R), installing the GSL development libraries is required:
 
-> apt install libgsl-dev
+> apt-get install libgsl-dev
 
 Once "gsl" libraries are installed, just do
 
 > install.packages("rrbm_0.0.X.tar.gz", repos = NULL, type="source")
 
 > install.packages("rcnn_0.0.X.tar.gz", repos = NULL, type="source")
+
+Further, you can install "OpenBLAS" (optional) to let GSL use multi-processor computation:
+
+> apt-get install libopenblas-base
 
 In case you don't want to install GSL or use C code, you can just download the **pure-R** implementation from the *.R files in this same repository. They do exactly the same than the GSL-core functions, but (often) slower.
 
