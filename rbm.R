@@ -173,9 +173,24 @@ train_rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     }
 
     end_time <- Sys.time();
-    print(paste('Training took', (end_time - start_time),'minutes',sep=" "));
+    print(paste('Training took', (end_time - start_time), sep=" "));
 
     rbm;
+}
+
+###############################################################################
+# PREDICTING VALUES                                                           #
+###############################################################################
+
+## Pass the current data through the RBM
+##	dataset : data to be passed through the RBM
+##	returns : list with activations and reconstructions
+predict_rbm <- function(rbm, dataset)
+{
+    act.input <- sigmoid_func(dataset %*% rbm$W + rbm$hbias);
+    rec.input <- act.input %*% t(rbm$W) + rbm$vbias;
+    
+    list(activations = act.input, reconstruction = rec.input);
 }
 
 ###############################################################################

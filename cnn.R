@@ -100,8 +100,8 @@ NumericMatrix conv2D(NumericMatrix mat, NumericMatrix k, String mode = "valid")
 		int cut_y = krow_h;
 		int cut_x = kcol_h;
 
-		int len_y = std::max(krow,mrow) - std::min(krow,mrow);
-		int len_x = std::max(kcol,mcol) - std::min(kcol,mcol);
+		int len_y = std::max(krow,mrow) - std::min(krow,mrow);// + 1;
+		int len_x = std::max(kcol,mcol) - std::min(kcol,mcol);// + 1;
 		out = out(Rcpp::Range(cut_y, cut_y + len_y), Rcpp::Range(cut_x, cut_x + len_x));
 	}
 
@@ -609,13 +609,13 @@ main_line <- function()
 # SOFTMAX LAYER                                                               #
 ###############################################################################
 
-## Forward through a sigmoid function
+## Forward through a softmax function
 ##	param x :	Numeric vector <n_visible>
 ##	returns :	Numeric vector <n_hidden>
 ##	updates :	softmax_layer
 forward_soft <- function(soft, x)
 {
-	soft[["a"]] <- sigmoid_func(x);	# TODO - DO A REAL SOFTMAX
+	soft[["a"]] <- exp(x) / rowSums(exp(x));
 	list(layer = soft, y = soft$a);
 }
 
@@ -624,7 +624,7 @@ forward_soft <- function(soft, x)
 ##	returns :	Numeric vector <n_visible>
 backward_soft <- function(soft, dy)
 {
-	dx <- soft$a * (1 - soft$a) * dy; # TODO - DO A REAL SOFTMAX
+	dx <- dy; # Passes dy back
 	list(layer = soft, dx = dx);
 }
 
@@ -804,7 +804,7 @@ train_cnn <- function ( training_x, training_y, layers, training_epochs = 300,
 		if (epoch %% 1 == 0)
 		{
 #			curr_acc = confusion.accuracy() # TODO
-			print(paste("Epoch", epoch, ": Mean Loss", mean(acc_loss), sep = " "));
+			print(paste("Epoch", epoch, ": Mean Loss", mean(acc_loss, na.rm = TRUE), sep = " "));
 		}
 		end_time <- Sys.time();
 		print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
@@ -873,14 +873,10 @@ main <- function()
 
 	# Set up Data as 4D matrix (batch_size, channels, H, W)
 	train <- aux$train;
-#	aux_x <- (train$x - mean(train$x)) / sd(train$x);
-#	aux_y <- (train$y - mean(train$y)) / sd(train$y);
 	training_x <- array(train$x, c(nrow(train$x), 1, img_size)) / 255;
 	training_y <- binarization(train$y);
 
 	test <- aux$test;
-#	aux_x <- (test$x - mean(test$x)) / sd(test$x);
-#	aux_y <- (test$y - mean(test$y)) / sd(test$y);
 	testing_x <- array(test$x, c(nrow(test$x), 1, img_size)) / 255;
 	testing_y <- binarization(test$y);
 
