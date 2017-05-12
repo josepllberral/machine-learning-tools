@@ -94,9 +94,6 @@ sample_h_given_v_crbm <- function(crbm, visible_state, v_history)
 ## This function infers state of visible units given hidden units
 sample_v_given_h_crbm <- function(crbm, hidden_state, v_history)
 {
-#	v.mean <- sigmoid_func((hidden_state %*% t(crbm$W) + v_history %*% crbm$A) %+% crbm$vbias);
-#	v.sample <- sample_bernoulli(v.mean);
-
 	v.mean <- (hidden_state %*% t(crbm$W) + v_history %*% crbm$A) %+% crbm$vbias;
         v.sample <- v.mean;
 
@@ -220,7 +217,7 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 	}
 
 	end_time <- Sys.time();
-	print(paste('Training took', (end_time - start_time),sep=" "));
+	print(paste('Training took', (end_time - start_time), sep = " "));
 
 	crbm;
 }
@@ -229,12 +226,23 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 # PREDICTING VALUES                                                           #
 ###############################################################################
 
+## Pass the current data through the CRBM
+##	dataset : data to be passed through the CRBM
+##	history : history of the data to be passed through the CRBM
+##	returns : list with activations and reconstructions
+predict_crbm <- function(crbm, dataset, history)
+{
+	act.input <- sigmoid_func((dataset %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
+	rec.input <- (act.input %*% t(crbm$W) + history %*% crbm$A) %+% crbm$vbias;
+	list(activations = act.input, reconstruction = rec.input);
+}
+
 ## Given initialization(s) of visibles and matching history, generate n_samples in future.
 ##	orig_data : n_seq by n_visibles array, initialization for first frame
 ##	orig_history : n_seq by delay * n_visibles array, delay-step history
 ##	n_samples : int, number of samples to generate forward
 ##	n_gibbs : int, number of alternating Gibbs steps per iteration
-predict_crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30)
+forecast_crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30)
 {
 	n_seq <- nrow(orig_data);
 
@@ -332,7 +340,7 @@ main <- function()
 	hist_idx <- c(sapply(data_idx, function(x) x - 1:crbm$delay));
 	orig_history <- t(array(as.vector(t(batchdata[hist_idx,])), c(crbm$delay * crbm$n_visible, length(data_idx))));
 
-	generated_series.aux <- predict_crbm(crbm, orig_data, orig_history, n_samples = 100, n_gibbs = 30);
+	generated_series.aux <- forecast_crbm(crbm, orig_data, orig_history, n_samples = 100, n_gibbs = 30);
 
 	# append initialization
 	library(abind)
