@@ -140,6 +140,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current CONV input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux[3]);
@@ -150,6 +151,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current POOL input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			out_h <- (input_dims[3] - as.numeric(laux[5]) + 2 * as.numeric(laux[5]) %/% 2) %/% as.numeric(laux[6]) + 1;
@@ -162,6 +164,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current RELU input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 		} else if (laux[1] == "FLAT")
@@ -171,6 +174,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current FLAT input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			input_dims <- c(input_dims[1], input_dims[2] * input_dims[3] * input_dims[4]);
@@ -181,6 +185,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current LINE input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux[3]);
@@ -191,6 +196,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current RELV input (batch_size) do not match previous LAYER output (batch_size)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 		} else if (laux[1] %in% c("SOFT", "SIGM", "TANH"))
@@ -200,6 +206,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current SOFT/SIGM/TANH input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 		} else if (laux[1] == "DIRE")
@@ -209,6 +216,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 			{
 				message(paste("Error in layer ", i, sep = ""));
 				message("Current DIRE input (batch_size) do not match previous LAYER output (batch_size)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 		}
