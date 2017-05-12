@@ -17,7 +17,7 @@
 /* INTERFACE TO R                                                            */
 /*---------------------------------------------------------------------------*/
 
-#define RARRAY(m,i,j,k,l) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(l) + INTEGER(GET_DIM(m))[1]*(l)*(k) + INTEGER(GET_DIM(m))[2]*(l)*(k)*(j) + (i) ])
+#define RARRAY(m,i,j,k,l) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(l)*(k)*(j) + INTEGER(GET_DIM(m))[1]*(l)*(k) + INTEGER(GET_DIM(m))[2]*(j) + (i) ])
 
 #define RMATRIX(m,i,j) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(j)+(i) ])
 #define RVECTOR(v,i) (REAL(v)[(i)])
