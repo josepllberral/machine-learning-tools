@@ -2,6 +2,8 @@
 
 ## R Packages (Using GSL)
 
+**Note: Package RCNN has a bug and it is under revision!**
+
 Here you can find the (C)RBMs, MLPs and CNNs ready to install and use.
 
 * Package **rrbm** : contains RBM and CRBM implementations, with training, predict and forecasting functions. Also MNIST and Motion (fragment) datasets are included ("mnist" and "motionfrag").
@@ -19,3 +21,4 @@ Once "gsl" libraries are installed, just do
 > install.packages("rcnn_0.0.X.tar.gz", repos = NULL, type="source")
 
 In case you don't want to install GSL or use C code, you can just download the **pure-R** implementation from the *.R files in this same repository. They do exactly the same than the GSL-core functions, but (often) slower.
+
