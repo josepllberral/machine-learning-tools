@@ -17,8 +17,6 @@
 /* INTERFACE TO R                                                            */
 /*---------------------------------------------------------------------------*/
 
-#define RARRAY(m,i,j,k,l) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(l)*(k)*(j) + INTEGER(GET_DIM(m))[1]*(l)*(k) + INTEGER(GET_DIM(m))[2]*(j) + (i) ])
-
 #define RMATRIX(m,i,j) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(j)+(i) ])
 #define RVECTOR(v,i) (REAL(v)[(i)])
 #define RVECTORI(v,i) (INTEGER(v)[(i)])
@@ -500,6 +498,8 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		}
 	}
 }
+
+#define RARRAY(m,i,j,k,l) (REAL(m)[INTEGER(GET_DIM(m))[2] * INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (l) + INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (k) + INTEGER(GET_DIM(m))[0] * (j) + (i) ])
 
 // Interface for Training a CNN
 SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,

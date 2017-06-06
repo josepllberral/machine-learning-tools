@@ -110,9 +110,9 @@ check_layers <- function (layers, dataset, target, batch_size)
 	# Check inputs vs outputs
 	if (nrow != nrow_y)
 	{
-		message("Error in Inputs");
+		message(paste("Error in Inputs. Dataset:", nrow, "Target:", nrow_y, sep = " "));
 		message("Inputs and Output rows do not match");
-		return (-1);
+		return (FALSE);
 	}
 
 	nlayers <- length(layers);
@@ -177,7 +177,7 @@ check_layers <- function (layers, dataset, target, batch_size)
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
-			input_dims <- c(input_dims[1], input_dims[2] * input_dims[3] * input_dims[4]);
+			input_dims <- c(input_dims[1], input_dims[2] * input_dims[3] * input_dims[4]); #FIXME
 		} else if (laux[1] == "LINE")
 		{
 			# Check for Batch_size and Visible units
@@ -399,7 +399,7 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 	if ("integer" %in% class(dataset[1,1,1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");
-		dataset <- t(apply(dataset, c(1,2,3), as.numeric));
+		dataset <- 1.0 * dataset;
 	}
 
 	if (!check_layers(layers, dataset, targets, batch_size))
@@ -491,7 +491,7 @@ predict.cnn <- function (cnn, newdata)
 	if ("integer" %in% class(newdata[1,1,1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");
-		newdata <- t(apply(newdata, c(1,2,3), as.numeric));
+		newdata <- 1.0 * newdata;
 	}
 
 	.Call("_C_CNN_predict", as.array(newdata), as.list(cnn$layers),

@@ -73,17 +73,9 @@ gsl_matrix* backward_line(LINE* line, gsl_matrix* dy)
 // Updates the Linear Layer
 void get_updates_line (LINE* line, double lr)
 {
-	int size1 = (int)line->W->size1;
-	int size2 = (int)line->W->size2;
-
-	gsl_matrix* identity = gsl_matrix_calloc(size2, size2);
-	gsl_matrix_set_all(identity, 1.0);
-	gsl_matrix_set_identity(identity);
-
-	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr / line->batch_size, line->grad_W, identity, 1.0, line->W);
+	gsl_matrix_scale(line->grad_W, -1.0 * lr / line->batch_size);
+	gsl_matrix_add(line->W, line->grad_W);
 	gsl_blas_daxpy(-1.0 * lr / line->batch_size, line->grad_b, line->b);
-
-	gsl_matrix_free(identity);
 }
 
 // Initializes a Linear layer
