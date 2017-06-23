@@ -144,7 +144,7 @@ get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentu
 	crbm$hbias <- crbm$hbias + crbm$velocity[["h"]];
 
 	# approximation to the reconstruction error: sum over dimensions, mean over cases
-	list(crbm = crbm, recon = mean(colSums(`^`(input - nv[["mean"]],2))));
+	list(crbm = crbm, recon = mean(rowSums(`^`(input - nv[["mean"]],2))));
 }
 
 ###############################################################################
