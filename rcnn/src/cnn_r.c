@@ -216,8 +216,8 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 						for (int w = 0; w < aux->filter_size; w++)
 						{
 							int idx = w + aux->filter_size * (h + aux->filter_size * (c + aux->n_channels * f));
-							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9))[idx] = gsl_matrix_get(aux->W[f][c], h, w);
-							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 10))[idx] = gsl_matrix_get(aux->grad_W[f][c], h, w);
+							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9))[idx] = gsl_matrix_get(aux->W[f][c], h, w); //CHECK!
+							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 10))[idx] = gsl_matrix_get(aux->grad_W[f][c], h, w); //CHECK!
 						}
 
 			UNPROTECT(1);
@@ -346,8 +346,8 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 			{
 				for (int k = 0; k < aux->n_visible; k++)
 				{
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[j * aux->n_visible + k] = gsl_matrix_get(aux->W, j, k);
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[j * aux->n_visible + k] = gsl_matrix_get(aux->grad_W, j, k);
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[k * aux->n_hidden + j] = gsl_matrix_get(aux->W, j, k); //CHECK!
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[k * aux->n_hidden + j] = gsl_matrix_get(aux->grad_W, j, k); //CHECK!
 				}
 				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j] = gsl_vector_get(aux->b, j);
 				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[j] = gsl_vector_get(aux->grad_b, j);
@@ -447,8 +447,8 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 			for (int j = 0; j < aux->batch_size; j++)
 				for (int k = 0; k < aux->n_units; k++)
 				{
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[j * aux->n_units + k] = gsl_matrix_get(aux->buff_x, j, k);
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j * aux->n_units + k] = gsl_matrix_get(aux->buff_dy, j, k);
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[k * aux->batch_size + j] = gsl_matrix_get(aux->buff_x, j, k); //CHECK!
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[k * aux->batch_size + j] = gsl_matrix_get(aux->buff_dy, j, k); //CHECK!
 				}
 
 			SEXP naux = PROTECT(allocVector(STRSXP, 5));
@@ -569,7 +569,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
 	for (int i = 0; i < nouts; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 4))[i * nouts + j] = gsl_matrix_get(confusion, i, j);
+			REAL(VECTOR_ELT(retval, 4))[j * nouts + i] = gsl_matrix_get(confusion, i, j); //CHECK!
 
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
@@ -577,7 +577,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
 	for (int i = 0; i < nrows; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 6))[i * nouts + j] = gsl_matrix_get(predictions, i, j);
+			REAL(VECTOR_ELT(retval, 6))[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 7));
 	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
@@ -875,7 +875,7 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 	SEXP retval = PROTECT(allocMatrix(REALSXP, nrows, nouts));
 	for (int i = 0; i < nrows; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(retval)[i * nouts + j] = gsl_matrix_get(predictions, i, j);
+			REAL(retval)[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
 
 	// Free the structures and the CNN
 	free_pipeline (pipeline, nlay);
@@ -953,7 +953,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
 	for (int i = 0; i < nouts; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 4))[i * nouts + j] = gsl_matrix_get(confusion, i, j);
+			REAL(VECTOR_ELT(retval, 4))[j * nouts + i] = gsl_matrix_get(confusion, i, j); //CHECK!
 
 	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
 	REAL(VECTOR_ELT(retval, 5))[0] = loss;
@@ -961,7 +961,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
 	for (int i = 0; i < nrows; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 6))[i * nouts + j] = gsl_matrix_get(predictions, i, j);
+			REAL(VECTOR_ELT(retval, 6))[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 7));
 	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
@@ -1011,7 +1011,7 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 	SEXP retval = PROTECT(allocMatrix(REALSXP, nrows, nouts));
 	for (int i = 0; i < nrows; i++)
 		for (int j = 0; j < nouts; j++)
-			REAL(retval)[i * nouts + j] = gsl_matrix_get(predictions, i, j);
+			REAL(retval)[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
 
 	// Free the structures and the CNN
 	free_pipeline (pipeline, nlay);

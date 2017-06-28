@@ -72,8 +72,8 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
 	{
 		for (int j = 0; j < nhid; j++)
 		{
-			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = gsl_matrix_get(crbm.W, i, j);
-			REAL(VECTOR_ELT(retval, 8))[i * nhid + j] = gsl_matrix_get(crbm.vel_W, i, j);
+			REAL(VECTOR_ELT(retval, 3))[j * ncol + i] = gsl_matrix_get(crbm.W, i, j);
+			REAL(VECTOR_ELT(retval, 8))[j * ncol + i] = gsl_matrix_get(crbm.vel_W, i, j);
 		}
 		REAL(VECTOR_ELT(retval, 7))[i] = gsl_vector_get(crbm.vbias, i);
 		REAL(VECTOR_ELT(retval, 12))[i] = gsl_vector_get(crbm.vel_v, i);
@@ -87,13 +87,13 @@ SEXP _C_CRBM_train(SEXP dataset, SEXP seqlen, SEXP n_seq, SEXP batch_size,
 	{
 		for (int j = 0; j < nhid; j++)
 		{
-			REAL(VECTOR_ELT(retval, 4))[i * nhid + j] = gsl_matrix_get(crbm.B, i, j);
-			REAL(VECTOR_ELT(retval, 9))[i * nhid + j] = gsl_matrix_get(crbm.vel_B, i, j);
+			REAL(VECTOR_ELT(retval, 4))[j * ncol * dely + i] = gsl_matrix_get(crbm.B, i, j);
+			REAL(VECTOR_ELT(retval, 9))[j * ncol * dely + i] = gsl_matrix_get(crbm.vel_B, i, j);
 		}
 		for (int j = 0; j < ncol; j++)
 		{
-			REAL(VECTOR_ELT(retval, 5))[i * ncol + j] = gsl_matrix_get(crbm.A, i, j);
-			REAL(VECTOR_ELT(retval, 10))[i * ncol + j] = gsl_matrix_get(crbm.vel_A, i, j);
+			REAL(VECTOR_ELT(retval, 5))[j * ncol * dely + i] = gsl_matrix_get(crbm.A, i, j);
+			REAL(VECTOR_ELT(retval, 10))[j * ncol * dely + i] = gsl_matrix_get(crbm.vel_A, i, j);
 		}
 	}
 
@@ -208,12 +208,12 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
 	for (int i = 0; i < nrow; i++)
 		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(reconstruction, i, j);
+			REAL(VECTOR_ELT(retval, 0))[j * nrow + i] = gsl_matrix_get(reconstruction, i, j);
 
 	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
 	for (int i = 0; i < nrow; i++)
 		for (int j = 0; j < nhid; j++)
-			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = gsl_matrix_get(activations, i, j);
+			REAL(VECTOR_ELT(retval, 1))[j * nrow + i] = gsl_matrix_get(activations, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 2));
 	SET_STRING_ELT(nms, 0, mkChar("reconstruction"));
@@ -267,7 +267,7 @@ SEXP _C_CRBM_generate_samples (SEXP newdata, SEXP n_visible, SEXP n_hidden,
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nsamp, ncol));
 	for (int i = 0; i < nsamp; i++)
 		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(results, i, j);
+			REAL(VECTOR_ELT(retval, 0))[j * nsamp + i] = gsl_matrix_get(results, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 1));
 	SET_STRING_ELT(nms, 0, mkChar("generated"));

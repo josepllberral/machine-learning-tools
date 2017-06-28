@@ -64,8 +64,8 @@ SEXP _C_RBM_train(SEXP dataset, SEXP batch_size, SEXP n_hidden, SEXP training_ep
 	{
 		for (int j = 0; j < nhid; j++)
 		{
-			REAL(VECTOR_ELT(retval, 3))[i * nhid + j] = gsl_matrix_get(rbm.W, i, j);
-			REAL(VECTOR_ELT(retval, 6))[i * nhid + j] = gsl_matrix_get(rbm.vel_W, i, j);
+			REAL(VECTOR_ELT(retval, 3))[j * ncol + i] = gsl_matrix_get(rbm.W, i, j);
+			REAL(VECTOR_ELT(retval, 6))[j * ncol + i] = gsl_matrix_get(rbm.vel_W, i, j);
 		}
 		REAL(VECTOR_ELT(retval, 5))[i] = gsl_vector_get(rbm.vbias, i);
 		REAL(VECTOR_ELT(retval, 8))[i] = gsl_vector_get(rbm.vel_v, i);
@@ -154,12 +154,12 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 	SET_VECTOR_ELT(retval, 0, allocMatrix(REALSXP, nrow, ncol));
 	for (int i = 0; i < nrow; i++)
 		for (int j = 0; j < ncol; j++)
-			REAL(VECTOR_ELT(retval, 0))[i * ncol + j] = gsl_matrix_get(reconstruction, i, j);
+			REAL(VECTOR_ELT(retval, 0))[j * nrow + i] = gsl_matrix_get(reconstruction, i, j);
 
 	SET_VECTOR_ELT(retval, 1, allocMatrix(REALSXP, nrow, nhid));
 	for (int i = 0; i < nrow; i++)
 		for (int j = 0; j < nhid; j++)
-			REAL(VECTOR_ELT(retval, 1))[i * nhid + j] = gsl_matrix_get(activations, i, j);
+			REAL(VECTOR_ELT(retval, 1))[j * nrow + i] = gsl_matrix_get(activations, i, j);
 
 	SEXP nms = PROTECT(allocVector(STRSXP, 2));
 	SET_STRING_ELT(nms, 0, mkChar("reconstruction"));
