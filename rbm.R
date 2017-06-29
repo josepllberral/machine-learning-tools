@@ -119,7 +119,7 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
     rbm$hbias <- rbm$hbias + rbm$velocity[["h"]];
 
     # approximation to the reconstruction error: sum over dimensions, mean over cases
-    list(rbm = rbm, recon = mean(colSums(`^`(input - nv[["mean"]],2))));
+    list(rbm = rbm, recon = mean(rowSums(`^`(input - nv[["mean"]],2))));
 }
 
 ###############################################################################
