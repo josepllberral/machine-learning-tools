@@ -222,6 +222,12 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 	crbm;
 }
 
+## Interface compatible with RRBM
+train.crbm <- function (dataset, seqlen, ...)
+{
+	train_crbm(dataset = list(batchdata = dataset, seqlen = seqlen), ...);
+}
+
 ###############################################################################
 # PREDICTING VALUES                                                           #
 ###############################################################################
@@ -236,6 +242,9 @@ predict_crbm <- function(crbm, dataset, history)
 	rec.input <- (act.input %*% t(crbm$W) + history %*% crbm$A) %+% crbm$vbias;
 	list(activations = act.input, reconstruction = rec.input);
 }
+
+## Interface compatible with RRBM (history is explicit here)
+predict.crbm <- predict_crbm;
 
 ## Given initialization(s) of visibles and matching history, generate n_samples in future.
 ##	orig_data : n_seq by n_visibles array, initialization for first frame
@@ -280,6 +289,9 @@ forecast_crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30
 	}
 	generated_series;
 }
+
+## Interface compatible with RRBM (history is explicit here)
+forecast.crbm <- forecast_crbm;
 
 ###############################################################################
 # MOTION EXAMPLE                                                              #

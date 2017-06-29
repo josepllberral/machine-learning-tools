@@ -178,6 +178,9 @@ train_rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     rbm;
 }
 
+## Interface compatible with RRBM
+train.rbm <- train_rbm;
+
 ###############################################################################
 # PREDICTING VALUES                                                           #
 ###############################################################################
@@ -192,6 +195,9 @@ predict_rbm <- function(rbm, dataset)
     
     list(activations = act.input, reconstruction = rec.input);
 }
+
+## Interface compatible with RRBM
+predict.rbm <- predict_rbm;
 
 ###############################################################################
 # EXPERIMENTS: THE MNIST EXAMPLE                                              #
@@ -266,32 +272,6 @@ main <- function()
 	aux <- load_mnist();
 	training.num <- data.matrix(aux$train);
 	testing.num <- data.matrix(aux$test);
-
-	trainIndex <- sample(x=1:nrow(aux$train),size=nrow(aux$train) * 0.6);
-	training <- aux$train[trainIndex,];
-	cv <- aux$train[-trainIndex,];
-
-	show_digit(as.matrix(training[5,2:785]));
-
-	# Train an SVM to learn MNIST
-	if (FALSE)
-	{
-	    opt.warn <- getOption("warn");
-	    options(warn = -1);
-
-	    # SVM. 95/94.
-	    fit <- train(y ~ ., data = head(training, 1000), method = 'svmRadial', tuneGrid = data.frame(sigma=0.0107249, C=1))
-	    results <- predict(fit, newdata = head(cv, 1000))
-	    confusionMatrix(results, head(cv$y, 1000))
-
-	    # Predict the digit.
-	    predict(fit, newdata = training[5,])
-
-	    # Check the actual answer for the digit.
-	    training[5,1]
-
-	    options(warn = opt.warn);
-	}
 
 	# Train an RBM to learn MNIST
 	rbm <- train_rbm(
