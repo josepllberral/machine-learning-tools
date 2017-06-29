@@ -79,12 +79,12 @@ void visible_state_to_hidden_probabilities_crbm (CRBM* crbm, gsl_matrix* v_sampl
 	int nrow = v_sample->size1;
 
 	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, crbm->n_hidden);
-	int res1 = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_sample, crbm->W, 1.0, pre_sigmoid);
-	int res2 = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_history, crbm->B, 1.0, pre_sigmoid);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_sample, crbm->W, 1.0, pre_sigmoid);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_history, crbm->B, 1.0, pre_sigmoid);
 
 	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, crbm->n_hidden);
 	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, crbm->hbias);
-	int res3 = gsl_matrix_add(pre_sigmoid, M_bias);
+	gsl_matrix_add(pre_sigmoid, M_bias);
 
 	matrix_sigmoid(pre_sigmoid, *h_mean);
 	matrix_bernoulli(*h_mean, *h_sample);
@@ -107,15 +107,15 @@ void hidden_state_to_visible_probabilities_crbm (CRBM* crbm, gsl_matrix* h_sampl
 	int nrow = h_sample->size1;
 
 	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, crbm->n_visible);
-	int res1 = gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, h_sample, crbm->W, 1.0, pre_sigmoid);
-	int res2 = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_history, crbm->A, 1.0, pre_sigmoid);
+	gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, h_sample, crbm->W, 1.0, pre_sigmoid);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, v_history, crbm->A, 1.0, pre_sigmoid);
 
 	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, crbm->n_visible);
 	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, crbm->vbias);
-	int res3 = gsl_matrix_add(pre_sigmoid, M_bias);
+	gsl_matrix_add(pre_sigmoid, M_bias);
 
-	int res4 =  gsl_matrix_memcpy(*v_mean, pre_sigmoid);
-	int res5 =  gsl_matrix_memcpy(*v_sample, pre_sigmoid);
+	gsl_matrix_memcpy(*v_mean, pre_sigmoid);
+	gsl_matrix_memcpy(*v_sample, pre_sigmoid);
 
 	gsl_matrix_free(M_bias);
 	gsl_matrix_free(pre_sigmoid);
@@ -140,7 +140,7 @@ double cdk_CRBM (CRBM* crbm, gsl_matrix* input, gsl_matrix* input_history, doubl
 	gsl_matrix* nh_means = gsl_matrix_calloc(crbm->batch_size, crbm->n_hidden);
 	gsl_matrix* nh_sample = gsl_matrix_calloc(crbm->batch_size, crbm->n_hidden);
 
-	int res1P =  gsl_matrix_memcpy(nh_sample, ph_sample);
+	gsl_matrix_memcpy(nh_sample, ph_sample);
 	for (int step = 0; step < k; step++)
 	{
 		hidden_state_to_visible_probabilities_crbm (crbm, nh_sample, input_history, &nv_means, &nv_sample);
@@ -164,52 +164,52 @@ double cdk_CRBM (CRBM* crbm, gsl_matrix* input, gsl_matrix* input_history, doubl
 
 	// Compute and apply Delta_W
 	gsl_matrix* delta_W = gsl_matrix_calloc(crbm->n_visible, crbm->n_hidden);
-	int res1W = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input, ph_means, 1.0, delta_W);
-	int res2W = gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, nv_sample, nh_means, 1.0, delta_W);
-	int res3W = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_W, identity_h, momentum, crbm->vel_W);
-	int res4W = gsl_matrix_add(crbm->W, crbm->vel_W);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input, ph_means, 1.0, delta_W);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, nv_sample, nh_means, 1.0, delta_W);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_W, identity_h, momentum, crbm->vel_W);
+	gsl_matrix_add(crbm->W, crbm->vel_W);
 
 	// Compute and apply Delta_B
 	gsl_matrix* delta_B = gsl_matrix_calloc(crbm->n_visible * crbm->delay, crbm->n_hidden);
-	int res1B = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input_history, ph_means, 1.0, delta_B);
-	int res2B = gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, input_history, nh_means, 1.0, delta_B);
-	int res3B = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_B, identity_h, momentum, crbm->vel_B);
-	int res4B = gsl_matrix_add(crbm->B, crbm->vel_B);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input_history, ph_means, 1.0, delta_B);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, input_history, nh_means, 1.0, delta_B);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_B, identity_h, momentum, crbm->vel_B);
+	gsl_matrix_add(crbm->B, crbm->vel_B);
 
 	// Compute and apply Delta_A
 	gsl_matrix* delta_A = gsl_matrix_calloc(crbm->n_visible * crbm->delay, crbm->n_visible);
-	int res1A = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input_history, input, 1.0, delta_A);
-	int res2A = gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, input_history, nv_sample, 1.0, delta_A);
-	int res3A = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_A, identity_v, momentum, crbm->vel_A);
-	int res4A = gsl_matrix_add(crbm->A, crbm->vel_A);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, input_history, input, 1.0, delta_A);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, input_history, nv_sample, 1.0, delta_A);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, ratio, delta_A, identity_v, momentum, crbm->vel_A);
+	gsl_matrix_add(crbm->A, crbm->vel_A);
 
 	gsl_matrix_free(delta_W);
 	gsl_matrix_free(delta_B);
 	gsl_matrix_free(delta_A);
 
 	// Compute and apply Delta_v
-	int res1V = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_sample); // we don't need nv_sample anymore
-	int res2V = gsl_blas_dgemv(CblasTrans, ratio, nv_sample, ones, momentum, crbm->vel_v);
-	int res3V = gsl_vector_add(crbm->vbias, crbm->vel_v);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_sample); // we don't need nv_sample anymore
+	gsl_blas_dgemv(CblasTrans, ratio, nv_sample, ones, momentum, crbm->vel_v);
+	gsl_vector_add(crbm->vbias, crbm->vel_v);
 
 	// Compute and apply Delta_h
-	int res1H = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, ph_means, identity_h, -1.0, nh_means); // we don't need nh_mean anymore
-	int res2H = gsl_blas_dgemv(CblasTrans, ratio, nh_means, ones, momentum, crbm->vel_h);
-	int res3H = gsl_vector_add(crbm->hbias, crbm->vel_h);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, ph_means, identity_h, -1.0, nh_means); // we don't need nh_mean anymore
+	gsl_blas_dgemv(CblasTrans, ratio, nh_means, ones, momentum, crbm->vel_h);
+	gsl_vector_add(crbm->hbias, crbm->vel_h);
 
 
 	// approximation to the reconstruction error: sum over dimensions, mean over cases
-	int res1R = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_means); // we don't need nv_mean anymore
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, input, identity_v, -1.0, nv_means); // we don't need nv_mean anymore
 	gsl_matrix* pow_res = gsl_matrix_alloc(crbm->batch_size, crbm->n_visible);
 	gsl_matrix_memcpy(pow_res, nv_means);
-	int res2R = gsl_matrix_mul_elements(pow_res, nv_means);
+	gsl_matrix_mul_elements(pow_res, nv_means);
+	
 	gsl_vector* pow_sum = gsl_vector_calloc(crbm->n_visible);
-	int res3R = gsl_blas_dgemv(CblasTrans, 1.0, pow_res, ones, 1.0, pow_sum);
+	gsl_blas_dgemv(CblasTrans, 1.0, pow_res, ones, 1.0, pow_sum);
 
 	double recon = 0;
-	for(int j = 0; j < crbm->n_visible; j++)
-		recon += gsl_vector_get(pow_sum, j);
-	recon /= crbm->n_visible;
+	for(int j = 0; j < crbm->n_visible; j++) recon += gsl_vector_get(pow_sum, j);
+	recon /= crbm->batch_size;
 
 	gsl_matrix_free(pow_res);
 	gsl_vector_free(pow_sum);
