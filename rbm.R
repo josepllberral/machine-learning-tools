@@ -131,7 +131,7 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
 ##  param learning_rate: learning rate used for training the RBM
 ##  param training_epochs: number of epochs used for training
 ##  param batch_size: size of a batch used to train the RBM
-train_rbm <- function (dataset, batch_size = 100, n_hidden = 100,
+train_rbm <- train.rbm <- function (dataset, batch_size = 100, n_hidden = 100,
 	training_epochs = 300, learning_rate = 1e-4, momentum = 0.5,
 	rand_seed = 1234)
 {
@@ -178,9 +178,6 @@ train_rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     rbm;
 }
 
-## Interface compatible with RRBM
-train.rbm <- train_rbm;
-
 ###############################################################################
 # PREDICTING VALUES                                                           #
 ###############################################################################
@@ -188,16 +185,13 @@ train.rbm <- train_rbm;
 ## Pass the current data through the RBM
 ##	dataset : data to be passed through the RBM
 ##	returns : list with activations and reconstructions
-predict_rbm <- function(rbm, dataset)
+predict_rbm <- predict.rbm <- function(rbm, dataset)
 {
     act.input <- sigmoid_func(dataset %*% rbm$W + rbm$hbias);
     rec.input <- act.input %*% t(rbm$W) + rbm$vbias;
     
     list(activations = act.input, reconstruction = rec.input);
 }
-
-## Interface compatible with RRBM
-predict.rbm <- predict_rbm;
 
 ###############################################################################
 # EXPERIMENTS: THE MNIST EXAMPLE                                              #

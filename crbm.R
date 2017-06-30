@@ -233,26 +233,50 @@ train.crbm <- function (dataset, seqlen, ...)
 ###############################################################################
 
 ## Pass the current data through the CRBM
-##	dataset : data to be passed through the CRBM
-##	history : history of the data to be passed through the CRBM
+##	dataset : n_seq x n_visible. data to be passed through the CRBM. If
+##                history is null, dataset is considered as a time series
+##	history : n_seq by delay * n_visibles array, history of the data to be
+##                passed through the CRBM. If null, dataset is considered as a
+##                series
 ##	returns : list with activations and reconstructions
-predict_crbm <- function(crbm, dataset, history)
+## "predict_crbm" call name is legacy
+predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
 {
+	if (is.null(history))
+	{
+		history <- array(0, c(0, crbm$n_visible * crbm$delay));
+		for (i in (crbm$delay + 1):nrow(dataset))
+		{
+			aux <- as.matrix(dataset[(i - crbm$delay):(i-1),]);
+			aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
+			history <- rbind(history, aux);
+		}	
+	}
+	
 	act.input <- sigmoid_func((dataset %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
 	rec.input <- (act.input %*% t(crbm$W) + history %*% crbm$A) %+% crbm$vbias;
 	list(activations = act.input, reconstruction = rec.input);
 }
 
-## Interface compatible with RRBM (history is explicit here)
-predict.crbm <- predict_crbm;
-
 ## Given initialization(s) of visibles and matching history, generate n_samples in future.
-##	orig_data : n_seq by n_visibles array, initialization for first frame
-##	orig_history : n_seq by delay * n_visibles array, delay-step history
+##	orig_data : n_seq by n_visibles array, initialization for first frame. If
+##                  orig_history is null, orig_data is considered as a time series
+##                  to be forecasted only the last value
+##	orig_history : n_seq by delay * n_visibles array, delay-step history.
+##                     If null, orig_history is obtained from orig_data
 ##	n_samples : int, number of samples to generate forward
 ##	n_gibbs : int, number of alternating Gibbs steps per iteration
-forecast_crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30)
+## "forecast_crbm" call name is legacy
+forecast_crbm <- forecast.crbm <- function(crbm, orig_data, orig_history = NULL, n_samples, n_gibbs = 30)
 {
+	if (is.null(orig_history))
+	{
+		l <- nrow(orig_data);
+		orig_data <- orig_data[l,,drop = FALSE];
+		orig_history <- orig_data[(l - crbm$delay - 1):(l - 1),, drop = FALSE];
+		orig_history <- array(t(orig_history), c(1, crbm$n_visible * crbm$delay));
+	}
+	
 	n_seq <- nrow(orig_data);
 
 	persistent_vis_chain <<- orig_data;
@@ -289,9 +313,6 @@ forecast_crbm <- function(crbm, orig_data, orig_history, n_samples, n_gibbs = 30
 	}
 	generated_series;
 }
-
-## Interface compatible with RRBM (history is explicit here)
-forecast.crbm <- forecast_crbm;
 
 ###############################################################################
 # MOTION EXAMPLE                                                              #
