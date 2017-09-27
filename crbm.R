@@ -157,7 +157,8 @@ get_cost_updates_crbm <- function(crbm, input, input_history, lr, k = 1, momentu
 ##	param dataset: loaded dataset <batchdata, seqlen, data_mean, data_std> for Motion
 ##	param batch_size: size of a batch used to train the CRBM
 train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_epochs = 300,
-			batch_size = 100, n_hidden = 100, delay = 6, rand_seed = 1234)
+			batch_size = 100, n_hidden = 100, delay = 6, rand_seed = 1234,
+			init_A = NULL, init_B = NULL, init_W = NULL, init_hbias = NULL, init_vbias = NULL)
 {
 	set.seed(rand_seed);
 
@@ -180,7 +181,8 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 	permindex <- batchdataindex[sample(1:length(batchdataindex),length(batchdataindex))];
 
 	# construct the CRBM object
-	crbm <- create_crbm(n_visible = n_dim, n_hidden = n_hidden, delay = delay, batch_size = batch_size);
+	crbm <- create_crbm(n_visible = n_dim, n_hidden = n_hidden, delay = delay, batch_size = batch_size,
+				A = init_A, B = init_B, W = init_W, hbias = init_hbias, vbias = init_vbias);
 
 	start_time <- Sys.time();
 

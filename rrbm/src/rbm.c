@@ -25,13 +25,13 @@ void create_RBM (RBM* rbm, int N, int n_visible, int n_hidden, int batch_size,
 
 	// Initialize Matrices and Vectors
 	if (W == NULL) rbm->W = matrix_normal(n_visible, n_hidden, 0, 1, 0.01);
-	else rbm->W = W;
+	else { rbm->W = gsl_matrix_calloc(n_visible, n_hidden); gsl_matrix_memcpy(rbm->W, W); }
 
-	if (hbias == NULL) rbm->hbias = gsl_vector_calloc(n_hidden);
-	else rbm->hbias = hbias;
+	rbm->hbias = gsl_vector_calloc(n_hidden);
+	if (hbias != NULL) gsl_vector_memcpy(rbm->hbias, hbias);
 
-	if (vbias == NULL) rbm->vbias = gsl_vector_calloc(n_visible);
-	else rbm->vbias = vbias;
+	rbm->vbias = gsl_vector_calloc(n_visible);
+	if (vbias != NULL) gsl_vector_memcpy(rbm->vbias, vbias);
 
 	// Initialize Velocity for Momentum
 	rbm->vel_W = gsl_matrix_calloc(n_visible, n_hidden);
@@ -202,9 +202,13 @@ double cdk_RBM (RBM* rbm, gsl_matrix* input, double lr, double momentum, int k)
 //   param training_epochs : number of epochs used for training the RBM
 //   param learning_rate   : learning rate used for training the RBM
 //   param momentum        : momentum weight used for training the RBM
+//   param init_W          : initial W weights for the RBM (can be NULL)
+//   param init_hbias      : initial hbias weights for the RBM (can be NULL)
+//   param init_vbias      : initial vbias weights for the RBM (can be NULL)
 void train_rbm (RBM* rbm, gsl_matrix* batchdata, int nrow, int ncol, int batch_size,
                 int n_hidden, int training_epochs, double learning_rate,
-		double momentum, int rand_seed)
+		double momentum, int rand_seed, gsl_matrix* init_W,
+		gsl_vector* init_hbias, gsl_vector* init_vbias)
 {
 	srand(rand_seed);
 
@@ -215,7 +219,7 @@ void train_rbm (RBM* rbm, gsl_matrix* batchdata, int nrow, int ncol, int batch_s
 	int* permindex = shuffle(nrow);
 
 	// construct RBM
-	create_RBM (rbm, nrow, n_visible, n_hidden, batch_size, NULL, NULL, NULL);
+	create_RBM (rbm, nrow, n_visible, n_hidden, batch_size, init_W, init_hbias, init_vbias);
 
 	// go through the training epochs and training set
 	double mean_cost;
@@ -329,7 +333,7 @@ void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations,
 
 	// Perform Training
 	RBM rbm;
-	train_rbm (&rbm, train_X_p, nrow, ncol, basi, nhid, trep, lera, mome, rase);
+	train_rbm (&rbm, train_X_p, nrow, ncol, basi, nhid, trep, lera, mome, rase, NULL, NULL, NULL);
 
 	printf("Training Finished\n");
 

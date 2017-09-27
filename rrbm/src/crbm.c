@@ -26,19 +26,19 @@ void create_CRBM (CRBM* crbm, int N, int n_visible, int n_hidden, int delay, int
 
 	// Initialize Matrices and Vectors
 	if (W == NULL) crbm->W = matrix_normal(n_visible, n_hidden, 0, 1, 0.01);
-	else crbm->W = W;
+	else { crbm->W = gsl_matrix_calloc(n_visible, n_hidden); gsl_matrix_memcpy(crbm->W, W); }
 
 	if (B == NULL) crbm->B = matrix_normal(n_visible * delay, n_hidden, 0, 1, 0.01);
-	else crbm->B = B;
+	else { crbm->B = gsl_matrix_calloc(n_visible * delay, n_hidden); gsl_matrix_memcpy(crbm->B, B); }
 
 	if (A == NULL) crbm->A = matrix_normal(n_visible * delay, n_visible, 0, 1, 0.01);
-	else crbm->A = A;
+	else { crbm->A = gsl_matrix_calloc(n_visible * delay, n_visible); gsl_matrix_memcpy(crbm->A, A); }
 
-	if (hbias == NULL) crbm->hbias = gsl_vector_calloc(n_hidden);
-	else crbm->hbias = hbias;
+	crbm->hbias = gsl_vector_calloc(n_hidden);
+	if (!(hbias == NULL)) gsl_vector_memcpy(crbm->hbias, hbias);
 
-	if (vbias == NULL) crbm->vbias = gsl_vector_calloc(n_visible);
-	else crbm->vbias = vbias;
+	crbm->vbias = gsl_vector_calloc(n_visible);
+	if (!(vbias == NULL)) gsl_vector_memcpy(crbm->vbias, vbias);
 
 	// Initialize Velocity for Momentum
 	crbm->vel_W = gsl_matrix_calloc(n_visible, n_hidden);
@@ -241,10 +241,16 @@ double cdk_CRBM (CRBM* crbm, gsl_matrix* input, gsl_matrix* input_history, doubl
 //   param learning_rate   : learning rate used for training the CRBM
 //   param momentum        : momentum weight used for training the CRBM
 //   param delay           : number of observations in history window
+//   param init_A          : initial A weights for the CRBM (can be NULL)
+//   param init_B          : initial B weights for the CRBM (can be NULL)
+//   param init_W          : initial W weights for the CRBM (can be NULL)
+//   param init_hbias      : initial hbias weights for the CRBM (can be NULL)
+//   param init_vbias      : initial vbias weights for the CRBM (can be NULL)
 void train_crbm (CRBM* crbm, gsl_matrix* batchdata, int* seqlen, int nseq,
 		int nrow, int ncol, int batch_size, int n_hidden,
 		int training_epochs, double learning_rate, double momentum,
-		int delay, int rand_seed)
+		int delay, int rand_seed, gsl_matrix* init_A, gsl_matrix* init_B,
+		gsl_matrix* init_W, gsl_vector* init_hbias, gsl_vector* init_vbias)
 {
 	srand(rand_seed);
 
@@ -277,7 +283,7 @@ void train_crbm (CRBM* crbm, gsl_matrix* batchdata, int* seqlen, int nseq,
 	int n_visible = ncol;
 
 	// construct RBM
-	create_CRBM (crbm, nrow, n_visible, n_hidden, delay, batch_size, NULL, NULL, NULL, NULL, NULL);
+	create_CRBM (crbm, nrow, n_visible, n_hidden, delay, batch_size, init_A, init_B, init_W, init_hbias, init_vbias);
 
 	// go through the training epochs and training set
 	double mean_cost;
@@ -543,7 +549,7 @@ int main (void)
 
 	// Perform Training
 	CRBM crbm;
-	train_crbm (&crbm, train_X_p, seq_len_p, nseq, nrow, ncol, basi, nhid, trep, lera, mome, dely, rase);
+	train_crbm (&crbm, train_X_p, seq_len_p, nseq, nrow, ncol, basi, nhid, trep, lera, mome, dely, rase, NULL, NULL, NULL, NULL, NULL);
 
 	printf("Training Finished\n");
 

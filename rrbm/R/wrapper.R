@@ -12,6 +12,7 @@
 #' @param learning_rate The learning rate for training. Default = 0.01.
 #' @param momentum The momentum for training. Default = 0.8.
 #' @param rand_seed Random seed. Default = 1234.
+#' @param init_rbm Initial values for RBM from a trained one. Default = NULL.
 #' @keywords RBM
 #' @export
 #' @examples
@@ -22,6 +23,7 @@
 #'                      0, 0, 1, 0, 1, 0,
 #'                      0, 0, 1, 1, 1, 0), c(6, 6)));
 #' rbm1 <- train.rbm(train_X);
+#' rbm1_update <- train.rbm(train_X, init_rbm = rbm1);
 #' 
 #' # The MNIST example
 #' data(mnist)
@@ -32,7 +34,7 @@
 #'                        batch_size = 10, momentum = 0.5);
 train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 			training_epochs = 1000, learning_rate = 0.01,
-			momentum = 0.8, rand_seed = 1234)
+			momentum = 0.8, rand_seed = 1234, init_rbm = NULL)
 {
 	if ("integer" %in% class(dataset[1,1]))
 	{
@@ -40,13 +42,36 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
 
+	if (!is.null(init_rbm))
+	{
+		if (!"rbm" %in% class(init_rbm))
+		{
+			message("input object is not an RBM");
+			return(NULL);
+		}
 
-	retval <- .Call("_C_RBM_train", as.matrix(dataset),
-		as.integer(batch_size),	as.integer(n_hidden),
-		as.integer(training_epochs), as.double(learning_rate),
-		as.double(momentum), as.integer(rand_seed),
-		PACKAGE = "rrbm");
-
+		if (dim(init_rbm$W) != c(ncol(dataset), n_hidden) ||
+			length(init_rbm$hbias) != n_hidden ||
+			length(init_rbm$vbias) != ncol(dataset))
+		{
+			message("Dimensions of initial RBM do not match");
+			return(NULL);
+		}
+		
+		retval <- .Call("_C_RBM_update", as.matrix(dataset),
+			as.integer(batch_size),	as.integer(n_hidden),
+			as.integer(training_epochs), as.double(learning_rate),
+			as.double(momentum), as.integer(rand_seed),
+			as.matrix(init_rbm$W), as.numeric(init_rbm$hbias),
+			as.numeric(init_rbm$vbias),
+			PACKAGE = "rrbm");
+	} else {	
+		retval <- .Call("_C_RBM_train", as.matrix(dataset),
+			as.integer(batch_size),	as.integer(n_hidden),
+			as.integer(training_epochs), as.double(learning_rate),
+			as.double(momentum), as.integer(rand_seed),
+			PACKAGE = "rrbm");
+	}
 	class(retval) <- c("rbm", class(retval));
 
 	retval;
@@ -106,6 +131,7 @@ predict.rbm <- function (rbm, newdata)
 #' @param learning_rate The learning rate for training. Default = 0.01.
 #' @param momentum The momentum for training. Default = 0.8.
 #' @param rand_seed Random seed. Default = 1234.
+#' @param init_crbm Initial values for CRBM from a trained one. Default = NULL.
 #' @keywords CRBM, RBM
 #' @export
 #' @examples
@@ -120,8 +146,10 @@ predict.rbm <- function (rbm, newdata)
 #'                      0, 0, 0, 0, 1, 0,
 #'                      0, 0, 0, 1, 1, 0,
 #'                      0, 1, 1, 0, 1, 0,
-#'                      1, 0, 1, 1, 1, 0), c(12, 6)));
+#'                      1, 0, 1, 1, 1, 0), c(6, 12)));
 #' crbm1 <- train.crbm(train_X, seqlen = c(6, 6), delay = 2);
+#' crbm1_update <- train.crbm(train_X, seqlen = c(6, 6), delay = 2,
+#'                            init_crbm = crbm1);
 #'
 #' ## Motion (fragment) Example
 #' data(motionfrag)
@@ -132,7 +160,7 @@ predict.rbm <- function (rbm, newdata)
 #'                          momentum = 0.5, rand_seed = 1234);
 train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6,
 			training_epochs = 1000, learning_rate = 0.01,
-			momentum = 0.8, rand_seed = 1234)
+			momentum = 0.8, rand_seed = 1234, init_crbm = NULL)
 {
 	if ("integer" %in% class(dataset[1,1]))
 	{
@@ -140,12 +168,47 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
 
-	retval <- .Call("_C_CRBM_train", as.matrix(dataset), as.integer(seqlen),
-		as.integer(length(seqlen)), as.integer(batch_size),
-		as.integer(n_hidden), as.integer(training_epochs),
-		as.double(learning_rate), as.double(momentum), as.integer(delay),
-		as.integer(rand_seed),
-		PACKAGE = "rrbm");
+	if (sum(as.integer(seqlen)) != nrow(dataset))
+	{
+		message("Sequence Lenght vector does not sum the total Dataset Rows");
+		return(NULL);
+	}
+
+	if (!is.null(init_crbm))
+	{
+		if (!"crbm" %in% class(init_crbm))
+		{
+			message("input object is not a CRBM");
+			return(NULL);
+		}
+
+		if (dim(init_crbm$W) != c(ncol(dataset), n_hidden) ||
+			dim(init_crbm$B) != c(ncol(dataset) * delay, n_hidden) ||
+			dim(init_crbm$A) != c(ncol(dataset) * delay, ncol(dataset)) ||
+			length(init_crbm$hbias) != n_hidden ||
+			length(init_crbm$vbias) != ncol(dataset) ||
+			init_crbm$delay != delay
+		)
+		{
+			message("Dimensions of initial CRBM do not match");
+			return(NULL);
+		}
+		
+		retval <- .Call("_C_CRBM_update", as.matrix(dataset), as.integer(seqlen),
+			as.integer(length(seqlen)), as.integer(batch_size),
+			as.integer(n_hidden), as.integer(training_epochs),
+			as.double(learning_rate), as.double(momentum), as.integer(delay),
+			as.integer(rand_seed), as.matrix(init_crbm$W), as.matrix(init_crbm$B),
+			as.matrix(init_crbm$A), as.numeric(init_crbm$hbias), as.numeric(init_crbm$vbias),
+			PACKAGE = "rrbm");
+	} else {
+		retval <- .Call("_C_CRBM_train", as.matrix(dataset), as.integer(seqlen),
+			as.integer(length(seqlen)), as.integer(batch_size),
+			as.integer(n_hidden), as.integer(training_epochs),
+			as.double(learning_rate), as.double(momentum), as.integer(delay),
+			as.integer(rand_seed),
+			PACKAGE = "rrbm");
+	}
 	class(retval) <- c("crbm", class(retval));
 
 	retval;
@@ -275,4 +338,3 @@ forecast.crbm <- function(crbm, sequence, n_samples = 1, n_gibbs = 30)
 		as.integer(crbm$delay), as.integer(n_samples), as.integer(n_gibbs),
 		PACKAGE = "rrbm");
 }
-

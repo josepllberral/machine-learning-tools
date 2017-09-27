@@ -6,7 +6,7 @@
 \usage{
 train.crbm(dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6,
   training_epochs = 1000, learning_rate = 0.01, momentum = 0.8,
-  rand_seed = 1234)
+  rand_seed = 1234, init_crbm = NULL)
 }
 \arguments{
 \item{dataset}{A matrix with data, one example per row.}
@@ -26,6 +26,8 @@ train.crbm(dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6,
 \item{momentum}{The momentum for training. Default = 0.8.}
 
 \item{rand_seed}{Random seed. Default = 1234.}
+
+\item{init_crbm}{Initial values for CRBM from a trained one. Default = NULL.}
 }
 \description{
 This function trains a CRBM. Returns a CRBM in list form
@@ -42,8 +44,10 @@ train_X <- t(array(c(1, 1, 1, 0, 0, 0, # Sequence 1
                      0, 0, 0, 0, 1, 0,
                      0, 0, 0, 1, 1, 0,
                      0, 1, 1, 0, 1, 0,
-                     1, 0, 1, 1, 1, 0), c(12, 6)));
+                     1, 0, 1, 1, 1, 0), c(6, 12)));
 crbm1 <- train.crbm(train_X, seqlen = c(6, 6), delay = 2);
+crbm1_update <- train.crbm(train_X, seqlen = c(6, 6), delay = 2,
+                           init_crbm = crbm1);
 
 ## Motion (fragment) Example
 data(motionfrag)

@@ -5,7 +5,8 @@
 \title{Training a Restricted Boltzmann Machine Function}
 \usage{
 train.rbm(dataset, batch_size = 1, n_hidden = 3, training_epochs = 1000,
-  learning_rate = 0.01, momentum = 0.8, rand_seed = 1234)
+  learning_rate = 0.01, momentum = 0.8, rand_seed = 1234,
+  init_rbm = NULL)
 }
 \arguments{
 \item{dataset}{A matrix with data, one example per row.}
@@ -21,6 +22,8 @@ train.rbm(dataset, batch_size = 1, n_hidden = 3, training_epochs = 1000,
 \item{momentum}{The momentum for training. Default = 0.8.}
 
 \item{rand_seed}{Random seed. Default = 1234.}
+
+\item{init_rbm}{Initial values for RBM from a trained one. Default = NULL.}
 }
 \description{
 This function trains a RBM. Returns a RBM in list form
@@ -33,6 +36,7 @@ train_X <- t(array(c(1, 1, 1, 0, 0, 0,
                      0, 0, 1, 0, 1, 0,
                      0, 0, 1, 1, 1, 0), c(6, 6)));
 rbm1 <- train.rbm(train_X);
+rbm1_update <- train.rbm(train_X, init_rbm = rbm1);
 
 # The MNIST example
 data(mnist)

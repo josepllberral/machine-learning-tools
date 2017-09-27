@@ -133,7 +133,7 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
 ##  param batch_size: size of a batch used to train the RBM
 train_rbm <- train.rbm <- function (dataset, batch_size = 100, n_hidden = 100,
 	training_epochs = 300, learning_rate = 1e-4, momentum = 0.5,
-	rand_seed = 1234)
+	rand_seed = 1234, init_W = NULL, init_hbias = NULL, init_vbias = NULL)
 {
     set.seed(rand_seed);
 
@@ -144,7 +144,8 @@ train_rbm <- train.rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     permindex <- sample(1:nrow(dataset),nrow(dataset));
 
     # construct the RBM object
-    rbm <- create_rbm(n_visible = n_dim, n_hidden = n_hidden, batch_size = batch_size);
+    rbm <- create_rbm(n_visible = n_dim, n_hidden = n_hidden, batch_size = batch_size,
+			W = init_W, hbias = init_hbias, vbias = init_vbias);
 
     start_time <- Sys.time();
  
