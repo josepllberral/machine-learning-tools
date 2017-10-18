@@ -36,6 +36,19 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 			training_epochs = 1000, learning_rate = 0.01,
 			momentum = 0.8, rand_seed = 1234, init_rbm = NULL)
 {
+	if (is.null(dataset))
+	{
+		message("The input dataset is NULL");
+		return(NULL);
+	}
+	
+	if (is.null(batch_size) || is.null(n_hidden) || is.null(training_epochs)
+	|| is.null(learning_rate) || is.null(momentum) || is.null(rand_seed))
+	{
+		message("Some mandatory parameters are NULL");
+		return(NULL);
+	}
+
 	if ("integer" %in% class(dataset[1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");
@@ -162,6 +175,20 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 			training_epochs = 1000, learning_rate = 0.01,
 			momentum = 0.8, rand_seed = 1234, init_crbm = NULL)
 {
+	if (is.null(dataset) || is.null(seqlen))
+	{
+		message("The input dataset or seqlen are NULL");
+		return(NULL);
+	}
+	
+	if (is.null(batch_size) || is.null(n_hidden) || is.null(training_epochs)
+	|| is.null(learning_rate) || is.null(momentum) || is.null(rand_seed)
+	|| is.null(delay))
+	{
+		message("Some mandatory parameters are NULL");
+		return(NULL);
+	}
+
 	if ("integer" %in% class(dataset[1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");

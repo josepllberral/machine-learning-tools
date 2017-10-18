@@ -396,6 +396,19 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 			training_epochs = 10, learning_rate = 1e-3,
 			momentum = 0.8, rand_seed = 1234)
 {
+	if (is.null(dataset) || is.null(targets) || is.null(layers))
+	{
+		message("The input dataset, targets or layers are NULL");
+		return(NULL);
+	}
+	
+	if (is.null(batch_size) || is.null(training_epochs)
+	|| is.null(learning_rate) || is.null(momentum) | is.null(rand_seed))
+	{
+		message("Some mandatory parameters are NULL");
+		return(NULL);
+	}
+
 	if ("integer" %in% class(dataset[1,1,1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");
@@ -609,6 +622,19 @@ train.mlp <- function (dataset, targets, layers,  batch_size = 10,
 			training_epochs = 10, learning_rate = 1e-3,
 			momentum = 0.8, rand_seed = 1234)
 {
+	if (is.null(dataset) || is.null(targets) || is.null(layers))
+	{
+		message("The input dataset, targets or layers are NULL");
+		return(NULL);
+	}
+	
+	if (is.null(batch_size) || is.null(training_epochs)
+	|| is.null(learning_rate) || is.null(momentum) | is.null(rand_seed))
+	{
+		message("Some mandatory parameters are NULL");
+		return(NULL);
+	}
+	
 	if ("integer" %in% class(dataset[1,1]))
 	{
 		message("Input matrix is Integer: Coercing to Numeric.");
