@@ -452,6 +452,7 @@ gsl_vector* sample_fn(CRBM* crbm, int n_gibbs, gsl_vector** vis_sample, gsl_matr
 	gsl_matrix_free(nh_sample);
 	gsl_matrix_free(nv_means);
 	gsl_matrix_free(nv_sample);
+	gsl_matrix_free(v_hist);
 
 	return retval;
 }
@@ -478,7 +479,11 @@ gsl_matrix* generate_samples(CRBM* crbm, gsl_matrix* sequence, int n_samples, in
 
 	gsl_matrix* generated_series = gsl_matrix_calloc(n_samples, crbm->n_visible);
 	for (int t = 0; t < n_samples; t++)
-		gsl_matrix_set_row(generated_series, t, sample_fn(crbm, n_gibbs, &p_vis_chain, &p_history));
+	{
+		gsl_vector* aux = sample_fn(crbm, n_gibbs, &p_vis_chain, &p_history);
+		gsl_matrix_set_row(generated_series, t, aux);
+		gsl_vector_free(aux);
+	}
 
 	gsl_vector_free(p_vis_chain);
 	gsl_matrix_free(p_history);

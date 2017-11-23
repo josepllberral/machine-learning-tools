@@ -319,6 +319,12 @@ void reassemble_CRBM (CRBM* crbm, SEXP W_input, SEXP B_input, SEXP A_input,
 		gsl_vector_set(vbias, i, RVECTOR(vbias_input, i));
 
 	create_CRBM (crbm, 0, nvis, nhid, dely, 1, A, B, W, hbias, vbias);
+	
+	gsl_matrix_free(A);
+	gsl_matrix_free(B);
+	gsl_matrix_free(W);
+	gsl_vector_free(hbias);
+	gsl_vector_free(vbias);
 }
 
 // Interface for Predicting and Reconstructing using a CRBM

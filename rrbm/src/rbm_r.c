@@ -221,6 +221,10 @@ void reassemble_RBM (RBM* rbm, SEXP W_input, SEXP hbias_input, SEXP vbias_input,
 		gsl_vector_set(vbias, i, RVECTOR(vbias_input, i));
 
 	create_RBM (rbm, 0, nvis, nhid, 1, W, hbias, vbias);
+	
+	gsl_matrix_free(W);
+	gsl_vector_free(hbias);
+	gsl_vector_free(vbias);
 }
 
 // Interface for Predicting and Reconstructing using an RBM

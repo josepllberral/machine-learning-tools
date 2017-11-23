@@ -1,6 +1,6 @@
 Package: rrbm
 Title: Restricted Boltzmann Machines for R (including Constrained RBMs)
-Version: 0.0.3.0001
+Version: 0.0.3.0002
 Authors@R: person("Josep Ll.", "Berral", email = "josep.berral@bsc.es", role = c("aut", "cre"))
 Author: Josep Ll. Berral
 Maintainer: Josep Ll. Berral <josep.berral@bsc.es>
