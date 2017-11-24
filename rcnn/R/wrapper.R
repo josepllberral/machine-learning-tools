@@ -415,11 +415,15 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 		dataset <- 1.0 * dataset;
 	}
 
+# TODO - Change check_layers by descriptor through names
+
 	if (!check_layers(layers, dataset, targets, batch_size))
 	{
 		message("Network does not match with data dimensions");
 		return(NULL);
 	}
+
+# TODO - Rearrange layers descriptor through name
 
 	retval <- .Call("_C_CNN_train", as.array(dataset), as.matrix(targets),
 		as.list(layers), as.integer(length(layers)), as.integer(batch_size),

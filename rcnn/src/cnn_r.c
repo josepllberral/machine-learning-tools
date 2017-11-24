@@ -622,7 +622,7 @@ SEXP getListElement(SEXP list, const char *str)
 	return elmt;
 }
 
-// Function to Re-assemble the CNN
+// Function to Re-assemble the CNN or MLP
 LAYER* reassemble_CNN (SEXP layers, int num_layers)
 {
 	LAYER* pipeline = (LAYER*) malloc(num_layers * sizeof(LAYER));
@@ -926,7 +926,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Build the Layers pipeline
 	LAYER* pipeline = build_pipeline(layers, nlays);
 
-	// Train a CNN
+	// Train a MLP
 	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the MLP
@@ -994,7 +994,7 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 
  	int nlay = INTEGER_VALUE(num_layers);
 
-	// Re-assemble the CNN (build pipeline)
+	// Re-assemble the MLP (build pipeline)
 	LAYER* pipeline = reassemble_CNN(layers, nlay);
 
 	// Prepare Test Dataset
@@ -1003,7 +1003,7 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 		for (int c = 0; c < ncols; c++)
 			gsl_matrix_set(test_X, r, c, RMATRIX(newdata, r, c));
 
-	// Pass through CNN
+	// Pass through MLP
 	gsl_matrix* predictions = prediction_mlp (test_X, pipeline, nlay);
 	int nouts = (int) predictions->size2;
 
@@ -1013,7 +1013,7 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 		for (int j = 0; j < nouts; j++)
 			REAL(retval)[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
 
-	// Free the structures and the CNN
+	// Free the structures and the MLP
 	free_pipeline (pipeline, nlay);
 
 	gsl_matrix_free(test_X);
