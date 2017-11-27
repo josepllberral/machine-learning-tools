@@ -505,9 +505,9 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 		}
 
 		retval <- .Call("_C_CNN_train", as.array(dataset), as.matrix(targets),
-		as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
-		as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
-		as.integer(rand_seed), PACKAGE = "rcnn");
+			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
+			as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
+			as.integer(rand_seed), PACKAGE = "rcnn");
 
 	} else if (length(dim(dataset)) == 2)
 	{
@@ -624,13 +624,13 @@ predict.cnn <- function (cnn, newdata)
 			newdata <- t(apply(newdata, 1, as.numeric));
 		}
 
-		retval <- .Call("_C_MLP_predict", as.matrix(newdata), as.list(mlp$layers),
-			  as.integer(length(mlp$layers)), PACKAGE = "rcnn");
+		retval <- .Call("_C_MLP_predict", as.matrix(newdata), as.list(cnn$layers),
+			  as.integer(length(cnn$layers)), PACKAGE = "rcnn");
 	} else
 	{
 		message("Error on Input dimensions: Must be a a (Samples x Features) 2D matrix or a (Samples x Image) 4D array");
 		return(NULL);
 	}
-	
-	retval;
+
+	list(score = retval, class = max.col(retval));
 }

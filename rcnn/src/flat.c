@@ -52,14 +52,12 @@ gsl_matrix*** backward_flat (FLAT* flat, gsl_matrix* dy)
 				int idx = p + (flat->img_h * flat->img_w) * c;
 				double value = gsl_matrix_get(dy, b, idx);
 
-				int p_x = p / flat->img_h;
-				int p_y = p % flat->img_h;
-
+				int p_x = p % flat->img_h;
+				int p_y = p / flat->img_h;
 				gsl_matrix_set(out[b][c], p_x, p_y, value);
 			}
 		}
 	}
-
 	return out;
 }
 
