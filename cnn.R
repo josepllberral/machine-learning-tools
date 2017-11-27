@@ -1,6 +1,6 @@
-###############################################################################
-# CONVOLUTIONAL NEURAL NETWORKS in R                                          #
-###############################################################################
+################################################################################
+# CONVOLUTIONAL NEURAL NETWORKS in R                                           #
+################################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
@@ -22,9 +22,9 @@ library("compiler")
 ## Functions for checking gradient correctness
 source("grad_check.R");
 
-###############################################################################
-# AUXILIAR FUNCTIONS                                                          #
-###############################################################################
+################################################################################
+# AUXILIAR FUNCTIONS                                                           #
+################################################################################
 
 ## Function to produce Normal Samples
 sample_normal <- function(dims, mean = 0, sd = 1)
@@ -179,6 +179,10 @@ binarization <- function(vec)
 	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
 	result;
 }
+
+################################################################################
+# ARCHITECTURE FUNCTIONS                                                       #
+################################################################################
 
 ## Network Descriptor Checker
 ##  param layers : descriptor of Layers
@@ -375,9 +379,9 @@ compose_layers <- function(descriptor)
 	layers;
 }
 
-###############################################################################
-# CONVOLUTIONAL LAYERS                                                        #
-###############################################################################
+################################################################################
+# CONVOLUTIONAL LAYERS                                                         #
+################################################################################
 
 ## Performs the convolution
 ##	param imgs: <batch_size, img_n_channels, img_height, img_width>
@@ -531,9 +535,9 @@ main_conv <- function()
 	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
-###############################################################################
-# POOLING LAYERS                                                              #
-###############################################################################
+################################################################################
+# POOLING LAYERS                                                               #
+################################################################################
 
 ## Forwards a Pooling Matrix (4D) from a Convolutional Matrix (4D)
 ##	param x :	Array of shape (batch_size, n_channels, img_height, img_width)
@@ -635,9 +639,9 @@ main_pool <- function()
 	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
-###############################################################################
-# FLATTENING LAYERS                                                           #
-###############################################################################
+################################################################################
+# FLATTENING LAYERS                                                            #
+################################################################################
 
 ## Creates a Flat Vector (2D) from a Convolutional Matrix (4D)
 ##	param x :	Array of shape (batch_size, n_channels, img_height, img_width)
@@ -693,9 +697,9 @@ main_flat <- function()
 	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
-###############################################################################
-# RELU ACTIVATION LAYER                                                       #
-###############################################################################
+################################################################################
+# RELU ACTIVATION LAYER                                                        #
+################################################################################
 
 ## Forwards x by setting max_0
 ##	param x :	Array
@@ -732,9 +736,9 @@ create_relu <- function()
 		backward = backward_relu, get_updates = get_updates_relu);
 }
 
-###############################################################################
-# LINEAR LAYER                                                                #
-###############################################################################
+################################################################################
+# LINEAR LAYER                                                                 #
+################################################################################
 
 ## Forward for a linear layer
 ##	param x :	Numeric vector <n_visible>
@@ -798,9 +802,9 @@ main_line <- function()
 	if (ok)	print('Gradient check passed') else print('Gradient check failed');
 }
 
-###############################################################################
-# SOFTMAX LAYER                                                               #
-###############################################################################
+################################################################################
+# SOFTMAX LAYER                                                                #
+################################################################################
 
 ## Forward through a softmax function
 ##	param x :	Numeric vector <n_visible>
@@ -835,9 +839,9 @@ create_soft <- function()
 		backward = backward_soft, get_updates = get_updates_soft);
 }
 
-###############################################################################
-# SIGMOID LAYER                                                               #
-###############################################################################
+################################################################################
+# SIGMOID LAYER                                                                #
+################################################################################
 
 ## Forward through a sigmoid function
 ##	param x :	Numeric vector <n_visible>
@@ -872,9 +876,9 @@ create_sigm <- function()
 		backward = backward_sigm, get_updates = get_updates_sigm);
 }
 
-###############################################################################
-# CROSS-ENTROPY LOSS LAYER                                                    #
-###############################################################################
+################################################################################
+# CROSS-ENTROPY LOSS LAYER                                                     #
+################################################################################
 
 ## Computes the cross-entriopy for input and labels
 ##	param x :	Numeric vector
@@ -910,9 +914,9 @@ create_cell <- function()
 		backward = backward_cell, get_updates = get_updates_cell);
 }
 
-###############################################################################
-# HOW TO TRAIN YOUR CNN                                                       #
-###############################################################################
+################################################################################
+# HOW TO TRAIN YOUR CNN                                                        #
+################################################################################
 
 ## Function to train the CNN
 ##  param training_x      : loaded dataset (rows = examples, cols = [channels x img_h x img_w|features])
@@ -1008,9 +1012,9 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers,
 	list(layers = layers, loss_layer = loss_layer, loss = mean(acc_loss));
 }
 
-###############################################################################
-# PREDICTING VALUES                                                           #
-###############################################################################
+################################################################################
+# PREDICTING VALUES                                                            #
+################################################################################
 
 ## Produce a prediction for new data.
 ##  param cnn     : a trained neural network
@@ -1034,9 +1038,9 @@ predict_cnn <- predict.cnn <- function(cnn, dataset)
 	list(score = score, class = max.col(score));
 }
 
-###############################################################################
-# EXPERIMENTS: THE MNIST EXAMPLE                                              #
-###############################################################################
+################################################################################
+# EXPERIMENTS: THE MNIST EXAMPLE                                               #
+################################################################################
 
 # Load the MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
 # into R. Assume you have all 4 files and gunzip'd them creates train$n,
