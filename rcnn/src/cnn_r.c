@@ -21,7 +21,7 @@
 #define RVECTOR(v,i) (REAL(v)[(i)])
 #define RVECTORI(v,i) (INTEGER(v)[(i)])
 
-LAYER* build_pipeline (SEXP layers, int nlays)
+LAYER* build_pipeline (SEXP layers, int nlays, int batch_size)
 {
 	LAYER* retval = (LAYER*) malloc(nlays * sizeof(LAYER));
 	for (int i = 0; i < nlays; i++)
@@ -36,9 +36,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			int fsize_conv = atoi(CHAR(STRING_ELT(laux, 3))); // filter_size
 			double scale_conv = atof(CHAR(STRING_ELT(laux, 4))); // scale
 			int bmode_conv = atoi(CHAR(STRING_ELT(laux, 5))); // border_mode
-			int bsize_conv = atoi(CHAR(STRING_ELT(laux, 6))); // batch_size
 
-			create_CONV(conv, nchan_conv, nfilt_conv, fsize_conv, scale_conv, bmode_conv, bsize_conv);
+			create_CONV(conv, nchan_conv, nfilt_conv, fsize_conv, scale_conv, bmode_conv, batch_size);
 			retval[i].type = 1; retval[i].layer = (void*) conv;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "POOL") == 0)
@@ -47,11 +46,10 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 
 			int nchan_pool = atoi(CHAR(STRING_ELT(laux, 1))); // n_channels
 			double scale_pool = atof(CHAR(STRING_ELT(laux, 2))); // scale
-			int bsize_pool = atoi(CHAR(STRING_ELT(laux, 3))); // batch_size
-			int wsize_pool = atoi(CHAR(STRING_ELT(laux, 4))); // win_size
-			int strid_pool = atoi(CHAR(STRING_ELT(laux, 5))); // stride
+			int wsize_pool = atoi(CHAR(STRING_ELT(laux, 3))); // win_size
+			int strid_pool = atoi(CHAR(STRING_ELT(laux, 4))); // stride
 
-			create_POOL(pool, nchan_pool, scale_pool, bsize_pool, wsize_pool, strid_pool);
+			create_POOL(pool, nchan_pool, scale_pool, batch_size, wsize_pool, strid_pool);
 			retval[i].type = 2; retval[i].layer = (void*) pool;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "RELU") == 0)
@@ -59,9 +57,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			RELU* relu = (RELU*) malloc(sizeof(RELU));
 
 			int nchan_relu = atoi(CHAR(STRING_ELT(laux, 1))); // n_channels
-			int bsize_relu = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_RELU(relu, nchan_relu, bsize_relu);
+			create_RELU(relu, nchan_relu, batch_size);
 			retval[i].type = 3; retval[i].layer = (void*) relu;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "FLAT") == 0)
@@ -69,9 +66,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			FLAT* flat = (FLAT*) malloc(sizeof(FLAT));
 
 			int nchan_flat = atoi(CHAR(STRING_ELT(laux, 1))); // n_channels
-			int bsize_flat = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_FLAT(flat, nchan_flat, bsize_flat);
+			create_FLAT(flat, nchan_flat, batch_size);
 			retval[i].type = 4; retval[i].layer = (void*) flat;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "LINE") == 0)
@@ -81,9 +77,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			int nvis_line = atoi(CHAR(STRING_ELT(laux, 1))); // n_visible
 			int nhid_line = atoi(CHAR(STRING_ELT(laux, 2))); // n_visible
 			double scale_line = atof(CHAR(STRING_ELT(laux, 3))); // scale
-			int bsize_line = atoi(CHAR(STRING_ELT(laux, 4))); // batch_size
 
-			create_LINE(line, nvis_line, nhid_line, scale_line, bsize_line);
+			create_LINE(line, nvis_line, nhid_line, scale_line, batch_size);
 			retval[i].type = 5; retval[i].layer = (void*) line;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "SOFT") == 0)
@@ -91,18 +86,15 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			SOFT* soft = (SOFT*) malloc(sizeof(SOFT));
 
 			int nunits_soft = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
-			int bsize_soft = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_SOFT(soft, nunits_soft, bsize_soft);
+			create_SOFT(soft, nunits_soft, batch_size);
 			retval[i].type = 6; retval[i].layer = (void*) soft;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "RELV") == 0)
 		{
 			RELV* relv = (RELV*) malloc(sizeof(RELV));
 
-			int bsize_relv = atoi(CHAR(STRING_ELT(laux, 1))); // batch_size
-
-			create_RELV(relv, bsize_relv);
+			create_RELV(relv, batch_size);
 			retval[i].type = 8; retval[i].layer = (void*) relv;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "SIGM") == 0)
@@ -110,9 +102,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			SIGM* sigm = (SIGM*) malloc(sizeof(SIGM));
 
 			int nunits_sigm = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
-			int bsize_sigm = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_SIGM(sigm, nunits_sigm, bsize_sigm);
+			create_SIGM(sigm, nunits_sigm, batch_size);
 			retval[i].type = 9; retval[i].layer = (void*) sigm;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "DIRE") == 0)
@@ -120,9 +111,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			DIRE* dire = (DIRE*) malloc(sizeof(DIRE));
 
 			int nunits_dire = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
-			int bsize_dire = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_DIRE(dire, nunits_dire, bsize_dire);
+			create_DIRE(dire, nunits_dire, batch_size);
 			retval[i].type = 11; retval[i].layer = (void*) dire;
 		}
 		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "TANH") == 0)
@@ -130,9 +120,8 @@ LAYER* build_pipeline (SEXP layers, int nlays)
 			TANH* tanh = (TANH*) malloc(sizeof(TANH));
 
 			int nunits_tanh = atoi(CHAR(STRING_ELT(laux, 1))); // n_units
-			int bsize_tanh = atoi(CHAR(STRING_ELT(laux, 2))); // batch_size
 
-			create_TANH(tanh, nunits_tanh, bsize_tanh);
+			create_TANH(tanh, nunits_tanh, batch_size);
 			retval[i].type = 12; retval[i].layer = (void*) tanh;
 		}
 	}
@@ -166,37 +155,34 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			CONV* aux = (CONV*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 11));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 10));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("CONV"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->filter_size;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->filter_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_filters;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->n_filters;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->n_channels;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[0] = aux->n_channels;
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocVector(INTSXP, 2));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[0] = aux->pad_y;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[1] = aux->pad_x;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5, allocVector(INTSXP, 2));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[0] = aux->pad_y;
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[1] = aux->pad_x;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[0] = aux->win_h;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[1] = aux->win_w;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6, allocVector(INTSXP, 2));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[0] = aux->win_h;
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[1] = aux->win_w;
-
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6, allocVector(REALSXP, aux->n_filters));
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7, allocVector(REALSXP, aux->n_filters));
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8, allocVector(REALSXP, aux->n_filters));
 			for (int j = 0; j < aux->n_filters; j++)
 			{
-				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[j] = gsl_vector_get(aux->b, j);
-				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8))[j] = gsl_vector_get(aux->grad_b, j);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[j] = gsl_vector_get(aux->b, j);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[j] = gsl_vector_get(aux->grad_b, j);
 			}
 
 			SEXP dim;
@@ -206,32 +192,31 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 			INTEGER(dim)[2] = aux->filter_size;
 			INTEGER(dim)[3] = aux->filter_size;
 
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8, allocArray(REALSXP, dim));
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9, allocArray(REALSXP, dim));
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 10, allocArray(REALSXP, dim));
 			for (int f = 0; f < aux->n_filters; f++)
 				for (int c = 0; c < aux->n_channels; c++)
 					for (int h = 0; h < aux->filter_size; h++)
 						for (int w = 0; w < aux->filter_size; w++)
 						{
 							int idx = w + aux->filter_size * (h + aux->filter_size * (c + aux->n_channels * f));
-							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9))[idx] = gsl_matrix_get(aux->W[f][c], h, w); //CHECK!
-							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 10))[idx] = gsl_matrix_get(aux->grad_W[f][c], h, w); //CHECK!
+							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8))[idx] = gsl_matrix_get(aux->W[f][c], h, w); //CHECK!
+							REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9))[idx] = gsl_matrix_get(aux->grad_W[f][c], h, w); //CHECK!
 						}
 
 			UNPROTECT(1);
 
-			SEXP naux = PROTECT(allocVector(STRSXP, 11));
+			SEXP naux = PROTECT(allocVector(STRSXP, 10));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("filter_size"));
-			SET_STRING_ELT(naux, 3, mkChar("n_filters"));
-			SET_STRING_ELT(naux, 4, mkChar("n_channels"));
-			SET_STRING_ELT(naux, 5, mkChar("padding"));
-			SET_STRING_ELT(naux, 6, mkChar("win_size"));
-			SET_STRING_ELT(naux, 7, mkChar("b"));
-			SET_STRING_ELT(naux, 8, mkChar("grad_b"));
-			SET_STRING_ELT(naux, 9, mkChar("W"));
-			SET_STRING_ELT(naux, 10, mkChar("grad_W"));
+			SET_STRING_ELT(naux, 1, mkChar("filter_size"));
+			SET_STRING_ELT(naux, 2, mkChar("n_filters"));
+			SET_STRING_ELT(naux, 3, mkChar("n_channels"));
+			SET_STRING_ELT(naux, 4, mkChar("padding"));
+			SET_STRING_ELT(naux, 5, mkChar("win_size"));
+			SET_STRING_ELT(naux, 6, mkChar("b"));
+			SET_STRING_ELT(naux, 7, mkChar("grad_b"));
+			SET_STRING_ELT(naux, 8, mkChar("W"));
+			SET_STRING_ELT(naux, 9, mkChar("grad_W"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);
 		}
@@ -239,33 +224,29 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			POOL* aux = (POOL*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 6));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 5));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("POOL"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_channels;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_channels;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->win_size;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->win_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->stride;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[0] = aux->stride;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[0] = aux->padding;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[0] = aux->padding;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 6));
+			SEXP naux = PROTECT(allocVector(STRSXP, 5));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_channels"));
-			SET_STRING_ELT(naux, 3, mkChar("win_size"));
-			SET_STRING_ELT(naux, 4, mkChar("stride"));
-			SET_STRING_ELT(naux, 5, mkChar("padding"));
+			SET_STRING_ELT(naux, 1, mkChar("n_channels"));
+			SET_STRING_ELT(naux, 2, mkChar("win_size"));
+			SET_STRING_ELT(naux, 3, mkChar("stride"));
+			SET_STRING_ELT(naux, 4, mkChar("padding"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -273,21 +254,17 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			RELU* aux = (RELU*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("RELU"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_channels;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_channels;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 3));
+			SEXP naux = PROTECT(allocVector(STRSXP, 2));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_channels"));
+			SET_STRING_ELT(naux, 1, mkChar("n_channels"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -295,26 +272,22 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			FLAT* aux = (FLAT*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 4));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("FLAT"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_channels;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_channels;
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 2));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->img_h;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[1] = aux->img_w;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(INTSXP, 2));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->img_h;
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[1] = aux->img_w;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 4));
+			SEXP naux = PROTECT(allocVector(STRSXP, 3));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_channels"));
-			SET_STRING_ELT(naux, 3, mkChar("img_dims"));
+			SET_STRING_ELT(naux, 1, mkChar("n_channels"));
+			SET_STRING_ELT(naux, 2, mkChar("img_dims"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -322,44 +295,40 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			LINE* aux = (LINE*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 8));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 7));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("LINE"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_visible;
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_visible;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_hidden;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->n_hidden;
-
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(REALSXP, aux->n_hidden));
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocVector(REALSXP, aux->n_hidden));
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5, allocVector(REALSXP, aux->n_hidden));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5, allocMatrix(REALSXP, aux->n_hidden, aux->n_visible));
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6, allocMatrix(REALSXP, aux->n_hidden, aux->n_visible));
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7, allocMatrix(REALSXP, aux->n_hidden, aux->n_visible));
 			for (int j = 0; j < aux->n_hidden; j++)
 			{
 				for (int k = 0; k < aux->n_visible; k++)
 				{
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[k * aux->n_hidden + j] = gsl_matrix_get(aux->W, j, k); //CHECK!
-					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[k * aux->n_hidden + j] = gsl_matrix_get(aux->grad_W, j, k); //CHECK!
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[k * aux->n_hidden + j] = gsl_matrix_get(aux->W, j, k); //CHECK!
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[k * aux->n_hidden + j] = gsl_matrix_get(aux->grad_W, j, k); //CHECK!
 				}
-				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j] = gsl_vector_get(aux->b, j);
-				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[j] = gsl_vector_get(aux->grad_b, j);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[j] = gsl_vector_get(aux->b, j);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j] = gsl_vector_get(aux->grad_b, j);
 			}
 
-			SEXP naux = PROTECT(allocVector(STRSXP, 8));
+			SEXP naux = PROTECT(allocVector(STRSXP, 7));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_visible"));
-			SET_STRING_ELT(naux, 3, mkChar("n_hidden"));
-			SET_STRING_ELT(naux, 4, mkChar("b"));
-			SET_STRING_ELT(naux, 5, mkChar("grad_b"));
-			SET_STRING_ELT(naux, 6, mkChar("W"));
-			SET_STRING_ELT(naux, 7, mkChar("grad_W"));
+			SET_STRING_ELT(naux, 1, mkChar("n_visible"));
+			SET_STRING_ELT(naux, 2, mkChar("n_hidden"));
+			SET_STRING_ELT(naux, 3, mkChar("b"));
+			SET_STRING_ELT(naux, 4, mkChar("grad_b"));
+			SET_STRING_ELT(naux, 5, mkChar("W"));
+			SET_STRING_ELT(naux, 6, mkChar("grad_W"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -367,21 +336,17 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			SOFT* aux = (SOFT*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("SOFT"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_units;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_units;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 3));
+			SEXP naux = PROTECT(allocVector(STRSXP, 2));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_units"));
+			SET_STRING_ELT(naux, 1, mkChar("n_units"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -389,17 +354,13 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			RELV* aux = (RELV*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 1));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("RELV"));
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 2));
+			SEXP naux = PROTECT(allocVector(STRSXP, 1));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -407,21 +368,17 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			SIGM* aux = (SIGM*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("SIGM"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_units;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_units;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 3));
+			SEXP naux = PROTECT(allocVector(STRSXP, 2));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
-			SET_STRING_ELT(naux, 2, mkChar("n_units"));
+			SET_STRING_ELT(naux, 1, mkChar("n_units"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
@@ -462,20 +419,16 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 		{
 			TANH* aux = (TANH*) pipeline[i].layer;
 
-			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 3));
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
 			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("TANH"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->batch_size;
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_units;
 
-			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
-			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_units;
-
-			SEXP naux = PROTECT(allocVector(STRSXP, 3));
+			SEXP naux = PROTECT(allocVector(STRSXP, 2));
 			SET_STRING_ELT(naux, 0, mkChar("type"));
-			SET_STRING_ELT(naux, 1, mkChar("batch_size"));
 			SET_STRING_ELT(naux, 2, mkChar("n_units"));
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
@@ -538,13 +491,13 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	}
 
 	// Build the Layers pipeline
-	LAYER* pipeline = build_pipeline(layers, nlays);
+	LAYER* pipeline = build_pipeline(layers, nlays, basi);
 
 	// Train a CNN
 	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the CNN
-	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays);
+	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays, basi);
 	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
 
 	// Return Structure
@@ -623,7 +576,7 @@ SEXP getListElement(SEXP list, const char *str)
 }
 
 // Function to Re-assemble the CNN or MLP
-LAYER* reassemble_CNN (SEXP layers, int num_layers)
+LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 {
 	LAYER* pipeline = (LAYER*) malloc(num_layers * sizeof(LAYER));
 
@@ -634,7 +587,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			CONV* aux = (CONV*) malloc(sizeof(CONV));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->filter_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "filter_size"))[0];
 			aux->n_filters = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_filters"))[0];
 			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
@@ -689,7 +642,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			POOL* aux = (POOL*) malloc(sizeof(POOL));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
 			aux->win_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "win_size"))[0];
 			aux->stride = INTEGER(getListElement(VECTOR_ELT(layers, i), "stride"))[0];
@@ -710,7 +663,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			RELU* aux = (RELU*) malloc(sizeof(RELU));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
 
 			aux->img = (gsl_matrix***) malloc(aux->batch_size * sizeof(gsl_matrix**));
@@ -728,7 +681,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			FLAT* aux = (FLAT*) malloc(sizeof(FLAT));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_channels = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_channels"))[0];
 			aux->img_h = INTEGER(getListElement(VECTOR_ELT(layers, i), "img_dims"))[0];
 			aux->img_w = INTEGER(getListElement(VECTOR_ELT(layers, i), "img_dims"))[1];
@@ -739,8 +692,8 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		else if (strcmp(s, "LINE") == 0)
 		{
 			LINE* aux = (LINE*) malloc(sizeof(LINE));
-
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			
+			aux->batch_size = batch_size;
 			aux->n_visible = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_visible"))[0];
 			aux->n_hidden = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_hidden"))[0];
 
@@ -776,7 +729,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			SOFT* aux = (SOFT*) malloc(sizeof(SOFT));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
 
 			pipeline[i].type = 6;
@@ -786,8 +739,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			RELV* aux = (RELV*) malloc(sizeof(RELV));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
-
+			aux->batch_size = batch_size;
 			aux->img = gsl_matrix_calloc(1, 1);
 
 			pipeline[i].type = 8;
@@ -797,7 +749,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			SIGM* aux = (SIGM*) malloc(sizeof(SIGM));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
 
 			aux->a = gsl_matrix_calloc(aux->batch_size, aux->n_units);
@@ -809,7 +761,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			DIRE* aux = (DIRE*) malloc(sizeof(DIRE));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
 
 			aux->buff_x = gsl_matrix_calloc(aux->batch_size, aux->n_units);
@@ -822,7 +774,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers)
 		{
 			TANH* aux = (TANH*) malloc(sizeof(TANH));
 
-			aux->batch_size = INTEGER(getListElement(VECTOR_ELT(layers, i), "batch_size"))[0];
+			aux->batch_size = batch_size;
 			aux->n_units = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_units"))[0];
 
 			aux->a = gsl_matrix_calloc(aux->batch_size, aux->n_units);
@@ -850,8 +802,10 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 
  	int nlay = INTEGER_VALUE(num_layers);
 
+	int basi = min(100, nrows);
+
 	// Re-assemble the CNN (build pipeline)
-	LAYER* pipeline = reassemble_CNN(layers, nlay);
+	LAYER* pipeline = reassemble_CNN(layers, nlay, basi);
 
 	// Prepare Test Dataset
 	gsl_matrix*** test_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
@@ -868,7 +822,7 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 	}
 
 	// Pass through CNN
-	gsl_matrix* predictions = prediction_cnn (test_X, nrows, nchan, pipeline, nlay);
+	gsl_matrix* predictions = prediction_cnn (test_X, nrows, nchan, pipeline, nlay, basi);
 	int nouts = (int) predictions->size2;
 
 	// Prepare Results
@@ -924,13 +878,13 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	}
 
 	// Build the Layers pipeline
-	LAYER* pipeline = build_pipeline(layers, nlays);
+	LAYER* pipeline = build_pipeline(layers, nlays, basi);
 
 	// Train a MLP
 	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the MLP
-	gsl_matrix* predictions = prediction_mlp(train_X, pipeline, nlays);
+	gsl_matrix* predictions = prediction_mlp(train_X, pipeline, nlays, basi);
 	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
 
 	// Return Structure
@@ -993,9 +947,11 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
  	int ncols = INTEGER(GET_DIM(newdata))[1];
 
  	int nlay = INTEGER_VALUE(num_layers);
+ 	
+	int basi = min(100, nrows);
 
 	// Re-assemble the MLP (build pipeline)
-	LAYER* pipeline = reassemble_CNN(layers, nlay);
+	LAYER* pipeline = reassemble_CNN(layers, nlay, basi);
 
 	// Prepare Test Dataset
 	gsl_matrix* test_X = gsl_matrix_alloc(nrows, ncols);
@@ -1004,7 +960,7 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 			gsl_matrix_set(test_X, r, c, RMATRIX(newdata, r, c));
 
 	// Pass through MLP
-	gsl_matrix* predictions = prediction_mlp (test_X, pipeline, nlay);
+	gsl_matrix* predictions = prediction_mlp (test_X, pipeline, nlay, basi);
 	int nouts = (int) predictions->size2;
 
 	// Prepare Results

@@ -263,8 +263,8 @@ void get_updates (LAYER*, double);
 void update_batch_size (LAYER*, int);
 double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, int, int, double, double, int);
 double train_mlp (gsl_matrix*, gsl_matrix*, LAYER*, int, int, int, double, double, int);
-gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers);
-gsl_matrix* prediction_cnn (gsl_matrix***, int, int, LAYER*, int);
+gsl_matrix* prediction_mlp (gsl_matrix* , LAYER*, int, int);
+gsl_matrix* prediction_cnn (gsl_matrix***, int, int, LAYER*, int, int);
 double classification_accuracy (gsl_matrix*, gsl_matrix*);
 gsl_matrix* classification_matrix (gsl_matrix*, gsl_matrix*);
 

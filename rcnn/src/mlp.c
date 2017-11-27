@@ -116,12 +116,11 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 /*---------------------------------------------------------------------------*/
 
 // Function to predict the results of a matrix
-gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers)
+gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers, int batch_size)
 {
 	int num_samples = (int) testing_x->size1;
 	int num_columns = (int) testing_x->size2;
 
-	int batch_size = min(100, num_samples);
 	int num_batches = num_samples / batch_size;
 	if (num_samples % batch_size > 0) num_batches++;
 

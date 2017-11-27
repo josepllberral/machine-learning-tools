@@ -590,9 +590,8 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 // Function to predict the results of a matrix
 gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
-	int num_channels, LAYER* layers, int num_layers)
+	int num_channels, LAYER* layers, int num_layers, int batch_size)
 {
-	int batch_size = min(100, num_samples);
 	int num_batches = num_samples / batch_size;
 	if (num_samples % batch_size > 0) num_batches++;
 

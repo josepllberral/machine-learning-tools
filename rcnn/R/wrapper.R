@@ -249,25 +249,25 @@ compose_layers <- function(descriptor, batch_size)
 		aux <- descriptor[[i]];
 		if (aux['type'] == "CONV") {
 			if (aux['border_mode'] == 'same') { bm <- 2 } else { bm <- 1 } # FIXME
-			l <- c("CONV", aux['n_channels'], aux['n_filters'], aux['filter_size'], aux['scale'], bm, batch_size);
+			l <- c("CONV", aux['n_channels'], aux['n_filters'], aux['filter_size'], aux['scale'], bm);
 		} else if (aux['type'] == "POOL") {
-			l <- c("POOL", aux['n_channels'], aux['scale'], batch_size, aux['win_size'], aux['stride']);
+			l <- c("POOL", aux['n_channels'], aux['scale'], aux['win_size'], aux['stride']);
 		} else if (aux['type'] == "RELU") {
-			l <- c("RELU", aux['n_channels'], batch_size);
+			l <- c("RELU", aux['n_channels']);
 		} else if (aux[1] == "FLAT") {
-			l <- c("FLAT", aux['n_channels'], batch_size);
+			l <- c("FLAT", aux['n_channels']);
 		} else if (aux[1] == "LINE") {
-			l <- c("LINE", aux['n_visible'], aux['n_hidden'], aux['scale'], batch_size);
+			l <- c("LINE", aux['n_visible'], aux['n_hidden'], aux['scale']);
 		} else if (aux[1] == "SOFT") {
-			l <- c("SOFT", aux['n_inputs'], batch_size);
+			l <- c("SOFT", aux['n_inputs']);
 		} else if (aux[1] == "SIGM") {
-			l <- c("SIGM", aux['n_inputs'], batch_size);
+			l <- c("SIGM", aux['n_inputs']);
 		} else if (aux[1] == "TANH") {
-			l <- c("TANH", aux['n_inputs'], batch_size);
+			l <- c("TANH", aux['n_inputs']);
 		} else if (aux[1] == "DIRE") {
-			l <- c("DIRE", aux['n_inputs'], batch_size);
+			l <- c("DIRE", aux['n_inputs']);
 		} else if (aux['type'] == "RELV") {
-			l <- c("RELV", batch_size);
+			l <- c("RELV");
 		} else {
 			message("Error in Network Descriptor");
 			message(paste("Layer", i, "has incorrect parameters"), sep = " ");
