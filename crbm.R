@@ -221,6 +221,7 @@ train_crbm <- function (dataset, learning_rate = 1e-3, momentum = 0.5, training_
 	end_time <- Sys.time();
 	print(paste('Training took', (end_time - start_time), sep = " "));
 
+	class(crbm) <- c("crbm", class(crbm));
 	crbm;
 }
 

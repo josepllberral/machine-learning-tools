@@ -218,6 +218,14 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 		return (FALSE);
 	}
 
+	# Check batch_size vs number of samples
+	if (batch_size > nrow)
+	{
+		message(paste("Error in Batch_size. Dataset:", nrow, " < Batch size:", batch_size, sep = " "));
+		message("Batch size is larger than number of samples");
+		return (FALSE);
+	}
+
 	nlayers <- length(layers);
 
 	# Check Pipeline
@@ -239,22 +247,22 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 		# Check for Layers
 		if (laux['type'] == "CONV")
 		{
-			# Check for Batch_size and Channels
-			if (all.equal(input_dims[1:2], as.numeric(laux[c('batch_size','n_channels')])) != TRUE)
+			# Check for Channels
+			if (input_dims[2] != as.numeric(laux['n_channels']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current CONV input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message("Current CONV input (channels) do not match previous LAYER output (channels)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux[3]);
 		} else if (laux['type'] == "POOL")
 		{
-			# Check for Batch_size and Channels
-			if (all.equal(input_dims[1:2], as.numeric(laux[c('batch_size','n_channels')])) != TRUE)
+			# Check for Channels
+			if (input_dims[2] != as.numeric(laux['n_channels']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current POOL input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message("Current POOL input (channels) do not match previous LAYER output (channels)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
@@ -263,69 +271,59 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 			input_dims[3:4] <- c(out_h, out_w);
 		} else if (laux['type'] == "RELU")
 		{
-			# Check for Batch_size and Channels
-			if (all.equal(input_dims[1:2], as.numeric(laux[c('batch_size','n_channels')])) != TRUE)
+			# Check for Channels
+			if (input_dims[2] != as.numeric(laux['n_channels']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current RELU input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message("Current RELU input (channels) do not match previous LAYER output (channels)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 		} else if (laux['type'] == "FLAT")
 		{
-			# Check for Batch_size and Channels
-			if (all.equal(input_dims[1:2], as.numeric(laux[c('batch_size','n_channels')])) != TRUE)
+			# Check for Channels
+			if (input_dims[2] != as.numeric(laux['n_channels']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current FLAT input (batch_size, channels) do not match previous LAYER output (batch_size, channels)");
+				message("Current FLAT input (channels) do not match previous LAYER output (channels)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
-			input_dims <- c(input_dims[1], input_dims[2] * input_dims[3] * input_dims[4]); #FIXME
+			input_dims <- c(input_dims[1], prod(input_dims[-1]));
 		} else if (laux['type'] == "LINE")
 		{
-			# Check for Batch_size and Visible units
-			if (all.equal(input_dims, as.numeric(laux[c('batch_size','n_visible')])) != TRUE)
+			# Check for Visible units
+			if (input_dims[2] != as.numeric(laux['n_visible']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current LINE input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
+				message("Current LINE input (visible) do not match previous LAYER output (visible)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux['n_hidden']);
-		} else if (laux['type'] == "RELV")
+		} else if (laux['type'] %in% c("SOFT", "SIGM", "TANH", "DIRE"))
 		{
-			# Check for Batch_size
-			if (input_dims[1] != as.numeric(laux['batch_size']))
+			# Check for Visible units
+			if (input_dims[2] != as.numeric(laux['n_inputs']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current RELV input (batch_size) do not match previous LAYER output (batch_size)");
+				message("Current SOFT/SIGM/TANH/DIRE input (visible) do not match previous LAYER output (visible)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
-		} else if (laux['type'] %in% c("SOFT", "SIGM", "TANH"))
+		} else if (laux['type'] %in% c("RELV"))
 		{
-			# Check for Batch_size and Visible units
-			if (all.equal(input_dims, as.numeric(laux[c('batch_size','n_inputs')])) != TRUE)
-			{
-				message(paste("Error in layer ", i, sep = ""));
-				message("Current SOFT/SIGM/TANH input (batch_size, visible) do not match previous LAYER output (batch_size, visible)");
-				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
-				return (FALSE);
-			}
-		} else if (laux['type'] == "DIRE")
+			# Nothing to check here
+			next
+		} else
 		{
-			# Check for Batch_size
-			if (input_dims[1] != as.numeric(laux['n_inputs']))
-			{
-				message(paste("Error in layer ", i, sep = ""));
-				message("Current DIRE input (batch_size) do not match previous LAYER output (batch_size)");
-				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
-				return (FALSE);
-			}
+			message(paste("Error in layer ", i, sep = ""));
+			message(paste("Unknown type of layer ", laux['type']), sep = "");
+			return (FALSE);
 		}
 	}
 
+	# Check Last Layer
 	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH"))
 	{
 		message("Error in Output Layer");
@@ -344,6 +342,7 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 	return (TRUE);
 }
 
+# Function to convert descriptors to list of layers, to feed train.cnn function
 compose_layers <- function(descriptor)
 {
 	layers <- list();
@@ -877,6 +876,41 @@ create_sigm <- function()
 }
 
 ################################################################################
+# DIRECT LAYER                                                                 #
+################################################################################
+
+## Forward through a direct y = x function
+##	param x :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_hidden>
+##	updates :	direct_layer
+forward_dire <- function(dire, x)
+{
+	list(layer = dire, y = x);
+}
+
+## Backward through the direct dx = dy layer
+##	param x :	Numeric vector <n_hidden>
+##	returns :	Numeric vector <n_visible>
+backward_dire <- function(dire, dy)
+{
+	list(layer = dire, dx = dy);
+}
+
+## Updates the direct Layer (Does Nothing)
+get_updates_dire <- function(dire, lr) { dire; }
+
+## Get names of parameters and gradients (for testing functions)
+pnames_dire <- function(dire) { character(0); }
+gnames_dire <- function(dire) { character(0); }
+
+## Returns a direct layer
+create_dire <- function()
+{
+	list(	pnames = pnames_dire, gnames = gnames_dire, forward = forward_dire,
+		backward = backward_dire, get_updates = get_updates_dire);
+}
+
+################################################################################
 # CROSS-ENTROPY LOSS LAYER                                                     #
 ################################################################################
 
@@ -922,15 +956,23 @@ create_cell <- function()
 ##  param training_x      : loaded dataset (rows = examples, cols = [channels x img_h x img_w|features])
 ##  param training_y      : loaded labels (binarized vector into rows = examples, cols = labels)
 ##  param layers          : list of created layers
-##  param training_epochs : number of epochs used for training
 ##  param batch_size      : size of a batch used to train the CNN
+##  param training_epochs : number of epochs used for training
 ##  param learning_rate   : learning rate used for training the CNN
 ##  param momentum        : momentum rate used for training the CNN (Currently not used)
 ##  param rand_seed       : random seed for training
 train_cnn <- train.cnn <- function ( training_x, training_y, layers,
-	training_epochs = 300, batch_size = 4, learning_rate = 1e-4,
+	batch_size = 4, training_epochs = 300, learning_rate = 1e-4,
 	momentum = NULL, rand_seed = 1234)
 {
+	descriptor <- layers;
+	if (!check_layers (descriptor, dim(training_x), dim(training_y), batch_size))
+	{
+		message("Network does not match with data dimensions");
+		return(NULL);
+	}
+	layers <- compose_layers(descriptor);
+	
 	set.seed(rand_seed);
 
 	num_samples <- nrow(training_x)
@@ -1009,7 +1051,10 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers,
 		print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
 	}
 
-	list(layers = layers, loss_layer = loss_layer, loss = mean(acc_loss));
+	retval <- list(layers = layers, loss_layer = loss_layer, loss = mean(acc_loss));
+	class(retval) <- c("cnn", class(retval));
+	
+	retval;
 }
 
 ################################################################################
@@ -1108,40 +1153,36 @@ main <- function()
 	testing_x <- testing_x[1:1000,,,, drop=FALSE];
 	testing_y <- testing_y[1:1000,, drop=FALSE];
 
-	batch_size <- 10;
-
 	# Prepare CNN layers
-	descriptor <- list(
-		c('type' = "CONV", 'n_channels' = 1, 'n_filters' = 4, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same', 'batch_size' = batch_size),
-		c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'batch_size' = batch_size, 'win_size' = 3, 'stride' = 2),
-		c('type' = "RELU", 'n_channels' = 4, 'batch_size' = batch_size),
-		c('type' = "CONV", 'n_channels' = 4, 'n_filters' = 16, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same', 'batch_size' = batch_size),
-		c('type' = "POOL", 'n_channels' = 16, 'scale' = 0.1, 'batch_size' = batch_size,'win_size' = 3, 'stride' = 2),
-		c('type' = "RELU", 'n_channels' = 16, 'batch_size' = batch_size),
-		c('type' = "FLAT", 'n_channels' = 16, 'batch_size' = batch_size),
-		c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1, 'batch_size' = batch_size),
-		c('type' = "RELV", 'batch_size' = batch_size),
-		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1, 'batch_size' = batch_size),
-		c('type' = "SOFT", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "SIGM", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "TANH", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "DIRE", 'n_inputs' = 10, 'batch_size' = batch_size)
+	layers <- list(
+		c('type' = "CONV", 'n_channels' = 1, 'n_filters' = 4, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+		c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+		c('type' = "RELU", 'n_channels' = 4),
+		c('type' = "CONV", 'n_channels' = 4, 'n_filters' = 16, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+		c('type' = "POOL", 'n_channels' = 16, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+		c('type' = "RELU", 'n_channels' = 16),
+		c('type' = "FLAT", 'n_channels' = 16),
+		c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
+		c('type' = "RELV"),
+		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
+		c('type' = "SOFT", 'n_inputs' = 10)
+#		c('type' = "SIGM", 'n_inputs' = 10)
+#		c('type' = "TANH", 'n_inputs' = 10)
+#		c('type' = "DIRE", 'n_inputs' = 10)
 	);
-	check_layers (descriptor, dim(training_x), dim(training_y), batch_size);
-	layers <- compose_layers(descriptor);
 
 	# Train a CNN to learn MNIST
 	cnn_1 <- train.cnn(training_x, training_y, layers,
+			   batch_size = 10,
 			   training_epochs = 3,
-			   batch_size = batch_size,
 			   learning_rate = 5e-3
 	);
 	
 	# Test the CNN
-	predictions <- predict.cnn(cnn_1, testing_x);
+	predictions <- predict(cnn_1, testing_x);
 	
 	########################################################################
-	# NON-CONVOLUTIONAL Network
+	# MultiLayer Perceptron Network (No Convolutional)
 	
 	# Set up Data as flat matrix (batch_size, channels * H * W)
 	train <- aux$train;
@@ -1158,29 +1199,25 @@ main <- function()
 	testing_x <- testing_x[1:1000,, drop=FALSE];
 	testing_y <- testing_y[1:1000,, drop=FALSE];
 
-	batch_size <- 10;
-
 	# Prepare CNN layers
-	descriptor <- list(
-		c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1, 'batch_size' = batch_size),
-		c('type' = "RELV", 'batch_size' = batch_size),
-		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1, 'batch_size' = batch_size),
-		c('type' = "SOFT", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "SIGM", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "TANH", 'n_inputs' = 10, 'batch_size' = batch_size)
-#		c('type' = "DIRE", 'n_inputs' = 10, 'batch_size' = batch_size)
+	layers <- list(
+		c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
+		c('type' = "RELV"),
+		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
+		c('type' = "SOFT", 'n_inputs' = 10)
+#		c('type' = "SIGM", 'n_inputs' = 10)
+#		c('type' = "TANH", 'n_inputs' = 10)
+#		c('type' = "DIRE", 'n_inputs' = 10)
 	);
-	check_layers (descriptor, dim(training_x), dim(training_y), batch_size);
-	layers <- compose_layers(descriptor);
 
 	# Train a CNN to learn MNIST
 	cnn_2 <- train.cnn(training_x, training_y, layers,
+			   batch_size = 10,
 			   training_epochs = 3,
-			   batch_size = batch_size,
 			   learning_rate = 5e-3
 	);
 	
 	# Test the CNN
-	predictions <- predict.cnn(cnn_2, testing_x);
+	predictions <- predict(cnn_2, testing_x);
 }
 

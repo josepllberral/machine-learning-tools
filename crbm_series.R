@@ -102,6 +102,8 @@ train_series_crbm <- function (dataset, learning_rate = 1e-4, momentum = 0.5, tr
 	process_time <- end_time - start_time;
 	# print(paste('Training took', process_time,sep=" "));
 	crbm[["time"]] <- process_time;
+	
+	class(crbm) <- c("crbm", class(crbm));
 	crbm;
 }
 

@@ -31,31 +31,27 @@ In case you don't want to install GSL or use C code, you can just download the *
 
 Here you can find (C)RBMs, and configurable MLP (including Convolutional layers) implemented in R.
 
-### Feed Forward Artificial Neural Networks (FFANN)
+### Feed-Forward and MultiLayer Perceptrons
 
 An implementation of FFANNs in R, with single hidden layer and multiple hidden layers.
 
-* **ffann.R**: Single hidden layer network for classification with softmax.
-* **mlp.R**: Configurable Multi-Layer Perceptron FFANN.
+* **ffann.R**: Single hidden layer network for classification with softmax output.
+* **mlp.R**: Quick Multi-Layer Perceptron FFANN with softmax output.
 
-### Convolutional Neural Networks (CNN)
-
-An implementation of CNNs in R, including Convolutional, Pooling, ReLU, Linear and Softmax layers.
+Also a configurable version of MLPs in R, including Convolutional, Pooling, ReLU, Linear, Softmax/Sigmoid/TanH/Direct layers.
 
 * **cnn.R**: Version in R.
-
-### Conditional Restricted Boltzmann Machines
-
-An implementation of Conditional RBMs in R. The code comes with an example for the MOTION dataset (you can find an RDS version for the motion dataset in the "datasets" folder).
-
-* **crbm.R**: Version in R.
-* **crbm_series.R**: Extension of crbm.R, allowing training from sets of series instead a single one in parallel.
 
 ### Restricted Boltzmann Machines
 
 Here you can find an implementation of RBMs in R. The code comes with an example for the MNIST dataset.
 
 * **rbm.R**: Version in R.
+
+Also an implementation of Conditional RBMs in R. The code comes with an example for the MOTION dataset (you can find an RDS version for the motion dataset in the "datasets" folder).
+
+* **crbm.R**: Version in R.
+* **crbm_series.R**: Extension of crbm.R, allowing training from sets of series instead a single one in parallel.
 
 ### Kalman Filters
 

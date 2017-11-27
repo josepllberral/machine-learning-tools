@@ -176,6 +176,7 @@ train_rbm <- train.rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     end_time <- Sys.time();
     print(paste('Training took', (end_time - start_time), sep=" "));
 
+    class(rbm) <- c("rbm", class(rbm));
     rbm;
 }
 
