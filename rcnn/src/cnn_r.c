@@ -144,6 +144,7 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
 		else if (layers[i].type == 12) free_TANH((TANH*) layers[i].layer);
 	}
+	free(layers);
 	return;
 }
 
