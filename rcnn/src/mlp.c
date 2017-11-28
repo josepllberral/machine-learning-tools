@@ -54,8 +54,6 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 
 		for (int j = 0; j < num_batches; j++)
 		{
-//			if (j % 20 == 0) printf("Batch number %d\n", j);
-
 			// Select mini_batch
 			int idx_ini = j * batch_size;
 			int idx_fin = idx_ini + batch_size - 1;
@@ -141,10 +139,6 @@ gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers
 
 	data batchdata;
 	int batch_chan = 0;
-
-	// Update batch_size for layers
-	for (int i = 0; i < num_layers; i++)
-		update_batch_size(&(layers[i]), batch_size);
 
 	// Loop through examples
 	for (int j = 0; j < num_batches; j++)

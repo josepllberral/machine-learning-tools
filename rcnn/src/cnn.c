@@ -393,106 +393,6 @@ void get_updates (LAYER* layer, double learning_rate)
 	}
 }
 
-void update_batch_size (LAYER* layer, int batch_size)
-{
-	switch (layer->type)
-	{
-		case 1: ;
-			CONV* aux1 = (CONV*) layer->layer;
-			for (int b = 0; b < aux1->batch_size; b++)
-			{
-				for (int c = 0; c < aux1->n_channels; c++) gsl_matrix_free(aux1->img[b][c]);
-				free(aux1->img[b]);
-			}
-			free(aux1->img);
-			aux1->batch_size = batch_size;
-			aux1->img = (gsl_matrix***) malloc(aux1->batch_size * sizeof(gsl_matrix**));
-			for (int b = 0; b < aux1->batch_size; b++)
-			{
-				aux1->img[b] = (gsl_matrix**) malloc(aux1->n_channels * sizeof(gsl_matrix*));
-				for (int c = 0; c < aux1->n_channels; c++)
-					aux1->img[b][c] = gsl_matrix_calloc(1, 1);
-			}
-			break;
-		case 2: ;
-			POOL* aux2 = (POOL*) layer->layer;
-			for (int b = 0; b < aux2->batch_size; b++)
-			{
-				for (int c = 0; c < aux2->n_channels; c++) gsl_matrix_free(aux2->img[b][c]);
-				free(aux2->img[b]);
-			}
-			free(aux2->img);
-			aux2->batch_size = batch_size;
-			aux2->img = (gsl_matrix***) malloc(aux2->batch_size * sizeof(gsl_matrix**));
-			for (int b = 0; b < aux2->batch_size; b++)
-			{
-				aux2->img[b] = (gsl_matrix**) malloc(aux2->n_channels * sizeof(gsl_matrix*));
-				for (int c = 0; c < aux2->n_channels; c++)
-					aux2->img[b][c] = gsl_matrix_calloc(1, 1);
-			}
-			break;
-		case 3: ;
-			RELU* aux3 = (RELU*) layer->layer;
-			for (int b = 0; b < aux3->batch_size; b++)
-			{
-				for (int c = 0; c < aux3->n_channels; c++) gsl_matrix_free(aux3->img[b][c]);
-				free(aux3->img[b]);
-			}
-			free(aux3->img);
-			aux3->batch_size = batch_size;
-			aux3->img = (gsl_matrix***) malloc(aux3->batch_size * sizeof(gsl_matrix**));
-			for (int b = 0; b < aux3->batch_size; b++)
-			{
-				aux3->img[b] = (gsl_matrix**) malloc(aux3->n_channels * sizeof(gsl_matrix*));
-				for (int c = 0; c < aux3->n_channels; c++)
-					aux3->img[b][c] = gsl_matrix_calloc(1, 1);
-			}
-			break;
-		case 4: ;
-			FLAT* aux4 = (FLAT*) layer->layer;
-			aux4->batch_size = batch_size;
-			break;
-		case 5: ;
-			LINE* aux5 = (LINE*) layer->layer;
-			gsl_matrix_free(aux5->x);
-			aux5->batch_size = batch_size;
-			aux5->x = gsl_matrix_calloc(aux5->batch_size, aux5->n_visible);
-			break;
-		case 6: ;
-			SOFT* aux6 = (SOFT*) layer->layer;
-			aux6->batch_size = batch_size;
-			break;
-		case 7: ;
-			break;
-		case 8: ;
-			RELV* aux8 = (RELV*) layer->layer;
-			aux8->batch_size = batch_size;
-			break;
-		case 9: ;
-			SIGM* aux9 = (SIGM*) layer->layer;
-			gsl_matrix_free(aux9->a);
-			aux9->batch_size = batch_size;
-			aux9->a = gsl_matrix_calloc(aux9->batch_size, aux9->n_units);
-			break;
-		case 11: ;
-			DIRE* aux11 = (DIRE*) layer->layer;
-			gsl_matrix_free(aux11->buff_x);
-			gsl_matrix_free(aux11->buff_dy);
-			aux11->batch_size = batch_size;
-			aux11->buff_x = gsl_matrix_calloc(aux11->batch_size, aux11->n_units);
-			aux11->buff_dy = gsl_matrix_calloc(aux11->batch_size, aux11->n_units);
-			break;
-		case 12: ;
-			TANH* aux12 = (TANH*) layer->layer;
-			gsl_matrix_free(aux12->a);
-			aux12->batch_size = batch_size;
-			aux12->a = gsl_matrix_calloc(aux12->batch_size, aux12->n_units);
-			break;
-		default: ;
-			break;
-	}
-}
-
 /*---------------------------------------------------------------------------*/
 /* HOW TO TRAIN YOUR CNN                                                     */
 /*---------------------------------------------------------------------------*/
@@ -633,10 +533,6 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 
 	data batchdata;
 	int batch_chan;
-
-	// Update batch_size for layers
-	for (int i = 0; i < num_layers; i++)
-		update_batch_size(&(layers[i]), batch_size);
 
 	// Loop through examples
 	for (int j = 0; j < num_batches; j++)
