@@ -99,6 +99,9 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 				backward(&(layers[i]), &batchdata, &batch_chan);
 				get_updates(&(layers[i]), learning_rate);
 			}
+			
+			// Clean structures
+			gsl_matrix_free(batchdata.matrix);
 		}
 
 //		if (epoch % 1 == 0)

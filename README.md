@@ -10,47 +10,39 @@ You can find the (C)RBMs, MLPs and CNNs ready to install and use, in the **packa
 
 * Package **rcnn** : contains a MLP modular implementation, with different layer definitions like *Linear*, *Convolutional*, *Pooling*, *Flattening*, *Linear Rectifier*, *Softmax*, etc. Also contains training and predict functions. Also MNIST datasets is included ("mnist").
 
-As the packaged tools use a GSL implementation as kernel (written in C, but interfaced to R), installing the GSL development libraries is required:
+As the packaged tools use a GSL implementation as kernel (written in C, but interfaced to R), installing the GSL development libraries is required. Further, you can install "OpenBLAS" (optional) to let GSL use multi-processor computation:
 
 > apt-get install libgsl-dev
 
-Once "gsl" libraries are installed, just do
+> apt-get install libopenblas-base
+
+Once "gsl" libraries are installed, just do in R:
 
 > install.packages("rrbm_0.0.X.tar.gz", repos = NULL, type="source")
 
 > install.packages("rcnn_0.0.X.tar.gz", repos = NULL, type="source")
 
-Further, you can install "OpenBLAS" (optional) to let GSL use multi-processor computation:
-
-> apt-get install libopenblas-base
 
 In case you don't want to install GSL or use C code, you can just download the **pure-R** implementation from the *.R files in this same repository. They do exactly the same than the GSL-core functions, but (often) slower.
-
 
 ## Tools Description
 
 Here you can find (C)RBMs, and configurable MLP (including Convolutional layers) implemented in R.
 
-### Feed-Forward and MultiLayer Perceptrons
+### Feed-Forward MultiLayer Perceptron Networks
 
 An implementation of FFANNs in R, with single hidden layer and multiple hidden layers.
 
 * **ffann.R**: Single hidden layer network for classification with softmax output.
 * **mlp.R**: Quick Multi-Layer Perceptron FFANN with softmax output.
-
-Also a configurable version of MLPs in R, including Convolutional, Pooling, ReLU, Linear, Softmax/Sigmoid/TanH/Direct layers.
-
-* **cnn.R**: Version in R.
+* **cnn.R**: Configurable MultiLayer Perceptron in R, including Convolutional, Pooling, ReLU, Linear, Softmax, Sigmoid, TanH and Direct layers.
 
 ### Restricted Boltzmann Machines
 
-Here you can find an implementation of RBMs in R. The code comes with an example for the MNIST dataset.
+Here you can find an implementation of RBMs and CRBMs in R. The code comes with an example for the MNIST dataset, and an example for the MOTION dataset (you can find an RDS version for the motion dataset in the "datasets" folder).
 
-* **rbm.R**: Version in R.
-
-Also an implementation of Conditional RBMs in R. The code comes with an example for the MOTION dataset (you can find an RDS version for the motion dataset in the "datasets" folder).
-
-* **crbm.R**: Version in R.
+* **rbm.R**: RBMs in R.
+* **crbm.R**: Conditional RBMs in R.
 * **crbm_series.R**: Extension of crbm.R, allowing training from sets of series instead a single one in parallel.
 
 ### Kalman Filters
