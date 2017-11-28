@@ -585,7 +585,6 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 				free(recons_x[i]);
 			}
 			free(recons_x);
-			gsl_matrix_free(results);
 		}
 //		if (epoch % 1 == 0)
 			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);

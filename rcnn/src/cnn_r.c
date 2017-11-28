@@ -144,6 +144,7 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 9) free_SIGM((SIGM*) layers[i].layer);
 		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
 		else if (layers[i].type == 12) free_TANH((TANH*) layers[i].layer);
+		free(layers[i].layer);
 	}
 	free(layers);
 	return;
@@ -704,7 +705,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	int nlays = INTEGER_VALUE(num_layers);
 	
-	int rebuild = INTEGER(GET_DIM(is_init_cnn));
+	int rebuild = INTEGER_VALUE(is_init_cnn);
 
 	// Create Dataset Structure
 	gsl_matrix*** train_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
@@ -726,7 +727,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Build the Layers pipeline or re-assemble an initial CNN
 	LAYER* pipeline;
 	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
-	else pipeline = reassemble_CNN(init_cnn, nlay, basi);
+	else pipeline = reassemble_CNN(layers, nlays, basi);
 
 	// Train a CNN
 	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
@@ -869,8 +870,8 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	int nlays = INTEGER_VALUE(num_layers);
 	
-	int rebuild = INTEGER(GET_DIM(is_init_cnn));
-
+	int rebuild = INTEGER_VALUE(is_init_cnn);
+	
 	// Create Dataset Structure
 	gsl_matrix* train_X = gsl_matrix_alloc(nrows, ncols);
 	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
@@ -886,7 +887,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	// Build the Layers pipeline or re-assemble an initial CNN
 	LAYER* pipeline;
 	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
-	else pipeline = reassemble_CNN(init_cnn, nlay, basi);
+	else pipeline = reassemble_CNN(layers, nlays, basi);
 
 	// Train a MLP
 	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);

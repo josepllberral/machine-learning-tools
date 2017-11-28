@@ -504,10 +504,12 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 			message("Input object is not a CNN nor a MLP");
 			return(NULL);
 		}
+
+		if (!is.null(layers)) message("INFO: Layers plus Initial CNN/MLP introduced: ignoring layers");
 		
 		# TODO - Check init_cnn is valid
 		
-		prep_layers <- init_cnn;
+		prep_layers <- init_cnn$layers;
 		is_init_cnn <- 1;
 	}
 
@@ -532,13 +534,11 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 			dataset <- t(apply(dataset, 1, as.numeric));
 		}	
 		
-		# Check that all layers are Matricial
-		for (i in 1:length(layers))
-			if (!(layers[[i]][1] %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE")))
-			{
-				message(paste("Layers contain non-matricial layer", layers[[i]][1], "at", i, sep = " "));
-				return(NULL);
-			}
+		if (any(!sapply(layers, `[[`, 1) %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE")))
+		{
+			message("For 2D matrix inputs, layers must be LINE, RELV, SOFT, SIGM, TANH or DIRE");
+			return(NULL);
+		}
 
 		retval <- .Call("_C_MLP_train", as.matrix(dataset), as.matrix(targets),
 			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
