@@ -20,6 +20,7 @@
 #define RMATRIX(m,i,j) (REAL(m)[ INTEGER(GET_DIM(m))[0]*(j)+(i) ])
 #define RVECTOR(v,i) (REAL(v)[(i)])
 #define RVECTORI(v,i) (INTEGER(v)[(i)])
+#define RARRAY(m,i,j,k,l) (REAL(m)[INTEGER(GET_DIM(m))[2] * INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (l) + INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (k) + INTEGER(GET_DIM(m))[0] * (j) + (i) ])
 
 LAYER* build_pipeline (SEXP layers, int nlays, int batch_size)
 {
@@ -453,115 +454,6 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 	}
 }
 
-#define RARRAY(m,i,j,k,l) (REAL(m)[INTEGER(GET_DIM(m))[2] * INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (l) + INTEGER(GET_DIM(m))[1] * INTEGER(GET_DIM(m))[0] * (k) + INTEGER(GET_DIM(m))[0] * (j) + (i) ])
-
-// Interface for Training a CNN
-SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
-	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed)
-{
- 	int nrows = INTEGER(GET_DIM(dataset))[0];
- 	int nchan = INTEGER(GET_DIM(dataset))[1];
- 	int img_h = INTEGER(GET_DIM(dataset))[2];
- 	int img_w = INTEGER(GET_DIM(dataset))[3];
-
- 	int nouts = INTEGER(GET_DIM(targets))[1];
-
- 	int basi = INTEGER_VALUE(batch_size);
- 	int trep = INTEGER_VALUE(training_epochs);
- 	int rase = INTEGER_VALUE(rand_seed);
- 	double lera = NUMERIC_VALUE(learning_rate);
- 	double mome = NUMERIC_VALUE(momentum);
-
-	int nlays = INTEGER_VALUE(num_layers);
-
-	// Create Dataset Structure
-	gsl_matrix*** train_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
-	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
-	for (int r = 0; r < nrows; r++)
-	{
-		train_X[r] = (gsl_matrix**) malloc(nchan * sizeof(gsl_matrix*));
-		for (int c = 0; c < nchan; c++)
-		{
-			train_X[r][c] = gsl_matrix_alloc(img_h, img_w);
-			for (int h = 0; h < img_h; h++)
-				for (int w = 0; w < img_w; w++)
-					gsl_matrix_set(train_X[r][c], h, w, RARRAY(dataset, r, c, h, w));
-		}
-		for (int o = 0; o < nouts; o++)
-			gsl_matrix_set(train_Y, r, o, RMATRIX(targets, r, o));
-	}
-
-	// Build the Layers pipeline
-	LAYER* pipeline = build_pipeline(layers, nlays, basi);
-
-	// Train a CNN
-	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
-
-	// Pass the Training set through the CNN
-	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays, basi);
-	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
-
-	// Return Structure
-	SEXP retval = PROTECT(allocVector(VECSXP, 7));
-
-	SET_VECTOR_ELT(retval, 0, allocVector(INTSXP, 4));
-	INTEGER(VECTOR_ELT(retval, 0))[0] = nrows;
-	INTEGER(VECTOR_ELT(retval, 0))[1] = nchan;
-	INTEGER(VECTOR_ELT(retval, 0))[2] = img_h;
-	INTEGER(VECTOR_ELT(retval, 0))[3] = img_w;
-
-	SET_VECTOR_ELT(retval, 1, allocVector(INTSXP, 2));
-	INTEGER(VECTOR_ELT(retval, 1))[0] = nrows;
-	INTEGER(VECTOR_ELT(retval, 1))[1] = nouts;
-
-	SET_VECTOR_ELT(retval, 2, allocVector(VECSXP, nlays));
-	return_pipeline (&retval, pipeline, nlays);
-
-	SET_VECTOR_ELT(retval, 3, allocVector(INTSXP, 1));
-	INTEGER(VECTOR_ELT(retval, 3))[0] = nlays;
-
-	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
-	for (int i = 0; i < nouts; i++)
-		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 4))[j * nouts + i] = gsl_matrix_get(confusion, i, j); //CHECK!
-
-	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
-	REAL(VECTOR_ELT(retval, 5))[0] = loss;
-
-	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
-	for (int i = 0; i < nrows; i++)
-		for (int j = 0; j < nouts; j++)
-			REAL(VECTOR_ELT(retval, 6))[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
-
-	SEXP nms = PROTECT(allocVector(STRSXP, 7));
-	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
-	SET_STRING_ELT(nms, 1, mkChar("dims.out"));
-	SET_STRING_ELT(nms, 2, mkChar("layers"));
-	SET_STRING_ELT(nms, 3, mkChar("n.layers"));
-	SET_STRING_ELT(nms, 4, mkChar("conf.matrix"));
-	SET_STRING_ELT(nms, 5, mkChar("mean.loss"));
-	SET_STRING_ELT(nms, 6, mkChar("fitted.values"));
-	setAttrib(retval, R_NamesSymbol, nms);
-
-	UNPROTECT(2 + nlays);
-
-	// Free basic structures
-	free_pipeline (pipeline, nlays);
-
-	for (int i = 0; i < nrows; i++)
-	{
-		for (int j = 0; j < nchan; j++)
-			gsl_matrix_free(train_X[i][j]);
-		free(train_X[i]);
-	}
-	free(train_X);
-	gsl_matrix_free(train_Y);
-	gsl_matrix_free(predictions);
-	gsl_matrix_free(confusion);
-
-	return retval;
-}
-
 // Function to get elements by name from a R list
 SEXP getListElement(SEXP list, const char *str)
 {
@@ -793,6 +685,117 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 	return pipeline;
 }
 
+// Interface for Training a CNN
+SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
+	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
+{
+ 	int nrows = INTEGER(GET_DIM(dataset))[0];
+ 	int nchan = INTEGER(GET_DIM(dataset))[1];
+ 	int img_h = INTEGER(GET_DIM(dataset))[2];
+ 	int img_w = INTEGER(GET_DIM(dataset))[3];
+
+ 	int nouts = INTEGER(GET_DIM(targets))[1];
+
+ 	int basi = INTEGER_VALUE(batch_size);
+ 	int trep = INTEGER_VALUE(training_epochs);
+ 	int rase = INTEGER_VALUE(rand_seed);
+ 	double lera = NUMERIC_VALUE(learning_rate);
+ 	double mome = NUMERIC_VALUE(momentum);
+
+	int nlays = INTEGER_VALUE(num_layers);
+	
+	int rebuild = INTEGER(GET_DIM(is_init_cnn));
+
+	// Create Dataset Structure
+	gsl_matrix*** train_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
+	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
+	for (int r = 0; r < nrows; r++)
+	{
+		train_X[r] = (gsl_matrix**) malloc(nchan * sizeof(gsl_matrix*));
+		for (int c = 0; c < nchan; c++)
+		{
+			train_X[r][c] = gsl_matrix_alloc(img_h, img_w);
+			for (int h = 0; h < img_h; h++)
+				for (int w = 0; w < img_w; w++)
+					gsl_matrix_set(train_X[r][c], h, w, RARRAY(dataset, r, c, h, w));
+		}
+		for (int o = 0; o < nouts; o++)
+			gsl_matrix_set(train_Y, r, o, RMATRIX(targets, r, o));
+	}
+
+	// Build the Layers pipeline or re-assemble an initial CNN
+	LAYER* pipeline;
+	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
+	else pipeline = reassemble_CNN(init_cnn, nlay, basi);
+
+	// Train a CNN
+	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
+
+	// Pass the Training set through the CNN
+	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays, basi);
+	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
+
+	// Return Structure
+	SEXP retval = PROTECT(allocVector(VECSXP, 7));
+
+	SET_VECTOR_ELT(retval, 0, allocVector(INTSXP, 4));
+	INTEGER(VECTOR_ELT(retval, 0))[0] = nrows;
+	INTEGER(VECTOR_ELT(retval, 0))[1] = nchan;
+	INTEGER(VECTOR_ELT(retval, 0))[2] = img_h;
+	INTEGER(VECTOR_ELT(retval, 0))[3] = img_w;
+
+	SET_VECTOR_ELT(retval, 1, allocVector(INTSXP, 2));
+	INTEGER(VECTOR_ELT(retval, 1))[0] = nrows;
+	INTEGER(VECTOR_ELT(retval, 1))[1] = nouts;
+
+	SET_VECTOR_ELT(retval, 2, allocVector(VECSXP, nlays));
+	return_pipeline (&retval, pipeline, nlays);
+
+	SET_VECTOR_ELT(retval, 3, allocVector(INTSXP, 1));
+	INTEGER(VECTOR_ELT(retval, 3))[0] = nlays;
+
+	SET_VECTOR_ELT(retval, 4, allocMatrix(REALSXP, nouts, nouts));
+	for (int i = 0; i < nouts; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 4))[j * nouts + i] = gsl_matrix_get(confusion, i, j); //CHECK!
+
+	SET_VECTOR_ELT(retval, 5, allocVector(REALSXP, 1));
+	REAL(VECTOR_ELT(retval, 5))[0] = loss;
+
+	SET_VECTOR_ELT(retval, 6, allocMatrix(REALSXP, nrows, nouts));
+	for (int i = 0; i < nrows; i++)
+		for (int j = 0; j < nouts; j++)
+			REAL(VECTOR_ELT(retval, 6))[j * nrows + i] = gsl_matrix_get(predictions, i, j); //CHECK!
+
+	SEXP nms = PROTECT(allocVector(STRSXP, 7));
+	SET_STRING_ELT(nms, 0, mkChar("dims.in"));
+	SET_STRING_ELT(nms, 1, mkChar("dims.out"));
+	SET_STRING_ELT(nms, 2, mkChar("layers"));
+	SET_STRING_ELT(nms, 3, mkChar("n.layers"));
+	SET_STRING_ELT(nms, 4, mkChar("conf.matrix"));
+	SET_STRING_ELT(nms, 5, mkChar("mean.loss"));
+	SET_STRING_ELT(nms, 6, mkChar("fitted.values"));
+	setAttrib(retval, R_NamesSymbol, nms);
+
+	UNPROTECT(2 + nlays);
+
+	// Free basic structures
+	free_pipeline (pipeline, nlays);
+
+	for (int i = 0; i < nrows; i++)
+	{
+		for (int j = 0; j < nchan; j++)
+			gsl_matrix_free(train_X[i][j]);
+		free(train_X[i]);
+	}
+	free(train_X);
+	gsl_matrix_free(train_Y);
+	gsl_matrix_free(predictions);
+	gsl_matrix_free(confusion);
+
+	return retval;
+}
+
 // Interface for Predicting and Reconstructing using a CNN
 SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 {
@@ -851,7 +854,7 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
 
 // Interface for Training a MLP
 SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
-	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed)
+	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
 {
  	int nrows = INTEGER(GET_DIM(dataset))[0];
  	int ncols = INTEGER(GET_DIM(dataset))[1];
@@ -865,6 +868,8 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
  	double mome = NUMERIC_VALUE(momentum);
 
 	int nlays = INTEGER_VALUE(num_layers);
+	
+	int rebuild = INTEGER(GET_DIM(is_init_cnn));
 
 	// Create Dataset Structure
 	gsl_matrix* train_X = gsl_matrix_alloc(nrows, ncols);
@@ -878,8 +883,10 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 			gsl_matrix_set(train_Y, r, o, RMATRIX(targets, r, o));
 	}
 
-	// Build the Layers pipeline
-	LAYER* pipeline = build_pipeline(layers, nlays, basi);
+	// Build the Layers pipeline or re-assemble an initial CNN
+	LAYER* pipeline;
+	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
+	else pipeline = reassemble_CNN(init_cnn, nlay, basi);
 
 	// Train a MLP
 	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);

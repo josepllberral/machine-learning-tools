@@ -472,13 +472,13 @@ compose_layers <- function(descriptor, batch_size)
 #'                        learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
 #'
 #' prediction <- predict(mnist_mlp, newdata);
-train.cnn <- function (dataset, targets, layers,  batch_size = 10,
+train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 			training_epochs = 10, learning_rate = 1e-3,
-			momentum = 0.8, rand_seed = 1234)
+			momentum = 0.8, rand_seed = 1234, init_cnn = NULL)
 {
-	if (is.null(dataset) || is.null(targets) || is.null(layers))
+	if (is.null(dataset) || is.null(targets) || (is.null(layers) && is.null(init_cnn)))
 	{
-		message("The input dataset, targets or layers are NULL");
+		message("The input dataset, targets or layers/init_cnn are NULL");
 		return(NULL);
 	}
 	
@@ -489,12 +489,27 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 		return(NULL);
 	}
 
-	if (!check_layers(layers, dim(dataset), dim(targets), batch_size))
+	if (is.null(init_cnn))
 	{
-		message("Network does not match with data dimensions");
-		return(NULL);
+		if (!check_layers(layers, dim(dataset), dim(targets), batch_size))
+		{
+			message("Network does not match with data dimensions");
+			return(NULL);
+		}
+		prep_layers <- compose_layers(layers, batch_size)
+		is_init_cnn <- 0;
+	} else {
+		if (!"cnn" %in% class(init_cnn))
+		{
+			message("Input object is not a CNN nor a MLP");
+			return(NULL);
+		}
+		
+		# TODO - Check init_cnn is valid
+		
+		prep_layers <- init_cnn;
+		is_init_cnn <- 1;
 	}
-	prep_layers <- compose_layers(layers, batch_size)
 
 	if (length(dim(dataset)) == 4)
 	{
@@ -503,11 +518,11 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 			message("Input matrix is Integer: Coercing to Numeric.");
 			dataset <- 1.0 * dataset;
 		}
-
+			
 		retval <- .Call("_C_CNN_train", as.array(dataset), as.matrix(targets),
 			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
 			as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
-			as.integer(rand_seed), PACKAGE = "rcnn");
+			as.integer(rand_seed), as.integer(is_init_cnn), PACKAGE = "rcnn");
 
 	} else if (length(dim(dataset)) == 2)
 	{
@@ -528,7 +543,7 @@ train.cnn <- function (dataset, targets, layers,  batch_size = 10,
 		retval <- .Call("_C_MLP_train", as.matrix(dataset), as.matrix(targets),
 			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
 			as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
-			as.integer(rand_seed), PACKAGE = "rcnn");		
+			as.integer(rand_seed), as.integer(is_init_cnn), PACKAGE = "rcnn");		
 	} else
 	{
 		message("Error on Input dimensions: Must be a (Samples x Features) 2D matrix or a (Samples x Image) 4D array");
