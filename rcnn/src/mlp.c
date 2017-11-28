@@ -42,6 +42,7 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 	create_CELL(&loss_layer);
 
 	data batchdata;
+	int batch_chan = 0;
 
 	double acc_loss = 0;
 	double acc_class = 0;
@@ -79,7 +80,7 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 			// Forward through layers
 			batchdata.matrix = minibatch;
 			for (int i = 0; i < num_layers; i++)
-				forward(&(layers[i]), &batchdata);
+				forward(&(layers[i]), &batchdata, &batch_chan);
 
 			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
@@ -97,7 +98,7 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 			batchdata.matrix = results;
 			for (int i = num_layers - 1; i >= 0; i--)
 			{
-				backward(&(layers[i]), &batchdata);
+				backward(&(layers[i]), &batchdata, &batch_chan);
 				get_updates(&(layers[i]), learning_rate);
 			}
 		}
@@ -139,6 +140,7 @@ gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers
 	gsl_matrix* result = gsl_matrix_alloc(num_samples, num_outputs);
 
 	data batchdata;
+	int batch_chan = 0;
 
 	// Update batch_size for layers
 	for (int i = 0; i < num_layers; i++)
@@ -176,7 +178,7 @@ gsl_matrix* prediction_mlp (gsl_matrix* testing_x, LAYER* layers, int num_layers
 		// Forward through layers
 		batchdata.matrix = minibatch;
 		for (int i = 0; i < num_layers; i++)
-			forward(&(layers[i]), &batchdata);
+			forward(&(layers[i]), &batchdata, &batch_chan);
 
 		// Calculate Forward Loss and Negdata
 		gsl_matrix* output = batchdata.matrix;

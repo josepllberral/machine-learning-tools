@@ -257,8 +257,8 @@ void copy_RELV (RELV*, RELV*);
 int compare_RELV (RELV*, RELV*);
 
 // General Functions
-void forward (LAYER*, data*);
-void backward (LAYER*, data*);
+void forward (LAYER*, data*, int*);
+void backward (LAYER*, data*, int*);
 void get_updates (LAYER*, double);
 void update_batch_size (LAYER*, int);
 double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, int, int, double, double, int);

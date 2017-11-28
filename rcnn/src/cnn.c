@@ -147,7 +147,7 @@ void print_image00 (gsl_matrix*** x, int a, int b)
 /* PIPELINE LAYER HANDLER                                                    */
 /*---------------------------------------------------------------------------*/
 
-void forward (LAYER* layer, data* batchdata)
+void forward (LAYER* layer, data* batchdata, int* batch_chan)
 {
 	switch (layer->type)
 	{
@@ -157,11 +157,12 @@ void forward (LAYER* layer, data* batchdata)
 			gsl_matrix*** y1 = forward_conv(conv, x1);
 			for (int i = 0; i < conv->batch_size; i++)
 			{
-				for (int j = 0; j < conv->n_channels; j++) gsl_matrix_free(batchdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(batchdata->image[i][j]);
 				free(batchdata->image[i]);
 			}
 			free(batchdata->image);
 			batchdata->image = y1;
+			*batch_chan = conv->n_filters;
 			break;
 		case 2:	;
 			POOL* pool = (POOL*) layer->layer;
@@ -169,11 +170,12 @@ void forward (LAYER* layer, data* batchdata)
 			gsl_matrix*** y2 = forward_pool(pool, x2);
 			for (int i = 0; i < pool->batch_size; i++)
 			{
-				for (int j = 0; j < pool->n_channels; j++) gsl_matrix_free(batchdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(batchdata->image[i][j]);
 				free(batchdata->image[i]);
 			}
 			free(batchdata->image);
 			batchdata->image = y2;
+			*batch_chan = pool->n_channels;
 			break;
 		case 3:	;
 			RELU* relu = (RELU*) layer->layer;
@@ -181,11 +183,12 @@ void forward (LAYER* layer, data* batchdata)
 			gsl_matrix*** y3 = forward_relu(relu, x3);
 			for (int i = 0; i < relu->batch_size; i++)
 			{
-				for (int j = 0; j < relu->n_channels; j++) gsl_matrix_free(batchdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(batchdata->image[i][j]);
 				free(batchdata->image[i]);
 			}
 			free(batchdata->image);
 			batchdata->image = y3;
+			*batch_chan = relu->n_channels;
 			break;
 		case 4: ;
 			FLAT* flat = (FLAT*) layer->layer;
@@ -193,11 +196,12 @@ void forward (LAYER* layer, data* batchdata)
 			gsl_matrix* y4 = forward_flat(flat, x4);
 			for (int i = 0; i < flat->batch_size; i++)
 			{
-				for (int j = 0; j < flat->n_channels; j++) gsl_matrix_free(batchdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(batchdata->image[i][j]);
 				free(batchdata->image[i]);
 			}
 			free(batchdata->image);
 			batchdata->matrix = y4;
+			*batch_chan = 0;
 			break;
 		case 5: ;
 			LINE* line = (LINE*) layer->layer;
@@ -248,7 +252,7 @@ void forward (LAYER* layer, data* batchdata)
 	}
 }
 
-void backward (LAYER* layer, data* negdata)
+void backward (LAYER* layer, data* negdata, int* batch_chan)
 {
 	switch (layer->type)
 	{
@@ -258,11 +262,12 @@ void backward (LAYER* layer, data* negdata)
 			gsl_matrix*** x1 = backward_conv(conv, y1);
 			for (int i = 0; i < conv->batch_size; i++)
 			{
-				for (int j = 0; j < conv->n_channels; j++) gsl_matrix_free(negdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(negdata->image[i][j]);
 				free(negdata->image[i]);
 			}
 			free(negdata->image);
 			negdata->image = x1;
+			*batch_chan = conv->n_channels;
 			break;
 		case 2: ;
 			POOL* pool = (POOL*) layer->layer;
@@ -270,11 +275,12 @@ void backward (LAYER* layer, data* negdata)
 			gsl_matrix*** x2 = backward_pool(pool, y2);
 			for (int i = 0; i < pool->batch_size; i++)
 			{
-				for (int j = 0; j < pool->n_channels; j++) gsl_matrix_free(negdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(negdata->image[i][j]);
 				free(negdata->image[i]);
 			}
 			free(negdata->image);
 			negdata->image = x2;
+			*batch_chan = pool->n_channels;
 			break;
 		case 3: ;
 			RELU* relu = (RELU*) layer->layer;
@@ -282,11 +288,12 @@ void backward (LAYER* layer, data* negdata)
 			gsl_matrix*** x3 = backward_relu(relu, y3);
 			for (int i = 0; i < relu->batch_size; i++)
 			{
-				for (int j = 0; j < relu->n_channels; j++) gsl_matrix_free(negdata->image[i][j]);
+				for (int j = 0; j < *batch_chan; j++) gsl_matrix_free(negdata->image[i][j]);
 				free(negdata->image[i]);
 			}
 			free(negdata->image);
 			negdata->image = x3;
+			*batch_chan = relu->n_channels;
 			break;
 		case 4: ;
 			FLAT* flat = (FLAT*) layer->layer;
@@ -294,6 +301,7 @@ void backward (LAYER* layer, data* negdata)
 			gsl_matrix*** x4 = backward_flat(flat, y4);
 			gsl_matrix_free(negdata->matrix);
 			negdata->image = x4;
+			*batch_chan = flat->n_channels;
 			break;
 		case 5: ;
 			LINE* line = (LINE*) layer->layer;
@@ -519,6 +527,7 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 	create_CELL(&loss_layer);
 
 	data batchdata;
+	int batch_chan;
 
 	double acc_loss = 0;
 	double acc_class = 0;
@@ -554,8 +563,9 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 			// Forward through layers
 			batchdata.image = minibatch;
+			batch_chan = num_channels;
 			for (int i = 0; i < num_layers; i++)
-				forward(&(layers[i]), &batchdata);
+				forward(&(layers[i]), &batchdata, &batch_chan);
 
 			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
@@ -571,20 +581,20 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 			// Backward through layers, and update them
 			batchdata.matrix = results;
+			batch_chan = 0;
 			for (int i = num_layers - 1; i >= 0; i--)
 			{
-				backward(&(layers[i]), &batchdata);
+				backward(&(layers[i]), &batchdata, &batch_chan);
 				get_updates(&(layers[i]), learning_rate);
 			}
 			
 			// Clean structures
-			gsl_matrix*** recons_x = batchdata.image;
 			for (int i = 0; i < batch_size; i++)
 			{
-				for (int j = 0; j < num_channels; j++) gsl_matrix_free(recons_x[i][j]);
-				free(recons_x[i]);
+				for (int j = 0; j < num_channels; j++) gsl_matrix_free(batchdata.image[i][j]);
+				free(batchdata.image[i]);
 			}
-			free(recons_x);
+			free(batchdata.image);
 		}
 //		if (epoch % 1 == 0)
 			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
@@ -622,6 +632,7 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 	int img_w = testing_x[0][0]->size2;
 
 	data batchdata;
+	int batch_chan;
 
 	// Update batch_size for layers
 	for (int i = 0; i < num_layers; i++)
@@ -659,8 +670,9 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 
 		// Forward through layers
 		batchdata.image = minibatch;
+		batch_chan = num_channels;
 		for (int i = 0; i < num_layers; i++)
-			forward(&(layers[i]), &batchdata);
+			forward(&(layers[i]), &batchdata, &batch_chan);
 
 		// Calculate Forward Loss and Negdata
 		gsl_matrix* output = batchdata.matrix;
