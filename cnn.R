@@ -301,6 +301,17 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux['n_hidden']);
+		} else if (laux['type'] == "GBRL")
+		{
+			# Check for Visible units
+			if (input_dims[2] != as.numeric(laux['n_visible']))
+			{
+				message(paste("Error in layer ", i, sep = ""));
+				message("Current GBRL input (visible) do not match previous LAYER output (visible)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
+				return (FALSE);
+			}
+			input_dims[2] <- as.numeric(laux['n_hidden']);
 		} else if (laux['type'] %in% c("SOFT", "SIGM", "TANH", "DIRE"))
 		{
 			# Check for Visible units
@@ -324,10 +335,10 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 	}
 
 	# Check Last Layer
-	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH"))
+	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","GBRL","DIRE","TANH"))
 	{
 		message("Error in Output Layer");
-		message("Output layer must be a SOFT, SIGM, TANH, LINE or DIRE");
+		message("Output layer must be a SOFT, SIGM, TANH, LINE, GBRL or DIRE");
 		return (FALSE);
 	}
 
@@ -911,6 +922,90 @@ create_dire <- function()
 }
 
 ################################################################################
+# GAUSSIAN BERNOULLY RESTRICTED BOLTZMANN MACHINES LAYER                       #
+################################################################################
+
+### This function passes from Visible State to Hidden Probabilities
+vs2hp_gbrl <- function(gbrl, visible_state)
+{
+	h.mean <- sigmoid_func((visible_state %*% gbrl$W) %+% gbrl$hb);
+	h.sample <- sample_bernoulli(h.mean);
+
+	list(mean = h.mean, sample = h.sample);
+}
+
+### This function passes from Hidden State to Visible Probabilities
+hs2vp_gbrl <- function(gbrl, hidden_state)
+{
+	v.mean <- (hidden_state %*% t(gbrl$W)) %+% gbrl$vb;
+	v.sample <- v.mean;
+
+	list(mean = v.mean, sample = v.sample);
+}
+
+## Forward through a restricted boltzmann machine
+## Actually computes the positive phase (awake)
+##	param x :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_hidden>
+##	updates :	gb-rbm_layer
+forward_gbrl <- function(gbrl, x)
+{
+	gbrl[["x"]] <- x;
+	ph <- vs2hp(gbrl, x);
+
+	list(layer = gbrl, y = ph$sample);
+}
+
+## Backward through the GB-RBM layer
+## Actually computes the negative phase (asleep)
+##	param x :	Numeric vector <n_hidden>
+##	returns :	Numeric vector <n_visible>
+##	updates :	gb-rbm_layer
+backward_gbrl <- function(gbrl, dy)
+{
+	nh <- list("sample" = dy);
+	for (i in 1:gbrl$n_gibbs)
+	{
+		nv <- hs2vp(gbrl, nh[["sample"]]);
+		nh <- vs2hp(gbrl, nv[["sample"]]);
+	}
+
+	gbrl[["grad_W"]] <- t(gbrl[["x"]]) %*% ph[["mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
+	gbrl[["grad_vb"]] <- array(colSums(gbrl[["x"]] - nv[["sample"]]),c(1,ncol(dy));
+	gbrl[["grad_hb"]] <- array(colSums(ph[["mean"]] - nh[["mean"]]),c(1,ncol(dy));
+	
+	list(layer = gbrl, dx = nv$sample);
+}
+
+## Updates the GB-RBM Layer
+get_updates_gbrl <- function(gbrl, lr)
+{
+	gbrl[["W"]] = gbrl$W + lr * gbrl$grad_W/grbm$batch_size;
+        gbrl[["vb"]] = gbrl$vb + lr * gbrl$grad_vb/grbm$batch_size;
+        gbrl[["hb"]] = gbrl$hb + lr * gbrl$grad_hb/grbm$batch_size;
+	gbrl;
+}
+
+## Get names of parameters and gradients (for testing functions)
+pnames_gbrl <- function(gbrl) { c("W","hb", "vb"); }
+gnames_gbrl <- function(gbrl) { c("grad_W","grad_hb", "grad_vb"); }
+
+## Returns a GB-RBM layer
+create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
+{
+	W <- scale * sample_normal(c(n_visible, n_hidden));
+	hb <- array(0, c(1, n_hidden));
+	vb <- array(0, c(1, n_visible));
+	    
+	velocity <- list(W = array(0, dim(W)), v = rep(0, length(vb)), h = rep(0, length(hb)));
+
+    	list(	W = W, hb = hb, vb = vb, n_visible = n_visible, n_hidden = n_hidden,
+		n_gibbs = n_gibbs, velocity = velocity,
+		pnames = pnames_gbrl, gnames = gnames_gbrl, forward = forward_gbrl,
+		backward = backward_gbrl, get_updates = get_updates_gbrl);
+}
+
+################################################################################
 # CROSS-ENTROPY LOSS LAYER                                                     #
 ################################################################################
 
@@ -1166,6 +1261,7 @@ main <- function()
 		c('type' = "RELV"),
 		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
 		c('type' = "SOFT", 'n_inputs' = 10)
+#		c('type' = "GBRL", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1, 'n_gibbs' = 1),
 #		c('type' = "SIGM", 'n_inputs' = 10)
 #		c('type' = "TANH", 'n_inputs' = 10)
 #		c('type' = "DIRE", 'n_inputs' = 10)
