@@ -195,6 +195,14 @@ predict_rbm <- predict.rbm <- function(rbm, dataset)
     list(activations = act.input, reconstruction = rec.input);
 }
 
+## Pass the current data through the RBM backwards
+##	act.input : data to be passed back through the RBM
+##	returns : matrix of reconstructions
+reconstruct_rbm <- reconstruct.rbm <- function(rbm, act.input)
+{
+    act.input %*% t(rbm$W) + rbm$vbias;
+}
+
 ###############################################################################
 # EXPERIMENTS: THE MNIST EXAMPLE                                              #
 ###############################################################################

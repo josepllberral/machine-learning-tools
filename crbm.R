@@ -261,6 +261,18 @@ predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
 	list(activations = act.input, reconstruction = rec.input);
 }
 
+## Pass the current data through the CRBM backwards 
+##	act.input : n_seq x n_hidden. data to be passed back through the CRBM.
+##	history   : n_seq by delay * n_visibles array, history of the data to be
+##                  passed through the CRBM. If null, dataset is considered as a
+##                  series
+##	returns   : matrix of reconstructions
+## "reconstruct_crbm" call name is legacy
+reconstruct_crbm <- reconstruct.crbm <- function(crbm, act.input, history = NULL)
+{
+	(act.input %*% t(crbm$W) + history %*% crbm$A) %+% crbm$vbias;
+}
+
 ## Given initialization(s) of visibles and matching history, generate n_samples in future.
 ##	orig_data : n_seq by n_visibles array, initialization for first frame. If
 ##                  orig_history is null, orig_data is considered as a time series
