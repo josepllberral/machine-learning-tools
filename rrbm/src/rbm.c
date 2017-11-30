@@ -261,8 +261,8 @@ void train_rbm (RBM* rbm, gsl_matrix* batchdata, int nrow, int ncol, int batch_s
 /* PREDICT AND RECONSTRUCT USING THE RBM                                     */
 /*---------------------------------------------------------------------------*/
 
-// This function makes a reconstruction of Matrix v_sample
-//   param pv_sample   : matrix to reconstruct from
+// This function makes a forward-backward pass of Matrix v_sample
+//   param pv_sample   : matrix to activate and reconstruct from
 //   param activations : matrix to store activations
 //   param reconstruct : matrix to store reconstruction
 void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations, gsl_matrix** reconstruct)
@@ -285,6 +285,48 @@ void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations,
 	// Free auxiliar structures
 	gsl_matrix_free(nh_means);
 	gsl_matrix_free(nh_sample);
+	gsl_matrix_free(nv_means);
+	gsl_matrix_free(nv_sample);
+}
+
+// This function makes a forward pass of Matrix v_sample
+//   param pv_sample   : matrix to activate from
+//   param activations : matrix to store activations
+void forward_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations)
+{
+	int nrow = pv_sample->size1;
+
+	// Activation and Reconstruction process
+	gsl_matrix* nh_means = gsl_matrix_calloc(nrow, rbm->n_hidden);
+	gsl_matrix* nh_sample = gsl_matrix_calloc(nrow, rbm->n_hidden);
+
+	visible_state_to_hidden_probabilities_rbm (rbm, pv_sample, &nh_means, &nh_sample);
+
+	// Copy results to activation matrix (and padding for delay)
+	gsl_matrix_memcpy(*activations, nh_means);
+
+	// Free auxiliar structures
+	gsl_matrix_free(nh_means);
+	gsl_matrix_free(nh_sample);
+}
+
+// This function makes a backward pass of Matrix h_sample
+//   param nh_sample   : matrix to reconstruct from
+//   param reconstruct : matrix to store reconstruction
+void backward_RBM (RBM* rbm, gsl_matrix* nh_sample, gsl_matrix** reconstruct)
+{
+	int nrow = nh_sample->size1;
+
+	// Activation and Reconstruction process
+	gsl_matrix* nv_means = gsl_matrix_calloc(nrow, rbm->n_visible);
+	gsl_matrix* nv_sample = gsl_matrix_calloc(nrow, rbm->n_visible);
+
+	hidden_state_to_visible_probabilities_rbm (rbm, nh_sample, &nv_means, &nv_sample);
+
+	// Copy results to reconstruction matrix (and padding for delay)
+	gsl_matrix_memcpy(*reconstruct, nv_sample);
+
+	// Free auxiliar structures
 	gsl_matrix_free(nv_means);
 	gsl_matrix_free(nv_sample);
 }

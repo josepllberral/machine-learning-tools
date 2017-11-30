@@ -279,3 +279,80 @@ SEXP _C_RBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, 
 
 	return retval;
 }
+
+// Interface for Passing Forward an input dataset through an RBM
+SEXP _C_RBM_forward (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, SEXP hbias_input, SEXP vbias_input)
+{
+ 	int nrow = INTEGER(GET_DIM(newdata))[0];
+ 	int ncol = INTEGER(GET_DIM(newdata))[1];
+
+	int nhid = INTEGER_VALUE(n_hidden);
+
+	// Re-assemble the RBM
+	RBM rbm;
+	reassemble_RBM (&rbm, W_input, hbias_input, vbias_input, nhid, ncol);
+
+	// Prepare Test Dataset
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
+
+	// Pass through RBM
+	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
+	forward_RBM(&rbm, test_X_p, &activations);
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrow, nhid));
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < nhid; j++)
+			REAL(retval)[j * nrow + i] = gsl_matrix_get(activations, i, j);
+	UNPROTECT(1);
+
+	// Free the structures and the RBM
+	free_RBM(&rbm);
+
+	gsl_matrix_free(activations);
+	gsl_matrix_free(test_X_p);
+
+	return retval;
+}
+
+// Interface for Reconstructing Backwards an activation dataset through an RBM
+SEXP _C_RBM_backward (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input, SEXP hbias_input, SEXP vbias_input)
+{
+ 	int nrow = INTEGER(GET_DIM(newdata))[0];
+
+	int ncol = INTEGER_VALUE(n_visible);
+	int nhid = INTEGER_VALUE(n_hidden);
+
+	// Re-assemble the RBM
+	RBM rbm;
+	reassemble_RBM (&rbm, W_input, hbias_input, vbias_input, nhid, ncol);
+
+	// Prepare Test Dataset
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, nhid);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < nhid; j++)
+			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
+
+	// Pass through RBM
+	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, ncol);
+	backward_RBM(&rbm, test_X_p, &reconstruction);
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrow, ncol));
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+			REAL(retval)[j * nrow + i] = gsl_matrix_get(reconstruction, i, j);
+
+	UNPROTECT(1);
+
+	// Free the structures and the RBM
+	free_RBM(&rbm);
+
+	gsl_matrix_free(reconstruction);
+	gsl_matrix_free(test_X_p);
+
+	return retval;
+}

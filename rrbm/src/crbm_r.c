@@ -384,6 +384,98 @@ SEXP _C_CRBM_predict (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
 	return retval;
 }
 
+// Interface for Passing Forward an input dataset through a CRBM
+SEXP _C_CRBM_forward (SEXP newdata, SEXP n_visible, SEXP n_hidden, SEXP W_input,
+	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
+{
+	int nrow = INTEGER(GET_DIM(newdata))[0];
+ 	int ncol = INTEGER(GET_DIM(newdata))[1];
+
+	int nvis = INTEGER_VALUE(n_visible);
+	int nhid = INTEGER_VALUE(n_hidden);
+	int dely = INTEGER_VALUE(delay);
+
+	// Re-assemble the CRBM
+	CRBM crbm;
+	reassemble_CRBM (&crbm, W_input, B_input, A_input, hbias_input, vbias_input,
+		nhid, nvis, dely);
+
+	// Prepare Test Dataset
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, ncol);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < ncol; j++)
+			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
+
+	// Pass through CRBM
+	gsl_matrix* activations = gsl_matrix_calloc(nrow, nhid);
+	forward_CRBM(&crbm, test_X_p, &activations);
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrow, nhid));
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < nhid; j++)
+			REAL(retval)[j * nrow + i] = gsl_matrix_get(activations, i, j);
+
+	UNPROTECT(1);
+
+	// Free the structures and the CRBM
+	free_CRBM(&crbm);
+
+	gsl_matrix_free(activations);
+	gsl_matrix_free(test_X_p);
+
+	return retval;
+}
+
+// Interface for Reconstructing Backwards an activation dataset through a CRBM
+SEXP _C_CRBM_backward (SEXP newdata, SEXP history, SEXP n_visible, SEXP n_hidden, SEXP W_input,
+	SEXP B_input, SEXP A_input, SEXP hbias_input, SEXP vbias_input, SEXP delay)
+{
+	int nrow = INTEGER(GET_DIM(newdata))[0];
+
+	int nvis = INTEGER_VALUE(n_visible);
+	int nhid = INTEGER_VALUE(n_hidden);
+	int dely = INTEGER_VALUE(delay);
+
+	// Re-assemble the CRBM
+	CRBM crbm;
+	reassemble_CRBM (&crbm, W_input, B_input, A_input, hbias_input, vbias_input,
+		nhid, nvis, dely);
+
+	// Prepare Test Dataset
+	gsl_matrix* test_X_p = gsl_matrix_alloc(nrow, nhid);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < nhid; j++)
+			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
+
+	// Prepare History Dataset
+	gsl_matrix* test_X_h = gsl_matrix_alloc(nrow + dely - 1 , nvis * dely);
+	for (int i = 0; i < nrow + dely - 1; i++)
+		for (int j = 0; j < nvis * dely; j++)
+			gsl_matrix_set(test_X_h, i, j, RMATRIX(history, i, j));
+
+	// Pass through CRBM
+	gsl_matrix* reconstruction = gsl_matrix_calloc(nrow, nvis);
+	backward_CRBM(&crbm, test_X_p, test_X_h, &reconstruction);
+
+	// Prepare Results
+	SEXP retval = PROTECT(allocMatrix(REALSXP, nrow, nvis));
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < nvis; j++)
+			REAL(retval)[j * nrow + i] = gsl_matrix_get(reconstruction, i, j);
+
+	UNPROTECT(1);
+
+	// Free the structures and the CRBM
+	free_CRBM(&crbm);
+
+	gsl_matrix_free(reconstruction);
+	gsl_matrix_free(test_X_p);
+	gsl_matrix_free(test_X_h);
+
+	return retval;
+}
+
 // Interface for Generating a Sequence using a CRBM
 SEXP _C_CRBM_generate_samples (SEXP newdata, SEXP n_visible, SEXP n_hidden,
 	SEXP W_input, SEXP B_input, SEXP A_input, SEXP hbias_input,

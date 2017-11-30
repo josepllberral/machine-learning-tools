@@ -111,7 +111,7 @@ train.rbm <- function (dataset, batch_size = 1, n_hidden = 3,
 #'                        learning_rate = 1e-3, training_epochs = 10,
 #'                        batch_size = 10, momentum = 0.5);
 #'
-#' reconstruction <- predict(rbm_mnist, training.num);
+#' passed_data <- predict(rbm_mnist, training.num);
 predict.rbm <- function (rbm, newdata)
 {
 	if (!"rbm" %in% class(rbm))
@@ -127,6 +127,106 @@ predict.rbm <- function (rbm, newdata)
 	}
 
 	.Call("_C_RBM_predict", as.matrix(newdata), as.integer(rbm$n_visible),
+		as.integer(rbm$n_hidden), as.matrix(rbm$W), as.numeric(rbm$hbias),
+		as.numeric(rbm$vbias),
+		PACKAGE = "rrbm");
+}
+
+#' Featurizing using a Restricted Boltzmann Machine Function
+#'
+#' Function to Activate feaures from a RBM (Forward pass). Returns an
+#' activation matrix.
+#' @param rbm A trained RBM using train.rbm() function.
+#' @param act.input A matrix with activation data, one example per row.
+#' @keywords RBM
+#' @export
+#' @examples
+#' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
+#'                     0, 0, 0, 1, 1, 0), c(6,2)));
+#' res <- predict(rbm1, test_X);
+#' reconstruction <- backward.rbm(rbm1, res$activation);
+#' 
+#' activation <- forward.rbm(rbm1, test_X);
+#' reconstruction <- backward.rbm(rbm1, activation);
+#'
+#' # The MNIST example
+#' data(mnist)
+#'
+#' training.num <- data.matrix(mnist$train$x)/255;
+#' rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+#'                        learning_rate = 1e-3, training_epochs = 10,
+#'                        batch_size = 10, momentum = 0.5);
+#'
+#' passed_data <- predict(rbm_mnist, training.num);
+#' reconstruction <- backward.rbm(rbm_mnist, passed_data$activation);
+#'
+#' activation <- forward.rbm(rbm_mnist, training.num);
+#' reconstruction <- backward.rbm(rbm_mnist, activation);
+forward.rbm <- function (rbm, newdata)
+{
+	if (!"rbm" %in% class(rbm))
+	{
+		message("input object is not an RBM");
+		return(NULL);
+	}
+
+	if ("integer" %in% class(newdata[1,1]))
+	{
+		message("Input matrix is Integer: Coercing to Numeric.");
+		newdata <- t(apply(newdata, 1, as.numeric));
+	}
+
+	.Call("_C_RBM_forward", as.matrix(newdata), as.integer(rbm$n_visible),
+		as.integer(rbm$n_hidden), as.matrix(rbm$W), as.numeric(rbm$hbias),
+		as.numeric(rbm$vbias),
+		PACKAGE = "rrbm");
+}
+
+#' Reconstructing using a Restricted Boltzmann Machine Function
+#'
+#' Function to Reconstruct data from a RBM (Backward pass). Returns a
+#' reconstruction matrix.
+#' @param rbm A trained RBM using train.rbm() function.
+#' @param act.input A matrix with activation data, one example per row.
+#' @keywords RBM
+#' @export
+#' @examples
+#' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
+#'                     0, 0, 0, 1, 1, 0), c(6,2)));
+#' res <- predict(rbm1, test_X);
+#' reconstruction <- backward.rbm(rbm1, res$activation);
+#' 
+#' activation <- forward.rbm(rbm1, test_X);
+#' reconstruction <- backward.rbm(rbm1, activation);
+#'
+#' # The MNIST example
+#' data(mnist)
+#'
+#' training.num <- data.matrix(mnist$train$x)/255;
+#' rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
+#'                        learning_rate = 1e-3, training_epochs = 10,
+#'                        batch_size = 10, momentum = 0.5);
+#'
+#' passed_data <- predict(rbm_mnist, training.num);
+#' reconstruction <- backward.rbm(rbm_mnist, passed_data$activation);
+#'
+#' activation <- forward.rbm(rbm_mnist, training.num);
+#' reconstruction <- backward.rbm(rbm_mnist, activation);
+backward.rbm <- function (rbm, act.input)
+{
+	if (!"rbm" %in% class(rbm))
+	{
+		message("input object is not an RBM");
+		return(NULL);
+	}
+
+	if ("integer" %in% class(act.input[1,1]))
+	{
+		message("Input matrix is Integer: Coercing to Numeric.");
+		newdata <- t(apply(act.input, 1, as.numeric));
+	}
+
+	.Call("_C_RBM_backward", as.matrix(act.input), as.integer(rbm$n_visible),
 		as.integer(rbm$n_hidden), as.matrix(rbm$W), as.numeric(rbm$hbias),
 		as.numeric(rbm$vbias),
 		PACKAGE = "rrbm");
@@ -288,6 +388,122 @@ predict.crbm <- function (crbm, newdata)
 	.Call("_C_CRBM_predict", as.matrix(newdata), as.integer(crbm$n_visible),
 		as.integer(crbm$n_hidden), as.matrix(crbm$W), as.matrix(crbm$B),
 		as.matrix(crbm$A), as.numeric(crbm$hbias), as.numeric(crbm$vbias),
+		as.integer(crbm$delay),
+		PACKAGE = "rrbm");
+}
+
+#' Feature generation using a Conditional Restricted Boltzmann Machine Function
+#'
+#' Function to Generate features from a CRBM (Forward pass). Returns a
+#' prediction matrix.
+#' @param crbm A trained CRBM using train.crbm() function.
+#' @param newdata A matrix with data, one example per row. Must contain
+#' more rows than crbm delay.
+#' @keywords CRBM, RBM
+#' @export
+#' @examples
+#' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
+#'                     0, 1, 1, 1, 0, 0,
+#'                     0, 0, 0, 1, 1, 0), c(6,3)));
+#' activations <- forward.crbm((crbm1, test_X);
+#'
+#' ## Motion (fragment) Example
+#' data(motionfrag)
+#'
+#' crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+#'                          batch_size = 100, n_hidden = 100, delay = 6,
+#'                          training_epochs = 200, learning_rate = 1e-3,
+#'                          momentum = 0.5, rand_seed = 1234);
+#'
+#' activations <- forward.crbm(crbm_mfrag, motionfrag$batchdata);
+forward.crbm <- function (crbm, newdata)
+{
+	if (!"crbm" %in% class(crbm))
+	{
+		message("ERROR: input object is not a CRBM");
+		return(NULL);
+	}
+
+	if (crbm$delay + 1 > nrow(newdata))
+	{
+		message("ERROR: Delay is longer than sequence");
+		return(NULL);
+	}
+
+	if ("integer" %in% class(newdata[1,1]))
+	{
+		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		newdata <- t(apply(newdata, 1, as.numeric));
+	}
+
+	.Call("_C_CRBM_forward", as.matrix(newdata), as.integer(crbm$n_visible),
+		as.integer(crbm$n_hidden), as.matrix(crbm$W), as.matrix(crbm$B),
+		as.matrix(crbm$A), as.numeric(crbm$hbias), as.numeric(crbm$vbias),
+		as.integer(crbm$delay),
+		PACKAGE = "rrbm");
+}
+
+#' Reconstruction using a Conditional Restricted Boltzmann Machine Function
+#'
+#' Function to reconstruct inputs from a CRBM (Forward pass). Returns a
+#' prediction matrix.
+#' @param crbm A trained CRBM using train.crbm() function.
+#' @param newdata A matrix with data, one example per row. Must contain
+#' more rows than crbm delay.
+#' @param history A matrix with the visible history data, one example per row.
+#' Must contain as many rows as newdata plus the delay
+#' @keywords CRBM, RBM
+#' @export
+#' @examples
+#' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
+#'                     0, 1, 1, 1, 0, 0,
+#'                     0, 0, 0, 1, 1, 0), c(6,3)));
+#' activations <- forward.crbm((crbm1, test_X);
+#' reconstruct <- backward.crbm((crbm1, activations, test_X); # FIXME
+#'
+#' ## Motion (fragment) Example
+#' data(motionfrag)
+#'
+#' crbm_mfrag <- train.crbm(motionfrag$batchdata, motionfrag$seqlen,
+#'                          batch_size = 100, n_hidden = 100, delay = 6,
+#'                          training_epochs = 200, learning_rate = 1e-3,
+#'                          momentum = 0.5, rand_seed = 1234);
+#'
+#' activations <- forward.crbm(crbm_mfrag, motionfrag$batchdata);
+#' 
+#' valid_activations <- activations[crbm_mfrag$delay:nrow(activations)];
+#' corresp_history <- motionfrag$batchdata[1:(nrow(motionfrag$batchdata)-1),];
+#' reconstruct <- backward.crbm(crbm_mfrag, valid_activations, corresp_history);
+backward.crbm <- function (crbm, newdata, history)
+{
+	if (!"crbm" %in% class(crbm))
+	{
+		message("ERROR: input object is not a CRBM");
+		return(NULL);
+	}
+
+	if (crbm$delay + 1 > nrow(newdata))
+	{
+		message("ERROR: Delay is longer than sequence");
+		return(NULL);
+	}
+
+	if (nrow(history) != nrow(newdata) + crbm$delay - 1)
+	{
+		message("ERROR: History dataset rows not match Activation dataset rows + delay size");
+		return(NULL);
+	}
+
+	if ("integer" %in% class(newdata[1,1]))
+	{
+		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		newdata <- t(apply(newdata, 1, as.numeric));
+	}
+
+	.Call("_C_CRBM_backward", as.matrix(newdata), as.matrix(history),
+		as.integer(crbm$n_visible), as.integer(crbm$n_hidden),
+		as.matrix(crbm$W), as.matrix(crbm$B), as.matrix(crbm$A),
+		as.numeric(crbm$hbias), as.numeric(crbm$vbias),
 		as.integer(crbm$delay),
 		PACKAGE = "rrbm");
 }

@@ -1,6 +1,6 @@
-###############################################################################
-# RESTRICTED BOLTZMANN MACHINES in R                                          #
-###############################################################################
+################################################################################
+# RESTRICTED BOLTZMANN MACHINES in R                                           #
+################################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
@@ -12,9 +12,9 @@
 # Author of the snippet to load the MNIST example:
 # * Brendan O'Connor https://gist.github.com/39760 - anyall.org
 
-###############################################################################
-# AUXILIAR FUNCTIONS                                                          #
-###############################################################################
+################################################################################
+# AUXILIAR FUNCTIONS                                                           #
+################################################################################
 
 ## Function to produce Normal Samples
 sample_normal <- function(dims, mean = 0, sd = 1)
@@ -47,9 +47,9 @@ sigmoid_func <- function(mat)
     retval;
 }
 
-###############################################################################
-# RBM FUNCTIONS                                                               #
-###############################################################################
+################################################################################
+# RBM FUNCTIONS                                                                #
+################################################################################
 
 ## Restricted Boltzmann Machine (RBM). Constructor
 create_rbm <- function (n_visible = 10, n_hidden = 100, W = NULL, hbias = NULL,
@@ -122,9 +122,9 @@ cdk_rbm <- function(rbm, input, lr, k = 1, momentum = 0.1)
     list(rbm = rbm, recon = mean(rowSums(`^`(input - nv[["mean"]],2))));
 }
 
-###############################################################################
-# HOW TO TRAIN YOUR RBM                                                       #
-###############################################################################
+################################################################################
+# HOW TO TRAIN YOUR RBM                                                        #
+################################################################################
 
 ## Function to train the RBM
 ##  param dataset: loaded dataset (rows = examples, cols = features)
@@ -180,9 +180,9 @@ train_rbm <- train.rbm <- function (dataset, batch_size = 100, n_hidden = 100,
     rbm;
 }
 
-###############################################################################
-# PREDICTING VALUES                                                           #
-###############################################################################
+################################################################################
+# PREDICTING VALUES                                                            #
+################################################################################
 
 ## Pass the current data through the RBM
 ##	dataset : data to be passed through the RBM
@@ -195,17 +195,25 @@ predict_rbm <- predict.rbm <- function(rbm, dataset)
     list(activations = act.input, reconstruction = rec.input);
 }
 
-## Pass the current data through the RBM backwards
+## Pass the current data through the RBM forward
+##	dataset : data to be passed through the RBM
+##	returns : matrix of activations
+forward_rbm <- forward.rbm <- function(rbm, dataset)
+{
+    sigmoid_func(dataset %*% rbm$W + rbm$hbias);
+}
+
+## Pass the current data through the RBM backward
 ##	act.input : data to be passed back through the RBM
 ##	returns : matrix of reconstructions
-reconstruct_rbm <- reconstruct.rbm <- function(rbm, act.input)
+backward_rbm <- backward.rbm <- function(rbm, act.input)
 {
     act.input %*% t(rbm$W) + rbm$vbias;
 }
 
-###############################################################################
-# EXPERIMENTS: THE MNIST EXAMPLE                                              #
-###############################################################################
+################################################################################
+# EXPERIMENTS: THE MNIST EXAMPLE                                               #
+################################################################################
 
 # Load the MNIST digit recognition dataset http://yann.lecun.com/exdb/mnist/
 # into R. Assume you have all 4 files and gunzip'd them creates train$n,

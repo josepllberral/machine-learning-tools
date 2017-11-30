@@ -45,5 +45,7 @@ void hidden_state_to_visible_probabilities_rbm (RBM* rbm, gsl_matrix* h_sample, 
 double cdk_RBM (RBM* rbm, gsl_matrix* input, double lr, double momentum, int k);
 void train_rbm (RBM* rbm, gsl_matrix* batchdata, int nrow, int ncol, int batch_size, int n_hidden, int training_epochs, double learning_rate, double momentum, int rand_seed, gsl_matrix* init_W, gsl_vector* init_hbias, gsl_vector* init_vbias);
 void reconstruct_RBM (RBM* rbm, gsl_matrix* pv_sample, gsl_matrix** activations, gsl_matrix** reconstruct);
+void forward_RBM(RBM*, gsl_matrix*, gsl_matrix**);
+void backward_RBM(RBM*, gsl_matrix*, gsl_matrix**);
 
 #endif

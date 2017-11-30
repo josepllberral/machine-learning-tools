@@ -399,6 +399,101 @@ void reconstruct_CRBM (CRBM* crbm, gsl_matrix* v_sample, gsl_matrix** activation
 	gsl_vector_free(vec_zeros_v);
 }
 
+// This function makes a forward pass of Matrix V
+//   param v_sample    : matrix to activate features from. History is generated
+//                       from v_sample
+//   param activations : matrix to store activations
+void forward_CRBM (CRBM* crbm, gsl_matrix* v_sample, gsl_matrix** activations)
+{
+	int nrow = v_sample->size1;
+
+	// Recreate history
+	gsl_matrix* pv_sample = gsl_matrix_calloc(nrow - crbm->delay, crbm->n_visible);
+	gsl_matrix* v_history = gsl_matrix_calloc(nrow - crbm->delay, crbm->n_visible * crbm->delay);
+	for (int i = crbm->delay; i < nrow; i++)
+	{
+		for (int j = 0; j < crbm->delay; j++)
+			for (int k = 0; k < crbm->n_visible; k++)
+				gsl_matrix_set(v_history, i - crbm->delay, j * crbm->n_visible + k, gsl_matrix_get(v_sample, i - j - 1, k));
+
+		gsl_vector* aux = gsl_vector_alloc(crbm->n_visible);
+		gsl_matrix_get_row(aux, v_sample, i);
+		gsl_matrix_set_row(pv_sample, i - crbm->delay, aux);
+		gsl_vector_free(aux);
+	}
+
+	// Activation process
+	gsl_matrix* nh_means = gsl_matrix_calloc(nrow - crbm->delay, crbm->n_hidden);
+	gsl_matrix* nh_sample = gsl_matrix_calloc(nrow - crbm->delay, crbm->n_hidden);
+
+	visible_state_to_hidden_probabilities_crbm (crbm, pv_sample, v_history, &nh_means, &nh_sample);
+
+	// Copy results to activation matrix (and padding for delay)
+	gsl_vector* vec_zeros_h = gsl_vector_calloc(crbm->n_hidden);
+	for (int i = 0; i < crbm->delay; i++)
+		gsl_matrix_set_row(*activations, i, vec_zeros_h);
+
+	for (int i = crbm->delay; i < nrow; i++)
+	{
+		gsl_vector* aux_h = gsl_vector_alloc(crbm->n_hidden);
+		gsl_matrix_get_row(aux_h, nh_means, i - crbm->delay);
+		gsl_matrix_set_row(*activations, i, aux_h);
+		gsl_vector_free(aux_h);
+	}
+
+	// Free auxiliar structures
+	gsl_matrix_free(nh_means);
+	gsl_matrix_free(nh_sample);
+
+	gsl_matrix_free(pv_sample);
+	gsl_matrix_free(v_history);
+	gsl_vector_free(vec_zeros_h);
+}
+
+// This function makes a forward pass of Matrix N
+//   param nh_sample   : matrix to reconstruct inputs from. History must match
+//                       nh_sample rows + delay
+//   param reconstruct : matrix to store reconstruction
+void backward_CRBM (CRBM* crbm, gsl_matrix* nh_sample, gsl_matrix* ds_history, gsl_matrix** reconstruct)
+{
+	int nrow = nh_sample->size1;
+	int hist_nrow = ds_history->size1;
+	
+	if (hist_nrow != nrow + crbm->delay - 1)
+	{
+		printf("Error: History dataset rows not match Activation dataset rows + delay size\n");
+		return;
+	}
+
+	// Generate history
+	gsl_matrix* v_history = gsl_matrix_calloc(nrow, crbm->n_visible * crbm->delay);
+	for (int i = 0; i < nrow; i++)
+		for (int j = 0; j < crbm->delay; j++)
+			for (int k = 0; k < crbm->n_visible; k++)
+				gsl_matrix_set(v_history, i, j * crbm->n_visible + k, gsl_matrix_get(ds_history, i + crbm->delay - j - 1, k));
+
+	// Reconstruction process
+	gsl_matrix* nv_means = gsl_matrix_calloc(nrow, crbm->n_visible);
+	gsl_matrix* nv_sample = gsl_matrix_calloc(nrow, crbm->n_visible);
+
+	hidden_state_to_visible_probabilities_crbm (crbm, nh_sample, v_history, &nv_means, &nv_sample);
+
+	// Copy results to reconstruction matrix
+	for (int i = 0; i < nrow; i++)
+	{
+		gsl_vector* aux_v = gsl_vector_alloc(crbm->n_visible);
+		gsl_matrix_get_row(aux_v, nv_sample, i);
+		gsl_matrix_set_row(*reconstruct, i, aux_v);
+		gsl_vector_free(aux_v);
+	}
+
+	// Free auxiliar structures
+	gsl_matrix_free(nv_means);
+	gsl_matrix_free(nv_sample);
+
+	gsl_matrix_free(v_history);
+}
+
 /*---------------------------------------------------------------------------*/
 /* FORECAST AND SIMULATION USING THE CRBM                                    */
 /*---------------------------------------------------------------------------*/

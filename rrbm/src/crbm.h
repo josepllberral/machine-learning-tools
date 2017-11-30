@@ -61,5 +61,7 @@ void train_crbm (CRBM* crbm, gsl_matrix* batchdata, int* seqlen, int nseq, int n
 void reconstruct_CRBM (CRBM* crbm, gsl_matrix* v_sample, gsl_matrix** activations, gsl_matrix** reconstruct);
 gsl_vector* sample_fn (CRBM* crbm, int n_gibbs, gsl_vector** vis_sample, gsl_matrix** v_history);
 gsl_matrix* generate_samples (CRBM* crbm, gsl_matrix* sequence, int n_samples, int n_gibbs);
+void forward_CRBM(CRBM*, gsl_matrix*, gsl_matrix**);
+void backward_CRBM(CRBM*, gsl_matrix*, gsl_matrix*, gsl_matrix**);
 
 #endif
