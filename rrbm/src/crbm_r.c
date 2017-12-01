@@ -449,9 +449,9 @@ SEXP _C_CRBM_backward (SEXP newdata, SEXP history, SEXP n_visible, SEXP n_hidden
 			gsl_matrix_set(test_X_p, i, j, RMATRIX(newdata, i, j));
 
 	// Prepare History Dataset
-	gsl_matrix* test_X_h = gsl_matrix_alloc(nrow + dely - 1 , nvis * dely);
+	gsl_matrix* test_X_h = gsl_matrix_alloc(nrow + dely - 1 , nvis);
 	for (int i = 0; i < nrow + dely - 1; i++)
-		for (int j = 0; j < nvis * dely; j++)
+		for (int j = 0; j < nvis; j++)
 			gsl_matrix_set(test_X_h, i, j, RMATRIX(history, i, j));
 
 	// Pass through CRBM

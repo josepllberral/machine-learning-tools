@@ -1,4 +1,4 @@
-## R -d "valgrind --tool=memcheck --leak-check=full" --vanilla < vgtest-crbm.R > log.txt 2>&1
+## R -d "valgrind --tool=memcheck --leak-check=full" --vanilla < vgtest-crbm.R > log2.txt 2>&1
 
 library(rrbm)
 

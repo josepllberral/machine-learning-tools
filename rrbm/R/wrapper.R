@@ -291,7 +291,7 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 
 	if ("integer" %in% class(dataset[1,1]))
 	{
-		message("Input matrix is Integer: Coercing to Numeric.");
+		message("WARNING: Input matrix is Integer: Coercing to Numeric.");
 		dataset <- t(apply(dataset, 1, as.numeric));
 	}
 
@@ -381,7 +381,7 @@ predict.crbm <- function (crbm, newdata)
 
 	if ("integer" %in% class(newdata[1,1]))
 	{
-		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		message("WARNING: Input matrix is Integer, Coercing to Numeric.");
 		newdata <- t(apply(newdata, 1, as.numeric));
 	}
 
@@ -432,7 +432,7 @@ forward.crbm <- function (crbm, newdata)
 
 	if ("integer" %in% class(newdata[1,1]))
 	{
-		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		message("WARNING: Input matrix is Integer, Coercing to Numeric.");
 		newdata <- t(apply(newdata, 1, as.numeric));
 	}
 
@@ -482,22 +482,28 @@ backward.crbm <- function (crbm, newdata, history)
 		return(NULL);
 	}
 
-	if (crbm$delay + 1 > nrow(newdata))
-	{
-		message("ERROR: Delay is longer than sequence");
-		return(NULL);
-	}
-
 	if (nrow(history) != nrow(newdata) + crbm$delay - 1)
 	{
 		message("ERROR: History dataset rows not match Activation dataset rows + delay size");
 		return(NULL);
 	}
+	
+	if (ncol(history) != crbm$n_visible)
+	{
+		message("ERROR: History dataset cols not match Activation dataset cols");
+		return(NULL);
+	}
 
 	if ("integer" %in% class(newdata[1,1]))
 	{
-		message("ERROR: Input matrix is Integer, Coercing to Numeric.");
+		message("WARNING: Input matrix is Integer, Coercing to Numeric.");
 		newdata <- t(apply(newdata, 1, as.numeric));
+	}
+	
+	if ("integer" %in% class(history[1,1]))
+	{
+		message("WARNING: History matrix is Integer, Coercing to Numeric.");
+		newdata <- t(apply(history, 1, as.numeric));
 	}
 
 	.Call("_C_CRBM_backward", as.matrix(newdata), as.matrix(history),
