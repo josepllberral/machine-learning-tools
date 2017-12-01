@@ -250,13 +250,16 @@ predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
 		history <- array(0, c(0, crbm$n_visible * crbm$delay));
 		for (i in (crbm$delay + 1):nrow(dataset))
 		{
-			aux <- as.matrix(dataset[(i - crbm$delay):(i-1),]);
+			aux <- as.matrix(dataset[(i-1):(i - crbm$delay),]);
 			aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
 			history <- rbind(history, aux);
 		}	
+		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),];
+	} else {
+		pv_sample <- dataset;
 	}
 	
-	act.input <- sigmoid_func((dataset %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
+	act.input <- sigmoid_func((pv_sample %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
 	rec.input <- (act.input %*% t(crbm$W) + history %*% crbm$A) %+% crbm$vbias;
 	list(activations = act.input, reconstruction = rec.input);
 }
@@ -275,13 +278,16 @@ forward_crbm <- forward.crbm <- function(crbm, dataset, history = NULL)
 		history <- array(0, c(0, crbm$n_visible * crbm$delay));
 		for (i in (crbm$delay + 1):nrow(dataset))
 		{
-			aux <- as.matrix(dataset[(i - crbm$delay):(i-1),]);
+			aux <- as.matrix(dataset[(i-1):(i - crbm$delay),]);
 			aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
 			history <- rbind(history, aux);
 		}	
+		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),];
+	} else {
+		pv_sample <- dataset;
 	}
 	
-	sigmoid_func((dataset %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
+	sigmoid_func((pv_sample %*% crbm$W + history %*% crbm$B) %+% crbm$hbias);
 }
 
 ## Pass the current data through the CRBM backward
@@ -294,7 +300,7 @@ backward_crbm <- backward.crbm <- function(crbm, act.input, ds_history)
 	history <- array(0, c(0, crbm$n_visible * crbm$delay));
 	for (i in 1:nrow(act.input))
 	{
-		aux <- as.matrix(ds_history[i:(i + delay - 1),]);
+		aux <- as.matrix(ds_history[(i + crbm$delay - 1):i,]);
 		aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
 		history <- rbind(history, aux);
 	}	

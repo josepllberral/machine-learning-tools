@@ -448,10 +448,30 @@ forward.crbm <- function (crbm, newdata)
 #' Function to reconstruct inputs from a CRBM (Forward pass). Returns a
 #' prediction matrix.
 #' @param crbm A trained CRBM using train.crbm() function.
-#' @param newdata A matrix with data, one example per row. Must contain
-#' more rows than crbm delay.
+#' @param act.input A matrix with data, one activation example per row.
 #' @param history A matrix with the visible history data, one example per row.
-#' Must contain as many rows as newdata plus the delay
+#' This matrix must be the size of newdata - 1, plus delay examples. Sample
+#' i from activations uses history [i - 1 + delay : i - 1] as visible history.
+#' 
+#'            act.input        history
+#' 
+#'           <--hidden-->   <--visible-->
+#'           +----------+
+#'         A |__________|   +-----------+
+#'         | |__________|   |___________| A
+#'    n    | |__________|   |___________| |
+#' samples | |__________|   |___________| |  n - 1
+#'         | |__________|   |___________| | samples
+#'         | |__________|   |___________| |
+#'         V |          |   |___________| V|
+#'           +----------+   |___________| A
+#'                          |___________| |
+#'                          |___________| |
+#'                          |___________| |  delay
+#'                          |___________| |
+#'                          |           | |
+#'                          +-----------+ V
+#' 
 #' @keywords CRBM, RBM
 #' @export
 #' @examples
@@ -474,7 +494,7 @@ forward.crbm <- function (crbm, newdata)
 #' valid_activations <- activations[crbm_mfrag$delay:nrow(activations)];
 #' corresp_history <- motionfrag$batchdata[1:(nrow(motionfrag$batchdata)-1),];
 #' reconstruct <- backward.crbm(crbm_mfrag, valid_activations, corresp_history);
-backward.crbm <- function (crbm, newdata, history)
+backward.crbm <- function (crbm, act.input, history)
 {
 	if (!"crbm" %in% class(crbm))
 	{
@@ -482,7 +502,7 @@ backward.crbm <- function (crbm, newdata, history)
 		return(NULL);
 	}
 
-	if (nrow(history) != nrow(newdata) + crbm$delay - 1)
+	if (nrow(history) != nrow(act.input) + crbm$delay - 1)
 	{
 		message("ERROR: History dataset rows not match Activation dataset rows + delay size");
 		return(NULL);
@@ -494,10 +514,10 @@ backward.crbm <- function (crbm, newdata, history)
 		return(NULL);
 	}
 
-	if ("integer" %in% class(newdata[1,1]))
+	if ("integer" %in% class(act.input[1,1]))
 	{
 		message("WARNING: Input matrix is Integer, Coercing to Numeric.");
-		newdata <- t(apply(newdata, 1, as.numeric));
+		newdata <- t(apply(act.input, 1, as.numeric));
 	}
 	
 	if ("integer" %in% class(history[1,1]))
@@ -506,7 +526,7 @@ backward.crbm <- function (crbm, newdata, history)
 		newdata <- t(apply(history, 1, as.numeric));
 	}
 
-	.Call("_C_CRBM_backward", as.matrix(newdata), as.matrix(history),
+	.Call("_C_CRBM_backward", as.matrix(act.input), as.matrix(history),
 		as.integer(crbm$n_visible), as.integer(crbm$n_hidden),
 		as.matrix(crbm$W), as.matrix(crbm$B), as.matrix(crbm$A),
 		as.numeric(crbm$hbias), as.numeric(crbm$vbias),
