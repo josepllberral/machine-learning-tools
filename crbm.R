@@ -239,8 +239,9 @@ train.crbm <- function (dataset, seqlen, ...)
 ##	dataset : n_seq x n_visible. data to be passed through the CRBM. If
 ##                history is null, dataset is considered as a time series
 ##	history : n_seq by delay * n_visibles array, history of the data to be
-##                passed through the CRBM. If null, dataset is considered as a
-##                series
+##                passed through the CRBM, from t-1 to t-d (from NEWER to OLDER
+##                entries). If null, dataset is considered as a series and it
+##                will be automatically build.
 ##	returns : list with activations and reconstructions
 ## "predict_crbm" call name is legacy
 predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
@@ -268,8 +269,9 @@ predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
 ##	dataset : n_seq x n_visible. data to be passed through the CRBM. If
 ##                history is null, dataset is considered as a time series
 ##	history : n_seq by delay * n_visibles array, history of the data to be
-##                passed through the CRBM. If null, dataset is considered as a
-##                series
+##                passed through the CRBM, from t-1 to t-d (from NEWER to OLDER
+##                entries). If null, dataset is considered as a series and it
+##                will be automatically build.
 ##	returns : matrix of activations
 forward_crbm <- forward.crbm <- function(crbm, dataset, history = NULL)
 {
@@ -293,7 +295,8 @@ forward_crbm <- forward.crbm <- function(crbm, dataset, history = NULL)
 ## Pass the current data through the CRBM backward
 ##	act.input  : n_seq x n_hidden. data to be passed back through the CRBM.
 ##	ds_history : n_seq by delay * n_visibles array, history of the data to
-##                   be passed through the CRBM.
+##                   be passed through the CRBM, from t = 1 to t = n + delay
+##                   (this is, from OLDER to NEWER entries).
 ##	returns    : matrix of reconstructions
 backward_crbm <- backward.crbm <- function(crbm, act.input, ds_history)
 {

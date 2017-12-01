@@ -348,6 +348,24 @@ train.crbm <- function (dataset, seqlen, batch_size = 1, n_hidden = 3, delay = 6
 #' @param crbm A trained CRBM using train.crbm() function.
 #' @param newdata A matrix with data, one example per row. Must contain
 #' more rows than crbm delay.
+#' \preformatted{
+#'           <--visible-->
+#'            ___________ 
+#' [n,]    A |___________|                            t=n
+#'         | |___________|                            .
+#'         | |___________|                            .
+#'         | |___________|                            .
+#'    n    | |___________|                            .
+#' samples | |___________|                      A     .
+#'         | |___________|                      |     .
+#'         | |___________|                      |     .
+#'         | |___________| ---->  Input  --+    |     t=d+1
+#' [d,]  A | |___________| --+             | Sliding  t=d
+#'       | | |___________|   |             | window   .
+#' delay | | |___________|   |-> History --+          .
+#'       | | |___________|   |                        .
+#' [1,]  V V |___________| --+                        t=1
+#' }
 #' @keywords CRBM, RBM
 #' @export
 #' @examples
@@ -399,13 +417,31 @@ predict.crbm <- function (crbm, newdata)
 #' @param crbm A trained CRBM using train.crbm() function.
 #' @param newdata A matrix with data, one example per row. Must contain
 #' more rows than crbm delay.
+#' \preformatted{
+#'           <--visible-->
+#'            ___________ 
+#' [n,]    A |___________|                            t=n
+#'         | |___________|                            .
+#'         | |___________|                            .
+#'         | |___________|                            .
+#'    n    | |___________|                            .
+#' samples | |___________|                      A     .
+#'         | |___________|                      |     .
+#'         | |___________|                      |     .
+#'         | |___________| ---->  Input  --+    |     t=d+1
+#' [d,]  A | |___________| --+             | Sliding  t=d
+#'       | | |___________|   |             | window   .
+#' delay | | |___________|   |-> History --+          .
+#'       | | |___________|   |                        .
+#' [1,]  V V |___________| --+                        t=1
+#' }
 #' @keywords CRBM, RBM
 #' @export
 #' @examples
 #' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
 #'                     0, 1, 1, 1, 0, 0,
 #'                     0, 0, 0, 1, 1, 0), c(6,3)));
-#' activations <- forward.crbm((crbm1, test_X);
+#' activations <- forward.crbm(crbm1, test_X);
 #'
 #' ## Motion (fragment) Example
 #' data(motionfrag)
@@ -450,36 +486,49 @@ forward.crbm <- function (crbm, newdata)
 #' @param crbm A trained CRBM using train.crbm() function.
 #' @param act.input A matrix with data, one activation example per row.
 #' @param history A matrix with the visible history data, one example per row.
-#' This matrix must be the size of newdata - 1, plus delay examples. Sample
-#' i from activations uses history [i - 1 + delay : i - 1] as visible history.
-#' 
+#' This matrix must be the size of (newdata - 1 + delay) examples. Sample
+#' i from activations uses history (i - 1 - delay) to (i - 1) as visible
+#' history. The selected slice will contain OLDER values first (t-delay to t-1)
+#' \preformatted{
 #'            act.input        history
 #' 
 #'           <--hidden-->   <--visible-->
-#'           +----------+
-#'         A |__________|   +-----------+
-#'         | |__________|   |___________| A
-#'    n    | |__________|   |___________| |
-#' samples | |__________|   |___________| |  n - 1
-#'         | |__________|   |___________| | samples
-#'         | |__________|   |___________| |
-#'         V |          |   |___________| V|
-#'           +----------+   |___________| A
-#'                          |___________| |
-#'                          |___________| |
-#'                          |___________| |  delay
-#'                          |___________| |
-#'                          |           | |
-#'                          +-----------+ V
-#' 
+#'            __________ 
+#' [n,]    A |__________| _  ___________                    t=n
+#'         | |__________|   |___________| A        [d+n-1,] t=n-1
+#'    n    | |__________|   |___________| |                 .
+#' samples | |__________|   |___________| |  n - 1          .
+#'         | |__________|   |___________| | samples         .
+#'         | |__________|   |___________| |                 .
+#' [1,]    V |__________| _ |___________| V        [d+1,]   t=d+1
+#'                          |___________| A        [d,]     t=d
+#'                          |___________| |                 .
+#'                          |___________| |                 .
+#'                          |___________| |  delay          .
+#'                          |___________| |                 .
+#'                          |___________| V        [1,]     t=1
+#' }
 #' @keywords CRBM, RBM
 #' @export
 #' @examples
 #' test_X <- t(array(c(1, 1, 0, 0, 0, 0,
 #'                     0, 1, 1, 1, 0, 0,
-#'                     0, 0, 0, 1, 1, 0), c(6,3)));
-#' activations <- forward.crbm((crbm1, test_X);
-#' reconstruct <- backward.crbm((crbm1, activations, test_X); # FIXME
+#'                     0, 1, 0, 1, 0, 0,
+#'                     0, 1, 1, 1, 1, 0,
+#'                     0, 0, 0, 1, 1, 0), c(6,5)));
+#' activations <- forward.crbm(crbm1, test_X);
+#'
+#' valid_activations <- activations[(crbm$delay+1):nrow(activations)];
+#'
+#' i <- 3;
+#' single_act <- valid_activations[i,,drop=FALSE];
+#' corresp_history <- test_X[(i - 1 - crbm$delay):(i - 1),];
+#' reconstruct <- backward.crbm(crbm1, single_act, corresp_history);
+#'
+#' i <- 3;
+#' some_activations <- valid_activations[i:(i+2),];
+#' corresp_history <- test_X[(i - 1 - crbm$delay):(i - 1 - crbm$delay + 2),];
+#' reconstruct <- backward.crbm(crbm1, some_activations, corresp_history);
 #'
 #' ## Motion (fragment) Example
 #' data(motionfrag)

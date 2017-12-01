@@ -10,7 +10,25 @@
 \item{crbm}{A trained CRBM using train.crbm() function.}
 
 \item{newdata}{A matrix with data, one example per row. Must contain
-more rows than crbm delay.}
+more rows than crbm delay.
+\preformatted{
+          <--visible-->
+           ___________ 
+[n,]    A |___________|                            t=n
+        | |___________|                            .
+        | |___________|                            .
+        | |___________|                            .
+   n    | |___________|                            .
+samples | |___________|                      A     .
+        | |___________|                      |     .
+        | |___________|                      |     .
+        | |___________| ---->  Input  --+    |     t=d+1
+[d,]  A | |___________| --+             | Sliding  t=d
+      | | |___________|   |             | window   .
+delay | | |___________|   |-> History --+          .
+      | | |___________|   |                        .
+[1,]  V V |___________| --+                        t=1
+}}
 }
 \description{
 Function to Predict data from a CRBM. Returns two matrices: activation

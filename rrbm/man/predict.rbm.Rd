@@ -28,6 +28,6 @@ rbm_mnist <- train.rbm(n_hidden = 30, dataset = training.num,
                        learning_rate = 1e-3, training_epochs = 10,
                        batch_size = 10, momentum = 0.5);
 
-reconstruction <- predict(rbm_mnist, training.num);
+passed_data <- predict(rbm_mnist, training.num);
 }
 \keyword{RBM}
