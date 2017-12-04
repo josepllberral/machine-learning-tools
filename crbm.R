@@ -251,11 +251,11 @@ predict_crbm <- predict.crbm <- function(crbm, dataset, history = NULL)
 		history <- array(0, c(0, crbm$n_visible * crbm$delay));
 		for (i in (crbm$delay + 1):nrow(dataset))
 		{
-			aux <- as.matrix(dataset[(i-1):(i - crbm$delay),]);
+			aux <- as.matrix(dataset[i - 1:crbm$delay,, drop = FALSE]);
 			aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
 			history <- rbind(history, aux);
 		}	
-		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),];
+		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),, drop = FALSE];
 	} else {
 		pv_sample <- dataset;
 	}
@@ -280,11 +280,11 @@ forward_crbm <- forward.crbm <- function(crbm, dataset, history = NULL)
 		history <- array(0, c(0, crbm$n_visible * crbm$delay));
 		for (i in (crbm$delay + 1):nrow(dataset))
 		{
-			aux <- as.matrix(dataset[(i-1):(i - crbm$delay),]);
+			aux <- as.matrix(dataset[(i - 1):(i - crbm$delay),, drop = FALSE]);
 			aux <- array(t(aux), c(1, crbm$n_visible * crbm$delay));
 			history <- rbind(history, aux);
 		}	
-		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),];
+		pv_sample <- dataset[(crbm$delay + 1):nrow(dataset),, drop = FALSE];
 	} else {
 		pv_sample <- dataset;
 	}
@@ -320,18 +320,19 @@ backward_crbm <- backward.crbm <- function(crbm, act.input, ds_history)
 ##	n_samples : int, number of samples to generate forward
 ##	n_gibbs : int, number of alternating Gibbs steps per iteration
 ## "forecast_crbm" call name is legacy
-forecast_crbm <- forecast.crbm <- function(crbm, orig_data, orig_history = NULL, n_samples, n_gibbs = 30)
+forecast_crbm <- forecast.crbm <- function(crbm, orig_data, orig_history = NULL, n_samples = 10, n_gibbs = 30)
 {
 	if (is.null(orig_history))
 	{
 		l <- nrow(orig_data);
-		orig_data <- orig_data[l,,drop = FALSE];
-		orig_history <- orig_data[(l - crbm$delay - 1):(l - 1),, drop = FALSE];
+		orig_history <- orig_data[l - 1:crbm$delay,, drop=FALSE];
 		orig_history <- array(t(orig_history), c(1, crbm$n_visible * crbm$delay));
+		orig_data <- orig_data[l,, drop = FALSE];
+		n_seq <- 1;
+	} else {
+		n_seq <- nrow(orig_data);
 	}
 	
-	n_seq <- nrow(orig_data);
-
 	persistent_vis_chain <<- orig_data;
 	persistent_history <<- orig_history;
 
@@ -353,7 +354,7 @@ forecast_crbm <- forecast.crbm <- function(crbm, orig_data, orig_history = NULL,
 
 		# add to updates the shared variable that takes care of our persistent chain
 		persistent_vis_chain <<- vis_sample;
-		persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible)]);
+		persistent_history <<- cbind(vis_sample, persistent_history[,1:((crbm$delay - 1) * crbm$n_visible), drop = FALSE]);
 
 		vis_mf;
 	}
