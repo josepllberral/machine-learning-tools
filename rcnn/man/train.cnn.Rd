@@ -2,10 +2,11 @@
 % Please edit documentation in R/wrapper.R
 \name{train.cnn}
 \alias{train.cnn}
-\title{Training a Convolutional Neural Network Function}
+\title{Training a Convolutional Neural Network or MultiLayer Perceptron Function}
 \usage{
-train.cnn(dataset, targets, layers, batch_size = 10, training_epochs = 10,
-  learning_rate = 0.001, momentum = 0.8, rand_seed = 1234)
+train.cnn(dataset, targets, layers = NULL, batch_size = 10,
+  training_epochs = 10, learning_rate = 0.001, momentum = 0.8,
+  rand_seed = 1234, init_cnn = NULL)
 }
 \arguments{
 \item{dataset}{A matrix with data, one example per row.}
@@ -18,15 +19,17 @@ train.cnn(dataset, targets, layers, batch_size = 10, training_epochs = 10,
 
 \item{learning_rate}{The learning rate for training. Default = 0.01.}
 
-\item{momentum}{The momentum for training. Default = 0.8. (Not Implemented!)}
+\item{momentum}{The momentum for training. Default = 0.8. (Not Implemented Yet!)}
 
 \item{rand_seed}{Random seed. Default = 1234.}
 }
 \description{
-This function trains a CNN. Admits as parameters the training dataset, the
-matrix of outputs, and a descriptor of the network including all the layers
-and their properties. Returns a CNN in list form, including all the trained
-layers.
+This function trains a CNN or MLP. Admits as parameters the training dataset,
+the matrix of outputs, and a descriptor of the network including all the
+layers and their properties. Returns a CNN in list form, including all the
+trained layers, if input is a 4D dataset (samples x image with depth), or an
+MLP in list form, including all the trained layers, if input is a 2D dataset
+(samples x features).
 Possible layers are:
 \itemize{
   \item CONV: Convolutional Layer. Requires, in the following order:
@@ -36,64 +39,60 @@ Possible layers are:
     \item Size of convolutional filters
     \item Scale for initialization weights
     \item Border Mode (1 = valid, 2 = same, 3 = full)
-    \item Batch_size
   }
   \item POOL: Pooling Layer. Requires, in the following order:
   \enumerate{
     \item Number of channels of the input image.
     \item Scale for initialization weights
-    \item Batch_size
     \item Window size
     \item Stride
   }
   \item RELU: Rectified Linear. Requires, in the following order:
   \enumerate{
     \item Number of channels of the input image.
-    \item Batch_size
   }
   \item FLAT: Flattening Layer. Requires, in the following order:
   \enumerate{
     \item Number of channels of the input image.
-    \item Batch_size
   }
   \item LINE: Linear Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
     \item Number of hidden units
     \item Scale for initialization weights
-    \item Batch_size
   }
-  \item RELV: Rectified Linear (for flattened batches). Requires, in the
-  following order:
+  \item GBRL: GB-RBM Layer. Requires, in the following order:
   \enumerate{
-    \item Batch_size
+    \item Number of visible units
+    \item Number of hidden units
+    \item Scale for initialization weights
+    \item Number of Gibbs Samplings at Backwards
   }
+  \item RELV: Rectified Linear (for flattened batches). Does not require
+  parameters
   \item SOFT: SoftMax Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
-    \item Batch_size
   }
   \item SIGM: Sigmoid Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
-    \item Batch_size
   }
   \item TANH: Hyperbolic Tangent Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
-    \item Batch_size
   }
   \item DIRE: Direct (buffer) Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
-    \item Batch_size
   }
 }
-The attribute "batch_size" must be the same for all layers. The list of
-layers is checked before the process starts.
+The list of layers and dimensionsis checked before the process starts.
+Convolutional, Pooling, Rectifiers and Flattening layers can only be used
+in CNNs. Other layers can be applied to CNNs and MLPs.
 }
 \examples{
-## Simple example
+## Simple example with CNN
 train_X <- array(c(1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0,
                    0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0),
                    c(6, 1, 2, 3));
@@ -104,24 +103,23 @@ train_Y <- array(c(1, 0,
                    0, 1,
                    0, 1), c(6, 2));
 
-batch_size <- 2;
-filter_size <- 5;
-border_mode <- 2; # "SAME" mode
-win_size <- 3;
-stride <- 2;
-
 layers <- list(
-   c("CONV", 1, 4, filter_size, 0.1, border_mode, batch_size),
-   c("POOL", 4, 0.1, batch_size, win_size, stride),
-   c("RELU", 4, batch_size),
-   c("FLAT", 4, batch_size),
-   c("LINE", 6, 2, 0.1, batch_size),
-   c("SOFT", 2, batch_size)
+c('type' = "CONV", 'n_channels' = 1, 'n_filters' = 4, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+c('type' = "RELU", 'n_channels' = 4),
+c('type' = "FLAT", 'n_channels' = 4),
+c('type' = "LINE", 'n_visible' = 8, 'n_hidden' = 2, 'scale' = 0.1),
+c('type' = "SOFT", 'n_inputs' = 2)
 );
 
-cnn1 <- train.cnn(train_X, train_Y, layers);
+cnn1 <- train.cnn(train_X, train_Y, layers, batch_size = 2);
 
-## The MNIST example
+test_X <- array(c(1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+                  0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0),
+                  c(6, 1, 2, 3));
+results <- predict(cnn1, test_X);
+
+## The MNIST example with CNN
 data(mnist)
 
 img_size <- c(28,28);
@@ -139,31 +137,84 @@ targets <- training_y[1:1000,, drop=FALSE];
 
 newdata <- testing_x[1:1000,,,, drop=FALSE];
 
-batch_size <- 10;
-training_epochs <- 3;
-learning_rate <- 1e-3;
-momentum <- 0.8;
-rand_seed <- 1234;
-border_mode <- 2; # "SAME" mode
-filter_size <- 5;
-win_size <- 3;
-stride <- 2;
-
 layers <- list(
-             c("CONV", 1, 4, filter_size, 0.1, border_mode, batch_size),
-             c("POOL", 4, 0.1, batch_size, win_size, stride),
-             c("RELU", 4, batch_size),
-             c("CONV", 4, 16, filter_size, 0.1, border_mode, batch_size),
-             c("POOL", 16, 0.1, batch_size, win_size, stride),
-             c("RELU", 16, batch_size),
-             c("FLAT", 16, batch_size),
-             c("LINE", 784, 64, 0.1, batch_size),
-             c("RELV", batch_size),
-             c("LINE", 64, 10, 0.1, batch_size),
-             c("SOFT", 10, batch_size)
+c('type' = "CONV", 'n_channels' = 1, 'n_filters' = 4, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+c('type' = "RELU", 'n_channels' = 4),
+c('type' = "CONV", 'n_channels' = 4, 'n_filters' = 16, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+c('type' = "POOL", 'n_channels' = 16, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+c('type' = "RELU", 'n_channels' = 16),
+c('type' = "FLAT", 'n_channels' = 16),
+c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
+c('type' = "RELV"),
+c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
+c('type' = "SOFT", 'n_inputs' = 10)
 );
 
-mnist_cnn <- train.cnn(dataset, targets, layers, batch_size, training_epochs,
-                       learning_rate, momentum, rand_seed);
+mnist_cnn <- train.cnn(dataset, targets, layers, batch_size = 10, training_epochs = 3,
+                       learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
+
+prediction <- predict(mnist_cnn, newdata);
+
+## Simple example with MLPs
+train_X <- array(c(1, 1, 1, 0, 0, 0,
+                   1, 0, 1, 0, 0, 0,
+                   1, 1, 1, 0, 0, 0,
+                   0, 0, 1, 1, 1, 0,
+                   0, 0, 1, 0, 1, 0,
+                   0, 0, 1, 1, 1, 0),
+                   c(6, 6));
+train_Y <- array(c(1, 0,
+                   1, 0,
+                   1, 1,
+                   0, 0,
+                   0, 1,
+                   0, 1), c(6, 2));
+
+layers <- list(
+   c('type' = "LINE", 'n_visible' = 6, 'n_hidden' = 2, 'scale' = 0.1),
+   c('type' = "RELV"),
+   c('type' = "SOFT", 'n_inputs' = 2)
+);
+mlp1 <- train.cnn(train_X, train_Y, layers, batch_size = 2);
+
+test_X <- array(c(1, 1, 1, 0, 0, 0,
+                  1, 0, 1, 0, 0, 0,
+                  1, 1, 1, 0, 0, 0,
+                  0, 0, 1, 1, 1, 0,
+                  0, 0, 1, 0, 1, 0,
+                  0, 0, 1, 1, 1, 0),
+                  c(6, 6));
+
+results <- predict(mlp1, test_X);
+
+## The MNIST example with MLPs
+data(mnist)
+
+train <- mnist$train;
+training_x <- train$x / 255;
+training_y <- binarization(train$y);
+
+test <- mnist$test;
+testing_x <- test$x / 255;
+testing_y <- binarization(test$y);
+
+dataset <- training_x[1:1000,, drop=FALSE];
+targets <- training_y[1:1000,, drop=FALSE];
+
+newdata <- testing_x[1:1000,, drop=FALSE];
+
+layers <- list(
+   c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
+   c('type' = "RELV"),
+   c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
+   c('type' = "SOFT", 'n_inputs' = 10)
+);
+
+mnist_mlp <- train.cnn(dataset, targets, layers, batch_size = 10, training_epochs = 10,
+                       learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
+
+prediction <- predict(mnist_mlp, newdata);
 }
 \keyword{CNN}
+\keyword{MLP}

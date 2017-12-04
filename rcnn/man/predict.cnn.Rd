@@ -2,28 +2,28 @@
 % Please edit documentation in R/wrapper.R
 \name{predict.cnn}
 \alias{predict.cnn}
-\title{Predicting using a Convolutional Network Function}
+\title{Predicting using a Convolutional Network or MultiLayer Perceptron Function}
 \usage{
 \method{predict}{cnn}(cnn, newdata)
 }
 \arguments{
-\item{cnn}{A trained CNN.}
+\item{cnn}{A trained CNN or MLP.}
 
 \item{newdata}{A matrix with data, one example per row.}
 }
 \description{
-This function predicts a dataset using a trained CNN. Admits as parameters
-the testing dataset, and a trained CNN. Returns a matrix of predicted
-outputs.
+This function predicts a dataset using a trained CNN (or MLP). Admits as
+parameters the testing dataset, and a trained CNN. Returns a matrix of
+predicted outputs.
 }
 \examples{
-## Simple example
+## Simple example with CNNs
 test_X <- array(c(1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0,
                   0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0),
                   c(6, 1, 2, 3));
 results <- predict(cnn1, test_X);
 
-## The MNIST example
+## The MNIST example with CNNs
 data(mnist)
 
 img_size <- c(28,28);
@@ -41,33 +41,29 @@ targets <- training_y[1:1000,, drop=FALSE];
 
 newdata <- testing_x[1:1000,,,, drop=FALSE];
 
-batch_size <- 10;
-training_epochs <- 3;
-learning_rate <- 1e-3;
-momentum <- 0.8;
-rand_seed <- 1234;
-border_mode <- 2; # "SAME" mode
-filter_size <- 5;
-win_size <- 3;
-stride <- 2;
-
-layers <- list(
-             c("CONV", 1, 4, filter_size, 0.1, border_mode, batch_size),
-             c("POOL", 4, 0.1, batch_size, win_size, stride),
-             c("RELU", 4, batch_size),
-             c("CONV", 4, 16, filter_size, 0.1, border_mode, batch_size),
-             c("POOL", 16, 0.1, batch_size, win_size, stride),
-             c("RELU", 16, batch_size),
-             c("FLAT", 16, batch_size),
-             c("LINE", 784, 64, 0.1, batch_size),
-             c("RELV", batch_size),
-             c("LINE", 64, 10, 0.1, batch_size),
-             c("SOFT", 10, batch_size)
-);
-
-mnist_cnn <- train.cnn(dataset, targets, layers, batch_size, training_epochs,
-                       learning_rate, momentum, rand_seed);
-
 prediction <- predict(mnist_cnn, newdata);
+
+## Simple example with MLPs
+test_X <- array(c(1, 1, 1, 0, 0, 0,
+                  1, 0, 1, 0, 0, 0,
+                  1, 1, 1, 0, 0, 0,
+                  0, 0, 1, 1, 1, 0,
+                  0, 0, 1, 0, 1, 0,
+                  0, 0, 1, 1, 1, 0),
+                  c(6, 6));
+
+results <- predict(mlp1, test_X);
+
+## The MNIST example with MLPs
+data(mnist)
+
+test <- mnist$test;
+testing_x <- test$x / 255;
+testing_y <- binarization(test$y);
+
+newdata <- testing_x[1:1000,, drop=FALSE];
+
+prediction <- predict(mnist_mlp, newdata);
 }
 \keyword{CNN}
+\keyword{MLP}
