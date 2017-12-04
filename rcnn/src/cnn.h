@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cell.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c tanh.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc cell.c flat.c line.c mops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c tanh.c gbrl.c -lgsl -lgslcblas -lm -o cnn"
 
 // Information for "Type" attributes:
 // Layer Type:
@@ -28,6 +28,7 @@
 // 10: mean-squared-error
 // 11: direct buffer
 // 12: hyperbolic tangent
+// 13: gaussian bernoully RBM
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,8 +37,6 @@
 
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
-
-#include "matrix_ops.h"
 
 #ifndef CNN_H
 #define CNN_H 1
@@ -95,6 +94,21 @@ typedef struct {
 	gsl_vector* grad_b;
 	gsl_matrix* x;
 } LINE;
+
+typedef struct {
+	int batch_size;
+	int n_hidden;
+	int n_visible;
+	int n_gibbs;
+	gsl_matrix* W;
+	gsl_matrix* grad_W;
+	gsl_vector* hbias;
+	gsl_vector* grad_hbias;
+	gsl_vector* vbias;
+	gsl_vector* grad_vbias;
+	gsl_matrix* x;
+	gsl_matrix* ph_means;
+} GBRL;
 
 typedef struct {
 	int batch_size;
@@ -192,6 +206,15 @@ void create_LINE (LINE*, int, int, double, int);
 void free_LINE (LINE*);
 void copy_LINE (LINE*, LINE*);
 int compare_LINE (LINE*, LINE*);
+
+// GB-RBM Layer
+gsl_matrix* forward_gbrl (GBRL*, gsl_matrix*);
+gsl_matrix* backward_gbrl (GBRL*, gsl_matrix*);
+void get_updates_gbrl (GBRL*, double);
+void create_GBRL (GBRL*, int, int, double, int, int);
+void free_GBRL (GBRL*);
+void copy_GBRL (GBRL*, GBRL*);
+int compare_GBRL (GBRL*, GBRL*);
 
 // SoftMax Layer
 gsl_matrix* forward_soft (SOFT*, gsl_matrix*);
@@ -294,6 +317,26 @@ int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
 int check_grad_line (LINE*, gsl_matrix*, int, double, double, double);
 int check_grad_soft (SOFT*, gsl_matrix*, int, double, double, double);
 int check_grad_cell (CELL*, gsl_matrix*, gsl_matrix*, int, double, double, double);
+
+// Matrix Operations
+gsl_matrix* matrix_normal (int, int, double, double, double);
+void matrix_sigmoid (gsl_matrix*, gsl_matrix*);
+void matrix_exponent (gsl_matrix*, gsl_matrix*);
+void matrix_bernoulli (gsl_matrix*, gsl_matrix*);
+void matrix_log (gsl_matrix*, gsl_matrix*);
+double matrix_sum (gsl_matrix*);
+int* sequence (int, int);
+int* shuffle (int);
+
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
 // Drivers for Layers
 int main_conv();

@@ -950,8 +950,10 @@ hs2vp_gbrl <- function(gbrl, hidden_state)
 ##	updates :	gb-rbm_layer
 forward_gbrl <- function(gbrl, x)
 {
-	gbrl[["x"]] <- x;
 	ph <- vs2hp(gbrl, x);
+	
+	gbrl[["x"]] <- x;
+	gbrl[["ph_mean"]] <- ph$mean;
 
 	list(layer = gbrl, y = ph$sample);
 }
@@ -970,9 +972,9 @@ backward_gbrl <- function(gbrl, dy)
 		nh <- vs2hp(gbrl, nv[["sample"]]);
 	}
 
-	gbrl[["grad_W"]] <- t(gbrl[["x"]]) %*% ph[["mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
+	gbrl[["grad_W"]] <- t(gbrl[["x"]]) %*% gbrl[["ph_mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
 	gbrl[["grad_vb"]] <- array(colSums(gbrl[["x"]] - nv[["sample"]]),c(1,ncol(dy));
-	gbrl[["grad_hb"]] <- array(colSums(ph[["mean"]] - nh[["mean"]]),c(1,ncol(dy));
+	gbrl[["grad_hb"]] <- array(colSums(gbrl[["ph_mean"]] - nh[["mean"]]),c(1,ncol(dy));
 	
 	list(layer = gbrl, dx = nv$sample);
 }

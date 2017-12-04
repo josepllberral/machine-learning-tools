@@ -75,8 +75,8 @@ LAYER* build_pipeline (SEXP layers, int nlays, int batch_size)
 		{
 			LINE* line = (LINE*) malloc(sizeof(LINE));
 
-			int nvis_line = atoi(CHAR(STRING_ELT(laux, 1))); // n_visible
-			int nhid_line = atoi(CHAR(STRING_ELT(laux, 2))); // n_visible
+			int nvis_line = atoi(CHAR(STRING_ELT(laux, 1)));     // n_visible
+			int nhid_line = atoi(CHAR(STRING_ELT(laux, 2)));     // n_visible
 			double scale_line = atof(CHAR(STRING_ELT(laux, 3))); // scale
 
 			create_LINE(line, nvis_line, nhid_line, scale_line, batch_size);
@@ -125,6 +125,18 @@ LAYER* build_pipeline (SEXP layers, int nlays, int batch_size)
 			create_TANH(tanh, nunits_tanh, batch_size);
 			retval[i].type = 12; retval[i].layer = (void*) tanh;
 		}
+		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "GBRL") == 0)
+		{
+			GBRL* gbrl = (GBRL*) malloc(sizeof(GBRL));
+
+			int nvis_gbrl = atoi(CHAR(STRING_ELT(laux, 1)));     // n_visible
+			int nhid_gbrl = atoi(CHAR(STRING_ELT(laux, 2)));     // n_hidden
+			double scale_gbrl = atof(CHAR(STRING_ELT(laux, 3))); // scale
+			int n_gibbs_gbrl = atof(CHAR(STRING_ELT(laux, 4)));  // n_gibbs
+
+			create_GBRL(gbrl, nvis_gbrl, nhid_gbrl, scale_gbrl, n_gibbs_gbrl, batch_size);
+			retval[i].type = 13; retval[i].layer = (void*) gbrl;
+		}
 	}
 
 	return retval;
@@ -144,6 +156,7 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 9) free_SIGM((SIGM*) layers[i].layer);
 		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
 		else if (layers[i].type == 12) free_TANH((TANH*) layers[i].layer);
+		else if (layers[i].type == 13) free_GBRL((GBRL*) layers[i].layer);
 		free(layers[i].layer);
 	}
 	free(layers);
@@ -436,6 +449,60 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
+		else if (pipeline[i].type == 13) // GBRL Layer
+		{
+			GBRL* aux = (GBRL*) pipeline[i].layer;
+
+			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 10));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
+			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("GBRL"));
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_visible;
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 2))[0] = aux->n_hidden;
+			
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3, allocVector(INTSXP, 1));
+			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 3))[0] = aux->n_gibbs;
+
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4, allocVector(REALSXP, aux->n_hidden));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5, allocVector(REALSXP, aux->n_hidden));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6, allocVector(REALSXP, aux->n_visible));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7, allocVector(REALSXP, aux->n_visible));			
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8, allocMatrix(REALSXP, aux->n_hidden, aux->n_visible));
+			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9, allocMatrix(REALSXP, aux->n_hidden, aux->n_visible));
+			for (int j = 0; j < aux->n_hidden; j++)
+			{
+				for (int k = 0; k < aux->n_visible; k++)
+				{
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 8))[k * aux->n_hidden + j] = gsl_matrix_get(aux->W, j, k); //CHECK!
+					REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 9))[k * aux->n_hidden + j] = gsl_matrix_get(aux->grad_W, j, k); //CHECK!
+				}
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 4))[j] = gsl_vector_get(aux->hbias, j);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 5))[j] = gsl_vector_get(aux->grad_hbias, j);
+			}
+			for (int k = 0; k < aux->n_visible; k++)
+			{
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 6))[k] = gsl_vector_get(aux->vbias, k);
+				REAL(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 7))[k] = gsl_vector_get(aux->grad_vbias, k);
+			}
+
+			SEXP naux = PROTECT(allocVector(STRSXP, 10));
+			SET_STRING_ELT(naux, 0, mkChar("type"));
+			SET_STRING_ELT(naux, 1, mkChar("n_visible"));
+			SET_STRING_ELT(naux, 2, mkChar("n_hidden"));
+			SET_STRING_ELT(naux, 3, mkChar("n_gibbs"));
+			SET_STRING_ELT(naux, 4, mkChar("hbias"));
+			SET_STRING_ELT(naux, 5, mkChar("grad_hbias"));
+			SET_STRING_ELT(naux, 6, mkChar("vbias"));
+			SET_STRING_ELT(naux, 7, mkChar("grad_vbias"));
+			SET_STRING_ELT(naux, 8, mkChar("W"));
+			SET_STRING_ELT(naux, 9, mkChar("grad_W"));
+
+			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
+		}
 		else // CELL, MSEL, others...
 		{
 			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
@@ -674,6 +741,53 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 			aux->a = gsl_matrix_calloc(aux->batch_size, aux->n_units);
 
 			pipeline[i].type = 12;
+			pipeline[i].layer = (void*) aux;
+		}
+		else if (strcmp(s, "GBRL") == 0)
+		{
+			GBRL* aux = (GBRL*) malloc(sizeof(GBRL));
+			
+			aux->batch_size = batch_size;
+			aux->n_visible = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_visible"))[0];
+			aux->n_hidden = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_hidden"))[0];
+			aux->n_gibbs = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_gibbs"))[0];
+
+			SEXP W = PROTECT(getListElement(VECTOR_ELT(layers, i), "W"));
+			SEXP grad_W = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_W"));
+			SEXP vbias = PROTECT(getListElement(VECTOR_ELT(layers, i), "vbias"));
+			SEXP grad_vbias = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_vbias"));
+			SEXP hbias = PROTECT(getListElement(VECTOR_ELT(layers, i), "hbias"));
+			SEXP grad_hbias = PROTECT(getListElement(VECTOR_ELT(layers, i), "grad_hbias"));
+
+			aux->W = gsl_matrix_calloc(aux->n_hidden, aux->n_visible);
+			aux->grad_W = gsl_matrix_calloc(aux->n_hidden, aux->n_visible);
+			aux->vbias = gsl_vector_calloc(aux->n_visible);
+			aux->grad_vbias = gsl_vector_calloc(aux->n_visible);
+			aux->hbias = gsl_vector_calloc(aux->n_hidden);
+			aux->grad_hbias = gsl_vector_calloc(aux->n_hidden);
+
+			for (int h = 0; h < aux->n_hidden; h++)
+			{
+				for (int v = 0; v < aux->n_visible; v++)
+				{
+					gsl_matrix_set(aux->W, h, v, RMATRIX(W,h,v));
+					gsl_matrix_set(aux->grad_W, h, v, RMATRIX(grad_W,h,v));
+				}
+				gsl_vector_set(aux->hbias, h, RVECTOR(hbias, h));
+				gsl_vector_set(aux->grad_hbias, h, RVECTOR(grad_hbias, h));
+
+			}
+			for (int v = 0; v < aux->n_visible; v++)
+			{
+				gsl_vector_set(aux->vbias, v, RVECTOR(vbias, v));
+				gsl_vector_set(aux->grad_vbias, v, RVECTOR(grad_vbias, v));
+			}
+			UNPROTECT(6);
+			
+			aux->x = gsl_matrix_calloc(aux->batch_size, aux->n_visible);
+			aux->ph_means = gsl_matrix_calloc(aux->batch_size, aux->n_hidden);
+
+			pipeline[i].type = 13;
 			pipeline[i].layer = (void*) aux;
 		}
 		else // CELL, MSEL, others...

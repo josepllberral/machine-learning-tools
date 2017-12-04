@@ -10,7 +10,8 @@ layers <- list(
     c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
     c('type' = "RELU", 'n_channels' = 4),
     c('type' = "FLAT", 'n_channels' = 4),
-    c('type' = "LINE", 'n_visible' = 8, 'n_hidden' = 2, 'scale' = 0.1),
+    c('type' = "GBRL", 'n_visible' = 8, 'n_hidden' = 6, 'scale' = 0.1, 'n_gibbs' = 3),
+    c('type' = "LINE", 'n_visible' = 6, 'n_hidden' = 2, 'scale' = 0.1),
     c('type' = "SOFT", 'n_inputs' = 2)
 );
 cnn1 <- train.cnn(train_X, train_Y, layers, batch_size = 2);
@@ -46,8 +47,9 @@ layers <- list(
     c('type' = "RELU", 'n_channels' = 16),
     c('type' = "FLAT", 'n_channels' = 16),
     c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
+    c('type' = "GBRL", 'n_visible' = 64, 'n_hidden' = 32, 'scale' = 0.1, 'n_gibbs' = 4),
     c('type' = "RELV"),
-    c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
+    c('type' = "LINE", 'n_visible' = 32, 'n_hidden' = 10, 'scale' = 0.1),
     c('type' = "SOFT", 'n_inputs' = 10)
 );
 

@@ -247,6 +247,13 @@ void forward (LAYER* layer, data* batchdata, int* batch_chan)
 			gsl_matrix_free(batchdata->matrix);
 			batchdata->matrix = y12;
 			break;
+		case 13: ;
+			GBRL* gbrl = (GBRL*) layer->layer;
+			gsl_matrix* x13 = batchdata->matrix;
+			gsl_matrix* y13 = forward_gbrl(gbrl, x13);
+			gsl_matrix_free(batchdata->matrix);
+			batchdata->matrix = y13;
+			break;
 		default:
 			break;
 	}
@@ -347,6 +354,13 @@ void backward (LAYER* layer, data* negdata, int* batch_chan)
 			gsl_matrix_free(negdata->matrix);
 			negdata->matrix = x12;
 			break;
+		case 13: ;
+			GBRL* gbrl = (GBRL*) layer->layer;
+			gsl_matrix* y13 = negdata->matrix;
+			gsl_matrix* x13 = backward_gbrl(gbrl, y13);
+			gsl_matrix_free(negdata->matrix);
+			negdata->matrix = x13;
+			break;
 		default:
 			break;
 	}
@@ -387,6 +401,9 @@ void get_updates (LAYER* layer, double learning_rate)
 			break;
 		case 12:
 			get_updates_tanh((TANH*) layer->layer, learning_rate);
+			break;
+		case 13:
+			get_updates_gbrl((GBRL*) layer->layer, learning_rate);
 			break;
 		default:
 			break;
@@ -525,6 +542,8 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 		num_outputs = ((DIRE*)(layers[num_layers - 1].layer))->n_units;
 	else if (layers[num_layers - 1].type == 12) // TANH
 		num_outputs = ((TANH*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 13) // GBRL
+		num_outputs = ((GBRL*)(layers[num_layers - 1].layer))->n_hidden;
 
 	gsl_matrix* result = gsl_matrix_alloc(num_samples, num_outputs);
 

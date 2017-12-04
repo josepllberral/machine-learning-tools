@@ -197,6 +197,17 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux['n_hidden']);
+		} else if (laux['type'] == "GBRL")
+		{
+			# Check for Visible units
+			if (input_dims[2] != as.numeric(laux['n_visible']))
+			{
+				message(paste("Error in layer ", i, sep = ""));
+				message("Current GBRL input (visible) do not match previous LAYER output (visible)");
+				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
+				return (FALSE);
+			}
+			input_dims[2] <- as.numeric(laux['n_hidden']);
 		} else if (laux['type'] %in% c("SOFT", "SIGM", "TANH", "DIRE"))
 		{
 			# Check for Visible units
@@ -220,10 +231,10 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 	}
 
 	# Check Last Layer
-	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH"))
+	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH", "GBRL"))
 	{
 		message("Error in Output Layer");
-		message("Output layer must be a SOFT, SIGM, TANH, LINE or DIRE");
+		message("Output layer must be a SOFT, SIGM, TANH, LINE, DIRE or GBRL");
 		return (FALSE);
 	}
 
@@ -258,6 +269,8 @@ compose_layers <- function(descriptor, batch_size)
 			l <- c("FLAT", aux['n_channels']);
 		} else if (aux[1] == "LINE") {
 			l <- c("LINE", aux['n_visible'], aux['n_hidden'], aux['scale']);
+		} else if (aux[1] == "GBRL") {
+			l <- c("GBRL", aux['n_visible'], aux['n_hidden'], aux['scale'], aux['n_gibbs']);
 		} else if (aux[1] == "SOFT") {
 			l <- c("SOFT", aux['n_inputs']);
 		} else if (aux[1] == "SIGM") {
@@ -316,6 +329,13 @@ compose_layers <- function(descriptor, batch_size)
 #'     \item Number of visible units
 #'     \item Number of hidden units
 #'     \item Scale for initialization weights
+#'   }
+#'   \item GBRL: GB-RBM Layer. Requires, in the following order:
+#'   \enumerate{
+#'     \item Number of visible units
+#'     \item Number of hidden units
+#'     \item Scale for initialization weights
+#'     \item Number of Gibbs Samplings at Backwards
 #'   }
 #'   \item RELV: Rectified Linear (for flattened batches). Does not require
 #'   parameters
@@ -534,9 +554,9 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 			dataset <- t(apply(dataset, 1, as.numeric));
 		}	
 		
-		if (any(!sapply(layers, `[[`, 1) %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE")))
+		if (any(!sapply(layers, `[[`, 1) %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE","GBRL")))
 		{
-			message("For 2D matrix inputs, layers must be LINE, RELV, SOFT, SIGM, TANH or DIRE");
+			message("For 2D matrix inputs, layers must be LINE, RELV, SOFT, SIGM, TANH, DIRE or GBRL");
 			return(NULL);
 		}
 
@@ -556,11 +576,10 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 
 #' Predicting using a Convolutional Network or MultiLayer Perceptron Function
 #'
-#' This function predicts a dataset using a trained CNN. Admits as parameters
-#' the testing dataset, and a trained CNN. Returns a matrix of predicted
-#' outputs.
-#' @param cnn A trained CNN.
-#' @param mlp A trained MLP.
+#' This function predicts a dataset using a trained CNN (or MLP). Admits as
+#' parameters the testing dataset, and a trained CNN. Returns a matrix of
+#' predicted outputs.
+#' @param cnn A trained CNN or MLP.
 #' @param newdata A matrix with data, one example per row.
 #' @keywords CNN MLP
 #' @export
