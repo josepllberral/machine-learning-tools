@@ -371,6 +371,8 @@ compose_layers <- function(descriptor)
 			l <- create_flat();
 		} else if (aux[1] == "LINE") {
 			l <- create_line(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']));
+		} else if (aux[1] == "GBRL") {
+			l <- create_gbrl(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
 		} else if (aux[1] == "SOFT") {
 			l <- create_soft();
 		} else if (aux[1] == "SIGM") {
@@ -928,7 +930,8 @@ create_dire <- function()
 ### This function passes from Visible State to Hidden Probabilities
 vs2hp_gbrl <- function(gbrl, visible_state)
 {
-	h.mean <- sigmoid_func((visible_state %*% gbrl$W) %+% gbrl$hb);
+	bias <- t(replicate(gbrl$batch_size, gbrl$hb));
+	h.mean <- sigmoid_func((visible_state %*% t(gbrl$W)) + bias);
 	h.sample <- sample_bernoulli(h.mean);
 
 	list(mean = h.mean, sample = h.sample);
@@ -937,7 +940,8 @@ vs2hp_gbrl <- function(gbrl, visible_state)
 ### This function passes from Hidden State to Visible Probabilities
 hs2vp_gbrl <- function(gbrl, hidden_state)
 {
-	v.mean <- (hidden_state %*% t(gbrl$W)) %+% gbrl$vb;
+	bias <- t(replicate(gbrl$batch_size, gbrl$vb));
+	v.mean <- (hidden_state %*% gbrl$W) + bias;
 	v.sample <- v.mean;
 
 	list(mean = v.mean, sample = v.sample);
@@ -950,7 +954,9 @@ hs2vp_gbrl <- function(gbrl, hidden_state)
 ##	updates :	gb-rbm_layer
 forward_gbrl <- function(gbrl, x)
 {
-	ph <- vs2hp(gbrl, x);
+	gbrl[["batch_size"]] <- dim(x)[1];
+	
+	ph <- vs2hp_gbrl(gbrl, x);
 	
 	gbrl[["x"]] <- x;
 	gbrl[["ph_mean"]] <- ph$mean;
@@ -968,13 +974,13 @@ backward_gbrl <- function(gbrl, dy)
 	nh <- list("sample" = dy);
 	for (i in 1:gbrl$n_gibbs)
 	{
-		nv <- hs2vp(gbrl, nh[["sample"]]);
-		nh <- vs2hp(gbrl, nv[["sample"]]);
+		nv <- hs2vp_gbrl(gbrl, nh[["sample"]]);
+		nh <- vs2hp_gbrl(gbrl, nv[["sample"]]);
 	}
 
-	gbrl[["grad_W"]] <- t(gbrl[["x"]]) %*% gbrl[["ph_mean"]] - t(nv[["sample"]]) %*% nh[["mean"]];
-	gbrl[["grad_vb"]] <- array(colSums(gbrl[["x"]] - nv[["sample"]]),c(1,ncol(dy));
-	gbrl[["grad_hb"]] <- array(colSums(gbrl[["ph_mean"]] - nh[["mean"]]),c(1,ncol(dy));
+	gbrl[["grad_W"]] <- t(gbrl[["ph_mean"]]) %*% gbrl[["x"]] - t(nh[["mean"]]) %*% nv[["sample"]];
+	gbrl[["grad_vb"]] <- as.vector(colSums(gbrl[["x"]] - nv[["sample"]]));
+	gbrl[["grad_hb"]] <- as.vector(colSums(gbrl[["ph_mean"]] - nh[["mean"]]));
 	
 	list(layer = gbrl, dx = nv$sample);
 }
@@ -982,9 +988,9 @@ backward_gbrl <- function(gbrl, dy)
 ## Updates the GB-RBM Layer
 get_updates_gbrl <- function(gbrl, lr)
 {
-	gbrl[["W"]] = gbrl$W + lr * gbrl$grad_W/grbm$batch_size;
-        gbrl[["vb"]] = gbrl$vb + lr * gbrl$grad_vb/grbm$batch_size;
-        gbrl[["hb"]] = gbrl$hb + lr * gbrl$grad_hb/grbm$batch_size;
+	gbrl[["W"]] = gbrl$W + lr * gbrl$grad_W/gbrl$batch_size;
+        gbrl[["vb"]] = gbrl$vb + lr * gbrl$grad_vb/gbrl$batch_size;
+        gbrl[["hb"]] = gbrl$hb + lr * gbrl$grad_hb/gbrl$batch_size;
 	gbrl;
 }
 
@@ -995,16 +1001,14 @@ gnames_gbrl <- function(gbrl) { c("grad_W","grad_hb", "grad_vb"); }
 ## Returns a GB-RBM layer
 create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
 {
-	W <- scale * sample_normal(c(n_visible, n_hidden));
-	hb <- array(0, c(1, n_hidden));
-	vb <- array(0, c(1, n_visible));
+	W <- scale * sample_normal(c(n_hidden, n_visible));
+	hb <- as.vector(rep(0, n_hidden));
+	vb <- as.vector(rep(0, n_visible));
 	    
-	velocity <- list(W = array(0, dim(W)), v = rep(0, length(vb)), h = rep(0, length(hb)));
-
     	list(	W = W, hb = hb, vb = vb, n_visible = n_visible, n_hidden = n_hidden,
-		n_gibbs = n_gibbs, velocity = velocity,
-		pnames = pnames_gbrl, gnames = gnames_gbrl, forward = forward_gbrl,
-		backward = backward_gbrl, get_updates = get_updates_gbrl);
+		n_gibbs = n_gibbs, pnames = pnames_gbrl, gnames = gnames_gbrl,
+		forward = forward_gbrl, backward = backward_gbrl,
+		get_updates = get_updates_gbrl);
 }
 
 ################################################################################
@@ -1058,18 +1062,29 @@ create_cell <- function()
 ##  param learning_rate   : learning rate used for training the CNN
 ##  param momentum        : momentum rate used for training the CNN (Currently not used)
 ##  param rand_seed       : random seed for training
-train_cnn <- train.cnn <- function ( training_x, training_y, layers,
+train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
 	batch_size = 4, training_epochs = 300, learning_rate = 1e-4,
-	momentum = NULL, rand_seed = 1234)
+	momentum = NULL, rand_seed = 1234, init_cnn = NULL)
 {
-	descriptor <- layers;
-	if (!check_layers (descriptor, dim(training_x), dim(training_y), batch_size))
+	if (is.null(init_cnn))
 	{
-		message("Network does not match with data dimensions");
-		return(NULL);
+		if (is.null(layers))
+		{
+			message("Error: No layers nor init_cnn introduced");
+			return(NULL);
+		}
+		descriptor <- layers;
+		if (!check_layers (descriptor, dim(training_x), dim(training_y), batch_size))
+		{
+			message("Network does not match with data dimensions");
+			return(NULL);
+		}
+		layers <- compose_layers(descriptor);
+	} else {
+		if (!is.null(layers))
+			message("Warning: Layers introduced along init_cnn. Layers will be ignored");
+		layers <- init_cnn$layers;
 	}
-	layers <- compose_layers(descriptor);
-	
 	set.seed(rand_seed);
 
 	num_samples <- nrow(training_x)
