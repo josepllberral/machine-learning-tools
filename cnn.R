@@ -191,7 +191,7 @@ binarization <- function(vec)
 ##  param batch_size : selected batch_size
 ##
 ##  returns : boolean -> layers are correctly shaped
-check_layers <- function (layers, dim_dataset, dim_target, batch_size)
+check_layers <- function (layers, evaluator, dim_dataset, dim_target, batch_size)
 {
 	# Input Dimensions
 	nrow <- dim_dataset[1];
@@ -209,14 +209,6 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 
 	nrow_y <- dim_target[1];
 	ncol_y <- dim_target[2];
-
-	# Check inputs vs outputs
-	if (nrow != nrow_y)
-	{
-		message(paste("Error in Inputs. Dataset:", nrow, "Target:", nrow_y, sep = " "));
-		message("Inputs and Output rows do not match");
-		return (FALSE);
-	}
 
 	# Check batch_size vs number of samples
 	if (batch_size > nrow)
@@ -255,7 +247,7 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
-			input_dims[2] <- as.numeric(laux[3]);
+			input_dims[2] <- as.numeric(laux['n_filters']);
 		} else if (laux['type'] == "POOL")
 		{
 			# Check for Channels
@@ -342,14 +334,32 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 		return (FALSE);
 	}
 
-	# Check Output
-	if (all.equal(input_dims, c(batch_size, ncol_y)) != TRUE)
+	# Check Evaluator and Outputs
+	if (evaluator['type'] == 'CELL')
 	{
-		message("Error in Output Data");
-		message("Output data does not match with network output");
-		return (FALSE);
+		if (nrow != nrow_y)
+		{
+			message(paste("Error in Inputs. Dataset:", nrow, "Target:", nrow_y, sep = " "));
+			message("Inputs and Output rows do not match");
+			return (FALSE);
+		}
+		
+		if (all.equal(input_dims, c(batch_size, ncol_y)) != TRUE)
+		{
+			message("Error in Output Data");
+			message("Output data does not match with network output");
+			return (FALSE);
+		}
+	} else if (evaluator['type'] == 'GBRL')
+	{
+		if (input_dims[2] != evaluator['n_visible'])
+		{
+			message("Error in Evaluator");
+			message("Output data does not match with evaluator input");
+			return (FALSE);
+		}
 	}
-
+	
 	return (TRUE);
 }
 
@@ -367,19 +377,19 @@ compose_layers <- function(descriptor)
 			l <- create_pool(win_size = as.numeric(aux['win_size']), stride = as.numeric(aux['stride']));
 		} else if (aux['type'] == "RELU" || aux['type'] == "RELV") {
 			l <- create_relu();
-		} else if (aux[1] == "FLAT") {
+		} else if (aux['type'] == "FLAT") {
 			l <- create_flat();
-		} else if (aux[1] == "LINE") {
+		} else if (aux['type'] == "LINE") {
 			l <- create_line(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']));
-		} else if (aux[1] == "GBRL") {
+		} else if (aux['type'] == "GBRL") {
 			l <- create_gbrl(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
-		} else if (aux[1] == "SOFT") {
+		} else if (aux['type'] == "SOFT") {
 			l <- create_soft();
-		} else if (aux[1] == "SIGM") {
+		} else if (aux['type'] == "SIGM") {
 			l <- create_sigm();
-		} else if (aux[1] == "TANH") {
+		} else if (aux['type'] == "TANH") {
 			l <- create_tanh();
-		} else if (aux[1] == "DIRE") {
+		} else if (aux['type'] == "DIRE") {
 			l <- create_dire();
 		} else {
 			message("Error in Network Descriptor");
@@ -389,6 +399,21 @@ compose_layers <- function(descriptor)
 		layers[[i]] <- l;
 	}
 	layers;
+}
+
+# Function to convert the evaluator descriptor to evaluation layer for train.cnn function
+compose_evaluator <- function(descriptor)
+{
+	aux <- descriptor;
+	if (aux['type'] == "CELL") {
+		evaluator <- create_cell();
+	} else if (aux['type'] == "GBRL") {
+		evaluator <- create_gbrl(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
+	} else {
+		message("Error in Evaluator Descriptor, incorrect parameters");
+		return (NULL);
+	}
+	evaluator;
 }
 
 ################################################################################
@@ -967,7 +992,7 @@ forward_gbrl <- function(gbrl, x)
 ## Backward through the GB-RBM layer
 ## Actually computes the negative phase (asleep)
 ##	param x :	Numeric vector <n_hidden>
-##	returns :	Numeric vector <n_visible>
+##	returns :	Numeric vector <n_visible>, Loss
 ##	updates :	gb-rbm_layer
 backward_gbrl <- function(gbrl, dy)
 {
@@ -982,7 +1007,9 @@ backward_gbrl <- function(gbrl, dy)
 	gbrl[["grad_vb"]] <- as.vector(colSums(gbrl[["x"]] - nv[["sample"]]));
 	gbrl[["grad_hb"]] <- as.vector(colSums(gbrl[["ph_mean"]] - nh[["mean"]]));
 	
-	list(layer = gbrl, dx = nv$sample);
+	loss <- mean(rowSums(`^`(gbrl[["x"]] - nv[["mean"]],2)));
+	
+	list(layer = gbrl, dx = nv$sample, loss = loss);
 }
 
 ## Updates the GB-RBM Layer
@@ -998,6 +1025,30 @@ get_updates_gbrl <- function(gbrl, lr)
 pnames_gbrl <- function(gbrl) { c("W","hb", "vb"); }
 gnames_gbrl <- function(gbrl) { c("grad_W","grad_hb", "grad_vb"); }
 
+## Evaluates a DBN using an RBM for input and labels (forward and backward)
+##	param x       : Numeric vector
+##	param targets : Numeric vector (Does nothing. NULL by default)
+##	param lr      : Number
+##	returns       : Numeric vector, Loss
+##	updates       : gb-rbm_layer
+evaluate_gbrl <- function(gbrl, x, targets = NULL, lr)
+{
+	# Calculate awake phase
+	aux <- forward_gbrl(gbrl, x);
+	gbrl <- aux$layer;
+	y <- aux$y;
+	
+	# Calculate negdata and loss
+	aux <- backward_gbrl(gbrl, y);
+	gbrl <- aux$layer;
+	loss <- aux$loss;
+	negdata <- aux$dx;
+	
+	gbrl <- get_updates_gbrl(gbrl, lr);
+	
+	list(layer = gbrl, dx = negdata, loss = loss);
+}
+
 ## Returns a GB-RBM layer
 create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
 {
@@ -1008,7 +1059,7 @@ create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
     	list(	W = W, hb = hb, vb = vb, n_visible = n_visible, n_hidden = n_hidden,
 		n_gibbs = n_gibbs, pnames = pnames_gbrl, gnames = gnames_gbrl,
 		forward = forward_gbrl, backward = backward_gbrl,
-		get_updates = get_updates_gbrl);
+		get_updates = get_updates_gbrl, evaluate = evaluate_gbrl);
 }
 
 ################################################################################
@@ -1027,7 +1078,7 @@ forward_cell <- function(cell, x, targets)
 
 ## Backpropagation of Cross-Entropy Layer
 ##	param x :	Numeric vector
-##	returns :	Numeric vector, Loss
+##	returns :	Numeric vector
 backward_cell <- function(cell, dy, targets)
 {
 	num_batches <- dim(dy)[1];
@@ -1042,11 +1093,33 @@ get_updates_cell <- function(cell, lr) { cell; }
 pnames_cell <- function(cell) { character(0); }
 gnames_cell <- function(cell) { character(0); }
 
+## Evaluates the cross-entriopy for input and labels (forward and backward)
+##	param x       : Numeric vector
+##	param targets : Numeric vector
+##	param lr      : Number (Does nothing. NULL by default)
+##	returns       : Numeric vector, Loss
+##	updates       : cross-entropy_layer
+evaluate_cell <- function(cell, x, targets, lr = NULL)
+{
+	# Calculate Forward Loss
+	aux <- forward_cell(cell, x, targets);
+	cell <- aux$layer;
+	loss <- aux$loss;
+	
+	# Calculate negdata
+	aux <- backward_cell(cell, x, targets);
+	cell <- aux$layer;
+	negdata <- aux$dx;	
+	
+	list(layer = cell, dx = negdata, loss = loss);
+}
+
 ## Returns a CrossEntropy Loss layer
 create_cell <- function()
 {
 	list(	pnames = pnames_cell, gnames = gnames_cell, forward = forward_cell,
-		backward = backward_cell, get_updates = get_updates_cell);
+		backward = backward_cell, get_updates = get_updates_cell,
+		evaluate = evaluate_cell);
 }
 
 ################################################################################
@@ -1062,10 +1135,20 @@ create_cell <- function()
 ##  param learning_rate   : learning rate used for training the CNN
 ##  param momentum        : momentum rate used for training the CNN (Currently not used)
 ##  param rand_seed       : random seed for training
-train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
-	batch_size = 4, training_epochs = 300, learning_rate = 1e-4,
-	momentum = NULL, rand_seed = 1234, init_cnn = NULL)
+train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NULL,
+	evaluator = NULL, batch_size = 4, training_epochs = 300,
+	learning_rate = 1e-4, momentum = NULL, rand_seed = 1234,
+	init_cnn = NULL)
 {
+	set.seed(rand_seed);
+	
+	if (is.null(evaluator)) evaluator <- c('type' = 'CELL');
+	if (is.null(training_y) && (evaluator['type'] != 'GBRL'))
+	{
+		message(paste("Error: This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
+		return(NULL);
+	}
+	
 	if (is.null(init_cnn))
 	{
 		if (is.null(layers))
@@ -1074,7 +1157,9 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
 			return(NULL);
 		}
 		descriptor <- layers;
-		if (!check_layers (descriptor, dim(training_x), dim(training_y), batch_size))
+		dim_x <- dim(training_x);
+		dim_y <- if (!is.null(training_y)) dim(training_y) else NULL;
+		if (!check_layers (descriptor, evaluator, dim_x, dim_y, batch_size))
 		{
 			message("Network does not match with data dimensions");
 			return(NULL);
@@ -1085,12 +1170,10 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
 			message("Warning: Layers introduced along init_cnn. Layers will be ignored");
 		layers <- init_cnn$layers;
 	}
-	set.seed(rand_seed);
+	loss_layer <- compose_evaluator(evaluator);
 
 	num_samples <- nrow(training_x)
 	num_batches <- num_samples %/% batch_size;
-
-	loss_layer <- create_cell();
 
 	for (epoch in 1:training_epochs)
 	{
@@ -1103,11 +1186,11 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
 			idx <- ((j - 1) * batch_size + 1):(j * batch_size);
 			if (length(dim(training_x)) == 4)
 			{
-				batchdata <- training_x[idx,,,,drop = FALSE];	# [batch_size x n_channel x img_h x img_w]
+				batchdata <- training_x[idx,,,,drop = FALSE];		# [batch_size x n_channel x img_h x img_w]
 			} else {
-				batchdata <- training_x[idx,,drop = FALSE];	# [batch_size x n_features]
+				batchdata <- training_x[idx,,drop = FALSE];		# [batch_size x n_features]
 			}
-			targets <- training_y[idx];				# [batch_size]
+			targets <- if (!is.null(training_y)) training_y[idx] else NULL;	# [batch_size] or NULL
 
 			# Forward
 			for (i in 1:length(layers))
@@ -1122,15 +1205,11 @@ train_cnn <- train.cnn <- function ( training_x, training_y, layers = NULL,
 			}
 			output <- batchdata;
 
-			# Calculate Forward Loss
-			aux <- loss_layer$forward(loss_layer, output, targets);
+			# Evaluation
+			aux <- loss_layer$evaluate(loss_layer, output, targets, learning_rate);
 			loss_layer <- aux$layer;
 			loss <- aux$loss;
-
-			# Calculate negdata
-			aux <- loss_layer$backward(loss_layer, output, targets);
-			loss_layer <- aux$layer;
-			negdata <- aux$dx;			
+			negdata <- aux$dx;
 
 			# Backward
 			for (i in length(layers):1)
@@ -1283,9 +1362,10 @@ main <- function()
 #		c('type' = "TANH", 'n_inputs' = 10)
 #		c('type' = "DIRE", 'n_inputs' = 10)
 	);
+	evaluator <- c('type' = "CELL");
 
 	# Train a CNN to learn MNIST
-	cnn_1 <- train.cnn(training_x, training_y, layers,
+	cnn_1 <- train.cnn(training_x, training_y, layers, evaluator,
 			   batch_size = 10,
 			   training_epochs = 3,
 			   learning_rate = 5e-3
@@ -1322,9 +1402,10 @@ main <- function()
 #		c('type' = "TANH", 'n_inputs' = 10)
 #		c('type' = "DIRE", 'n_inputs' = 10)
 	);
+	evaluator <- c('type' = "CELL");
 
 	# Train a CNN to learn MNIST
-	cnn_2 <- train.cnn(training_x, training_y, layers,
+	cnn_2 <- train.cnn(training_x, training_y, layers, evaluator,
 			   batch_size = 10,
 			   training_epochs = 3,
 			   learning_rate = 5e-3
@@ -1332,5 +1413,44 @@ main <- function()
 	
 	# Test the CNN
 	predictions <- predict(cnn_2, testing_x);
+	
+	########################################################################
+	# Deep Belief Networks
+	
+	# Set up Data as 4D matrix (batch_size, channels, H, W)
+	train <- aux$train;
+	training_x <- array(train$x, c(nrow(train$x), 1, img_size)) / 255;
+	training_y <- binarization(train$y);
+
+	test <- aux$test;
+	testing_x <- array(test$x, c(nrow(test$x), 1, img_size)) / 255;
+	testing_y <- binarization(test$y);
+
+	# Slice data for shorter tests
+	training_x <- training_x[1:1000,,,, drop=FALSE];
+	training_y <- training_y[1:1000,, drop=FALSE];
+	testing_x <- testing_x[1:1000,,,, drop=FALSE];
+	testing_y <- testing_y[1:1000,, drop=FALSE];
+
+	# Prepare CNN layers	
+	layers <- list(
+	    c('type' = "CONV", 'n_channels' = 1, 'n_filters' = 4, 'filter_size' = 5, 'scale' = 0.1, 'border_mode' = 'same'),
+	    c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
+	    c('type' = "RELU", 'n_channels' = 4),
+	    c('type' = "FLAT", 'n_channels' = 4),
+	    c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 10, 'scale' = 0.1)
+	);
+	evaluator <- c('type' = "GBRL", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 1);
+
+	# Train a CNN to featurize MNIST
+	cnn_3 <- train_cnn(training_x, NULL, layers, evaluator,
+			   batch_size = 100,
+			   training_epochs = 20,
+			   learning_rate = 1e-3,
+			   rand_seed = 1234
+	);
+	
+	# Test the CNN
+	predictions <- predict(cnn_3, testing_x);
 }
 

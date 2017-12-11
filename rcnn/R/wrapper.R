@@ -151,7 +151,7 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
-			input_dims[2] <- as.numeric(laux[3]);
+			input_dims[2] <- as.numeric(laux['n_filters']);
 		} else if (laux['type'] == "POOL")
 		{
 			# Check for Channels
@@ -265,19 +265,19 @@ compose_layers <- function(descriptor, batch_size)
 			l <- c("POOL", aux['n_channels'], aux['scale'], aux['win_size'], aux['stride']);
 		} else if (aux['type'] == "RELU") {
 			l <- c("RELU", aux['n_channels']);
-		} else if (aux[1] == "FLAT") {
+		} else if (aux['type'] == "FLAT") {
 			l <- c("FLAT", aux['n_channels']);
-		} else if (aux[1] == "LINE") {
+		} else if (aux['type'] == "LINE") {
 			l <- c("LINE", aux['n_visible'], aux['n_hidden'], aux['scale']);
-		} else if (aux[1] == "GBRL") {
+		} else if (aux['type'] == "GBRL") {
 			l <- c("GBRL", aux['n_visible'], aux['n_hidden'], aux['scale'], aux['n_gibbs']);
-		} else if (aux[1] == "SOFT") {
+		} else if (aux['type'] == "SOFT") {
 			l <- c("SOFT", aux['n_inputs']);
-		} else if (aux[1] == "SIGM") {
+		} else if (aux['type'] == "SIGM") {
 			l <- c("SIGM", aux['n_inputs']);
-		} else if (aux[1] == "TANH") {
+		} else if (aux['type'] == "TANH") {
 			l <- c("TANH", aux['n_inputs']);
-		} else if (aux[1] == "DIRE") {
+		} else if (aux['type'] == "DIRE") {
 			l <- c("DIRE", aux['n_inputs']);
 		} else if (aux['type'] == "RELV") {
 			l <- c("RELV");
