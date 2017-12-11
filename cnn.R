@@ -293,13 +293,13 @@ check_layers <- function (layers, evaluator, dim_dataset, dim_target, batch_size
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux['n_hidden']);
-		} else if (laux['type'] == "GBRL")
+		} else if (laux['type'] == "RBML")
 		{
 			# Check for Visible units
 			if (input_dims[2] != as.numeric(laux['n_visible']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current GBRL input (visible) do not match previous LAYER output (visible)");
+				message("Current RBML input (visible) do not match previous LAYER output (visible)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
@@ -327,15 +327,15 @@ check_layers <- function (layers, evaluator, dim_dataset, dim_target, batch_size
 	}
 
 	# Check Last Layer
-	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","GBRL","DIRE","TANH"))
+	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","RBML","DIRE","TANH"))
 	{
 		message("Error in Output Layer");
-		message("Output layer must be a SOFT, SIGM, TANH, LINE, GBRL or DIRE");
+		message("Output layer must be a SOFT, SIGM, TANH, LINE, RBML or DIRE");
 		return (FALSE);
 	}
 
 	# Check Evaluator and Outputs
-	if (evaluator['type'] == 'CELL')
+	if (evaluator['type'] == 'XENT')
 	{
 		if (nrow != nrow_y)
 		{
@@ -350,7 +350,7 @@ check_layers <- function (layers, evaluator, dim_dataset, dim_target, batch_size
 			message("Output data does not match with network output");
 			return (FALSE);
 		}
-	} else if (evaluator['type'] == 'GBRL')
+	} else if (evaluator['type'] == 'RBML')
 	{
 		if (input_dims[2] != evaluator['n_visible'])
 		{
@@ -381,8 +381,8 @@ compose_layers <- function(descriptor)
 			l <- create_flat();
 		} else if (aux['type'] == "LINE") {
 			l <- create_line(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']));
-		} else if (aux['type'] == "GBRL") {
-			l <- create_gbrl(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
+		} else if (aux['type'] == "RBML") {
+			l <- create_rbml(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
 		} else if (aux['type'] == "SOFT") {
 			l <- create_soft();
 		} else if (aux['type'] == "SIGM") {
@@ -405,10 +405,10 @@ compose_layers <- function(descriptor)
 compose_evaluator <- function(descriptor)
 {
 	aux <- descriptor;
-	if (aux['type'] == "CELL") {
-		evaluator <- create_cell();
-	} else if (aux['type'] == "GBRL") {
-		evaluator <- create_gbrl(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
+	if (aux['type'] == "XENT") {
+		evaluator <- create_xent();
+	} else if (aux['type'] == "RBML") {
+		evaluator <- create_rbml(n_visible = as.numeric(aux['n_visible']), n_hidden = as.numeric(aux['n_hidden']), scale = as.numeric(aux['scale']), n_gibbs = as.numeric(aux['n_gibbs']));
 	} else {
 		message("Error in Evaluator Descriptor, incorrect parameters");
 		return (NULL);
@@ -953,20 +953,20 @@ create_dire <- function()
 ################################################################################
 
 ### This function passes from Visible State to Hidden Probabilities
-vs2hp_gbrl <- function(gbrl, visible_state)
+vs2hp_rbml <- function(rbml, visible_state)
 {
-	bias <- t(replicate(gbrl$batch_size, gbrl$hb));
-	h.mean <- sigmoid_func((visible_state %*% t(gbrl$W)) + bias);
+	bias <- t(replicate(rbml$batch_size, rbml$hb));
+	h.mean <- sigmoid_func((visible_state %*% t(rbml$W)) + bias);
 	h.sample <- sample_bernoulli(h.mean);
 
 	list(mean = h.mean, sample = h.sample);
 }
 
 ### This function passes from Hidden State to Visible Probabilities
-hs2vp_gbrl <- function(gbrl, hidden_state)
+hs2vp_rbml <- function(rbml, hidden_state)
 {
-	bias <- t(replicate(gbrl$batch_size, gbrl$vb));
-	v.mean <- (hidden_state %*% gbrl$W) + bias;
+	bias <- t(replicate(rbml$batch_size, rbml$vb));
+	v.mean <- (hidden_state %*% rbml$W) + bias;
 	v.sample <- v.mean;
 
 	list(mean = v.mean, sample = v.sample);
@@ -977,16 +977,16 @@ hs2vp_gbrl <- function(gbrl, hidden_state)
 ##	param x :	Numeric vector <n_visible>
 ##	returns :	Numeric vector <n_hidden>
 ##	updates :	gb-rbm_layer
-forward_gbrl <- function(gbrl, x)
+forward_rbml <- function(rbml, x)
 {
-	gbrl[["batch_size"]] <- dim(x)[1];
+	rbml[["batch_size"]] <- dim(x)[1];
 	
-	ph <- vs2hp_gbrl(gbrl, x);
+	ph <- vs2hp_rbml(rbml, x);
 	
-	gbrl[["x"]] <- x;
-	gbrl[["ph_mean"]] <- ph$mean;
+	rbml[["x"]] <- x;
+	rbml[["ph_mean"]] <- ph$mean;
 
-	list(layer = gbrl, y = ph$sample);
+	list(layer = rbml, y = ph$sample);
 }
 
 ## Backward through the GB-RBM layer
@@ -994,36 +994,36 @@ forward_gbrl <- function(gbrl, x)
 ##	param x :	Numeric vector <n_hidden>
 ##	returns :	Numeric vector <n_visible>, Loss
 ##	updates :	gb-rbm_layer
-backward_gbrl <- function(gbrl, dy)
+backward_rbml <- function(rbml, dy)
 {
 	nh <- list("sample" = dy);
-	for (i in 1:gbrl$n_gibbs)
+	for (i in 1:rbml$n_gibbs)
 	{
-		nv <- hs2vp_gbrl(gbrl, nh[["sample"]]);
-		nh <- vs2hp_gbrl(gbrl, nv[["sample"]]);
+		nv <- hs2vp_rbml(rbml, nh[["sample"]]);
+		nh <- vs2hp_rbml(rbml, nv[["sample"]]);
 	}
 
-	gbrl[["grad_W"]] <- t(gbrl[["ph_mean"]]) %*% gbrl[["x"]] - t(nh[["mean"]]) %*% nv[["sample"]];
-	gbrl[["grad_vb"]] <- as.vector(colSums(gbrl[["x"]] - nv[["sample"]]));
-	gbrl[["grad_hb"]] <- as.vector(colSums(gbrl[["ph_mean"]] - nh[["mean"]]));
+	rbml[["grad_W"]] <- t(rbml[["ph_mean"]]) %*% rbml[["x"]] - t(nh[["mean"]]) %*% nv[["sample"]];
+	rbml[["grad_vb"]] <- as.vector(colSums(rbml[["x"]] - nv[["sample"]]));
+	rbml[["grad_hb"]] <- as.vector(colSums(rbml[["ph_mean"]] - nh[["mean"]]));
 	
-	loss <- mean(rowSums(`^`(gbrl[["x"]] - nv[["mean"]],2)));
+	loss <- mean(rowSums(`^`(rbml[["x"]] - nv[["mean"]],2)));
 	
-	list(layer = gbrl, dx = nv$sample, loss = loss);
+	list(layer = rbml, dx = nv$sample, loss = loss);
 }
 
 ## Updates the GB-RBM Layer
-get_updates_gbrl <- function(gbrl, lr)
+get_updates_rbml <- function(rbml, lr)
 {
-	gbrl[["W"]] = gbrl$W + lr * gbrl$grad_W/gbrl$batch_size;
-        gbrl[["vb"]] = gbrl$vb + lr * gbrl$grad_vb/gbrl$batch_size;
-        gbrl[["hb"]] = gbrl$hb + lr * gbrl$grad_hb/gbrl$batch_size;
-	gbrl;
+	rbml[["W"]] = rbml$W + lr * rbml$grad_W/rbml$batch_size;
+        rbml[["vb"]] = rbml$vb + lr * rbml$grad_vb/rbml$batch_size;
+        rbml[["hb"]] = rbml$hb + lr * rbml$grad_hb/rbml$batch_size;
+	rbml;
 }
 
 ## Get names of parameters and gradients (for testing functions)
-pnames_gbrl <- function(gbrl) { c("W","hb", "vb"); }
-gnames_gbrl <- function(gbrl) { c("grad_W","grad_hb", "grad_vb"); }
+pnames_rbml <- function(rbml) { c("W","hb", "vb"); }
+gnames_rbml <- function(rbml) { c("grad_W","grad_hb", "grad_vb"); }
 
 ## Evaluates a DBN using an RBM for input and labels (forward and backward)
 ##	param x       : Numeric vector
@@ -1031,35 +1031,35 @@ gnames_gbrl <- function(gbrl) { c("grad_W","grad_hb", "grad_vb"); }
 ##	param lr      : Number
 ##	returns       : Numeric vector, Loss
 ##	updates       : gb-rbm_layer
-evaluate_gbrl <- function(gbrl, x, targets = NULL, lr)
+evaluate_rbml <- function(rbml, x, targets = NULL, lr)
 {
 	# Calculate awake phase
-	aux <- forward_gbrl(gbrl, x);
-	gbrl <- aux$layer;
+	aux <- forward_rbml(rbml, x);
+	rbml <- aux$layer;
 	y <- aux$y;
 	
 	# Calculate negdata and loss
-	aux <- backward_gbrl(gbrl, y);
-	gbrl <- aux$layer;
+	aux <- backward_rbml(rbml, y);
+	rbml <- aux$layer;
 	loss <- aux$loss;
 	negdata <- aux$dx;
 	
-	gbrl <- get_updates_gbrl(gbrl, lr);
+	rbml <- get_updates_rbml(rbml, lr);
 	
-	list(layer = gbrl, dx = negdata, loss = loss);
+	list(layer = rbml, dx = negdata, loss = loss);
 }
 
 ## Returns a GB-RBM layer
-create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
+create_rbml <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
 {
 	W <- scale * sample_normal(c(n_hidden, n_visible));
 	hb <- as.vector(rep(0, n_hidden));
 	vb <- as.vector(rep(0, n_visible));
 	    
     	list(	W = W, hb = hb, vb = vb, n_visible = n_visible, n_hidden = n_hidden,
-		n_gibbs = n_gibbs, pnames = pnames_gbrl, gnames = gnames_gbrl,
-		forward = forward_gbrl, backward = backward_gbrl,
-		get_updates = get_updates_gbrl, evaluate = evaluate_gbrl);
+		n_gibbs = n_gibbs, pnames = pnames_rbml, gnames = gnames_rbml,
+		forward = forward_rbml, backward = backward_rbml,
+		get_updates = get_updates_rbml, evaluate = evaluate_rbml);
 }
 
 ################################################################################
@@ -1069,29 +1069,29 @@ create_gbrl <- function(n_visible = 4, n_hidden = 10, scale = 0.01, n_gibbs = 1)
 ## Computes the cross-entriopy for input and labels
 ##	param x :	Numeric vector
 ##	returns :	Numeric vector, Loss
-forward_cell <- function(cell, x, targets)
+forward_xent <- function(xent, x, targets)
 {
 	l <- -targets * log(x + 1e-08);
 	l <- mean(apply(l, MARGIN = 1, sum));
-	list(layer = cell, y = x, loss = l);
+	list(layer = xent, y = x, loss = l);
 }
 
 ## Backpropagation of Cross-Entropy Layer
 ##	param x :	Numeric vector
 ##	returns :	Numeric vector
-backward_cell <- function(cell, dy, targets)
+backward_xent <- function(xent, dy, targets)
 {
 	num_batches <- dim(dy)[1];
 	dx <- (1.0 / num_batches) * (dy - targets);
-	list(layer = cell, dx = dx);
+	list(layer = xent, dx = dx);
 }
 
 ## Updates the C-E Loss Layer (Does Nothing)
-get_updates_cell <- function(cell, lr) { cell; }
+get_updates_xent <- function(xent, lr) { xent; }
 
 ## Get names of parameters and gradients (for testing functions)
-pnames_cell <- function(cell) { character(0); }
-gnames_cell <- function(cell) { character(0); }
+pnames_xent <- function(xent) { character(0); }
+gnames_xent <- function(xent) { character(0); }
 
 ## Evaluates the cross-entriopy for input and labels (forward and backward)
 ##	param x       : Numeric vector
@@ -1099,27 +1099,27 @@ gnames_cell <- function(cell) { character(0); }
 ##	param lr      : Number (Does nothing. NULL by default)
 ##	returns       : Numeric vector, Loss
 ##	updates       : cross-entropy_layer
-evaluate_cell <- function(cell, x, targets, lr = NULL)
+evaluate_xent <- function(xent, x, targets, lr = NULL)
 {
 	# Calculate Forward Loss
-	aux <- forward_cell(cell, x, targets);
-	cell <- aux$layer;
+	aux <- forward_xent(xent, x, targets);
+	xent <- aux$layer;
 	loss <- aux$loss;
 	
 	# Calculate negdata
-	aux <- backward_cell(cell, x, targets);
-	cell <- aux$layer;
+	aux <- backward_xent(xent, x, targets);
+	xent <- aux$layer;
 	negdata <- aux$dx;	
 	
-	list(layer = cell, dx = negdata, loss = loss);
+	list(layer = xent, dx = negdata, loss = loss);
 }
 
 ## Returns a CrossEntropy Loss layer
-create_cell <- function()
+create_xent <- function()
 {
-	list(	pnames = pnames_cell, gnames = gnames_cell, forward = forward_cell,
-		backward = backward_cell, get_updates = get_updates_cell,
-		evaluate = evaluate_cell);
+	list(	pnames = pnames_xent, gnames = gnames_xent, forward = forward_xent,
+		backward = backward_xent, get_updates = get_updates_xent,
+		evaluate = evaluate_xent);
 }
 
 ################################################################################
@@ -1142,8 +1142,8 @@ train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NUL
 {
 	set.seed(rand_seed);
 	
-	if (is.null(evaluator)) evaluator <- c('type' = 'CELL');
-	if (is.null(training_y) && (evaluator['type'] != 'GBRL'))
+	if (is.null(evaluator)) evaluator <- c('type' = 'XENT');
+	if (is.null(training_y) && (evaluator['type'] != 'RBML'))
 	{
 		message(paste("Error: This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
 		return(NULL);
@@ -1257,8 +1257,8 @@ train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NUL
 ##  param dataset : data matrix of (observations x [image|features])
 ##
 ## Returns:
-##  score : Output of the neural network
-##  class: Label with maximum score
+##  score         : Output of the neural network
+##  class         : Label with maximum score
 predict_cnn <- predict.cnn <- function(cnn, dataset)
 {
 	layers <- cnn$layers;
@@ -1357,12 +1357,12 @@ main <- function()
 		c('type' = "RELV"),
 		c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
 		c('type' = "SOFT", 'n_inputs' = 10)
-#		c('type' = "GBRL", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1, 'n_gibbs' = 1),
+#		c('type' = "RBML", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1, 'n_gibbs' = 1),
 #		c('type' = "SIGM", 'n_inputs' = 10)
 #		c('type' = "TANH", 'n_inputs' = 10)
 #		c('type' = "DIRE", 'n_inputs' = 10)
 	);
-	evaluator <- c('type' = "CELL");
+	evaluator <- c('type' = "XENT");
 
 	# Train a CNN to learn MNIST
 	cnn_1 <- train.cnn(training_x, training_y, layers, evaluator,
@@ -1402,7 +1402,7 @@ main <- function()
 #		c('type' = "TANH", 'n_inputs' = 10)
 #		c('type' = "DIRE", 'n_inputs' = 10)
 	);
-	evaluator <- c('type' = "CELL");
+	evaluator <- c('type' = "XENT");
 
 	# Train a CNN to learn MNIST
 	cnn_2 <- train.cnn(training_x, training_y, layers, evaluator,
@@ -1440,7 +1440,7 @@ main <- function()
 	    c('type' = "FLAT", 'n_channels' = 4),
 	    c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 10, 'scale' = 0.1)
 	);
-	evaluator <- c('type' = "GBRL", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 1);
+	evaluator <- c('type' = "RBML", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 1);
 
 	# Train a CNN to featurize MNIST
 	cnn_3 <- train_cnn(training_x, NULL, layers, evaluator,
