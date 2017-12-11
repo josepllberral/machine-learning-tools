@@ -281,10 +281,11 @@ void get_updates_conv (CONV* conv, double lr)
 	gsl_matrix_set_all(identity, 1.0);
 	gsl_matrix_set_identity(identity);
 
+	double learn_factor = -1.0 * lr / conv->batch_size;
 	for (int f = 0; f < conv->n_filters; f++)
 		for (int c = 0; c < conv->n_channels; c++)
-			gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, -1.0 * lr / conv->batch_size, conv->grad_W[f][c], identity, 1.0, conv->W[f][c]);
-	gsl_blas_daxpy(-1.0 * lr / conv->batch_size, conv->grad_b, conv->b);
+			gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, learn_factor, conv->grad_W[f][c], identity, 1.0, conv->W[f][c]);
+	gsl_blas_daxpy(learn_factor, conv->grad_b, conv->b);
 
 	gsl_matrix_free(identity);
 }

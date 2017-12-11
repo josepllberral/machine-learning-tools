@@ -146,10 +146,11 @@ gsl_matrix* backward_gbrl(GBRL* gbrl, gsl_matrix* dy)
 // Updates the GB-RBM Layer
 void get_updates_gbrl (GBRL* gbrl, double lr)
 {
-	gsl_matrix_scale(gbrl->grad_W, -1.0 * lr / gbrl->batch_size);
+	double learn_factor = -1.0 * lr / gbrl->batch_size;
+	gsl_matrix_scale(gbrl->grad_W, learn_factor);
 	gsl_matrix_add(gbrl->W, gbrl->grad_W);
-	gsl_blas_daxpy(-1.0 * lr / gbrl->batch_size, gbrl->grad_vbias, gbrl->vbias);
-	gsl_blas_daxpy(-1.0 * lr / gbrl->batch_size, gbrl->grad_hbias, gbrl->hbias);
+	gsl_blas_daxpy(learn_factor, gbrl->grad_vbias, gbrl->vbias);
+	gsl_blas_daxpy(learn_factor, gbrl->grad_hbias, gbrl->hbias);
 }
 
 // Initializes a GB-RBM layer

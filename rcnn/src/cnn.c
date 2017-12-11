@@ -454,26 +454,21 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 		acc_loss = 0;
 		acc_class = 0;
 
-		for (int j = 0; j < num_batches; j++)
+		for (int idx_ini = 0; idx_ini < num_samples - batch_size + 1; idx_ini += batch_size)
 		{
 			// Select mini_batch
-			int idx_ini = j * batch_size;
-			int idx_fin = idx_ini + batch_size - 1;
-
-			if (idx_fin >= num_samples) break;
-
 			gsl_matrix*** minibatch = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
 			gsl_matrix* targets = gsl_matrix_alloc(batch_size, out_size);
-			for (int b = 0; b < batch_size; b++)
+			for (int b = 0, idx = idx_ini; b < batch_size; b++, idx++)
 			{
 				minibatch[b] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
 				for (int c = 0; c < num_channels; c++)
 				{
 					minibatch[b][c] = gsl_matrix_alloc(img_h, img_w);
-					gsl_matrix_memcpy(minibatch[b][c], training_x[idx_ini + b][c]);
+					gsl_matrix_memcpy(minibatch[b][c], training_x[idx][c]);
 				}
 				gsl_vector* aux = gsl_vector_alloc(out_size);
-				gsl_matrix_get_row(aux, training_y, idx_ini + b);
+				gsl_matrix_get_row(aux, training_y, idx);
 				gsl_matrix_set_row(targets, b, aux);
 				gsl_vector_free(aux);
 			}
@@ -554,27 +549,25 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 	int batch_chan;
 
 	// Loop through examples
-	for (int j = 0; j < num_batches; j++)
+	for (int idx_ini = 0; idx_ini < num_samples; idx_ini += batch_size)
 	{
-		// Select mini_batch
-		int idx_ini = j * batch_size;
-		int idx_fin = idx_ini + batch_size - 1;
-
+		// Uneven rows are considered (not like in training)
 		int real_batch_size = batch_size;
-		if (idx_fin >= num_samples) real_batch_size = num_samples % batch_size;
+		if (idx_ini + batch_size > num_samples) real_batch_size = num_samples % batch_size;
 
+		// Select mini_batch
 		gsl_matrix*** minibatch = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
-		for (int b = 0; b < real_batch_size; b++)
+		for (int b = 0, idx = idx_ini; b < real_batch_size; b++, idx++)
 		{
 			minibatch[b] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
 			for (int c = 0; c < num_channels; c++)
 			{
 				minibatch[b][c] = gsl_matrix_alloc(img_h, img_w);
-				gsl_matrix_memcpy(minibatch[b][c], testing_x[idx_ini + b][c]);
+				gsl_matrix_memcpy(minibatch[b][c], testing_x[idx][c]);
 			}
 		}
 
-		// Completar el Mini-Batch
+		// Complete the uneven Mini-Batch
 		if (batch_size > real_batch_size)
 			for (int b = real_batch_size ; b < batch_size; b++)
 			{
@@ -593,11 +586,11 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 		gsl_matrix* output = batchdata.matrix;
 
 		// Add output to results
-		for (int b = 0; b < real_batch_size; b++)
+		for (int b = 0, idx = idx_ini; b < real_batch_size; b++, idx++)
 		{
 			gsl_vector* aux = gsl_vector_alloc(num_outputs);
 			gsl_matrix_get_row(aux, output, b);
-			gsl_matrix_set_row(result, j * batch_size + b, aux);
+			gsl_matrix_set_row(result, idx, aux);
 			gsl_vector_free(aux);
 		}
 

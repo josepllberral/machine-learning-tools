@@ -73,9 +73,10 @@ gsl_matrix* backward_line(LINE* line, gsl_matrix* dy)
 // Updates the Linear Layer
 void get_updates_line (LINE* line, double lr)
 {
-	gsl_matrix_scale(line->grad_W, -1.0 * lr / line->batch_size);
+	double learn_factor = -1.0 * lr / line->batch_size;
+	gsl_matrix_scale(line->grad_W, learn_factor);
 	gsl_matrix_add(line->W, line->grad_W);
-	gsl_blas_daxpy(-1.0 * lr / line->batch_size, line->grad_b, line->b);
+	gsl_blas_daxpy(learn_factor, line->grad_b, line->b);
 }
 
 // Initializes a Linear layer

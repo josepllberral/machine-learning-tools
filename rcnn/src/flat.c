@@ -25,12 +25,11 @@ gsl_matrix* forward_flat (FLAT* flat, gsl_matrix*** x)
 	for (int b = 0; b < flat->batch_size; b++)
 		for (int c = 0; c < flat->n_channels; c++)
 			for (int h = 0; h < flat->img_h; h++)
-				for (int w = 0; w < flat->img_w; w++)
-				{
-					int idx = w + h * flat->img_w + c * flat->img_h * flat->img_w;
-					double value = gsl_matrix_get(x[b][c], h, w);
-					gsl_matrix_set(out, b, idx, value);
-				}
+			{
+				int offset = h * flat->img_w + c * flat->img_h * flat->img_w;
+				for (int w = 0, idx = offset; w < flat->img_w; w++, idx++)
+					gsl_matrix_set(out, b, idx, gsl_matrix_get(x[b][c], h, w));
+			}
 	return out;
 }
 
@@ -47,14 +46,12 @@ gsl_matrix*** backward_flat (FLAT* flat, gsl_matrix* dy)
 		for (int c = 0; c < flat->n_channels; c++)
 		{
 			out[b][c] = gsl_matrix_calloc(flat->img_h, flat->img_w);
-			for (int p = 0; p < flat->img_h * flat->img_w; p++)
+			int offset = flat->img_h * flat->img_w * c;
+			for (int p = 0, idx = offset; p < flat->img_h * flat->img_w; p++, idx++)
 			{
-				int idx = p + (flat->img_h * flat->img_w) * c;
-				double value = gsl_matrix_get(dy, b, idx);
-
 				int p_x = p % flat->img_h;
 				int p_y = p / flat->img_h;
-				gsl_matrix_set(out[b][c], p_x, p_y, value);
+				gsl_matrix_set(out[b][c], p_x, p_y, gsl_matrix_get(dy, b, idx));
 			}
 		}
 	}
