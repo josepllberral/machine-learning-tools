@@ -1239,7 +1239,7 @@ train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NUL
 			print(paste("Epoch", epoch, ": Mean Loss", mean(acc_loss, na.rm = TRUE), sep = " "));
 		}
 		end_time <- Sys.time();
-		print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
+		#print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
 	}
 
 	retval <- list(layers = layers, loss_layer = loss_layer, loss = mean(acc_loss));
@@ -1272,6 +1272,37 @@ predict_cnn <- predict.cnn <- function(cnn, dataset)
 	score <- batchdata;
 	
 	list(score = score, class = max.col(score));
+}
+
+## Produce a reconstruction for activation data.
+##  param cnn     : a trained neural network
+##  param dataset : data matrix of (observations x features)
+##
+## Returns:
+##  reconstruct   : Reconstructed Input of the neural network
+##  activations   : Activations of the neural network
+pass_through_cnn <- function(cnn, dataset)
+{
+	layers <- cnn$layers;
+	
+	batchdata <- as.array(dataset);
+	for (i in 1:length(layers))
+	{
+		layer <- layers[[i]];
+		aux <- layer$forward(layer, batchdata);
+		layers[[i]] <- aux$layer;
+		batchdata <- aux$y;
+	}
+
+	negdata <- as.array(batchdata);
+	for (i in length(layers):1)
+	{		
+		layer <- layers[[i]];
+		aux <- layer$backward(layer, negdata);
+		negdata <- aux$dx;
+	}
+	
+	list(reconstruct = negdata, activations = batchdata);
 }
 
 ################################################################################
@@ -1452,5 +1483,8 @@ main <- function()
 	
 	# Test the CNN
 	predictions <- predict(cnn_3, testing_x);
+
+	# Pass Forward and Backward the CNN
+	reconstructs <- pass_through_cnn(cnn_3, testing_x);
 }
 
