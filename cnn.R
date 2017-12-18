@@ -176,7 +176,7 @@ img_padding <- function(img, pad_y, pad_x)
 binarization <- function(vec)
 {
 	result <- array(0, c(length(vec),length(unique(vec))));
-	for (i in 1:length(vec)) result[i,vec[i]] <- 1;
+	for (i in 1:length(vec)) result[i,vec[i] + 1] <- 1;
 	result;
 }
 
