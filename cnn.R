@@ -524,8 +524,8 @@ backward_conv <- cmpfun(backward_conv_orig);
 ## Updates the Convolutional Layer
 get_updates_conv_orig <- function(conv, lr)
 {
-	conv[["W"]] = conv$W - conv$grad_W * lr;
-	conv[["b"]] = conv$b - conv$grad_b * lr;
+	conv[["W"]] = conv$W - conv$grad_W * lr / nrow(conv$x);
+	conv[["b"]] = conv$b - conv$grad_b * lr / nrow(conv$x);
 	conv;
 }
 get_updates_conv <- cmpfun(get_updates_conv_orig);
@@ -806,8 +806,8 @@ backward_line <- function(line, dy)
 ## Updates the Linear Layer
 get_updates_line <- function(line, lr)
 {
-        line[["W"]] = line$W - line$grad_W * lr;
-        line[["b"]] = line$b - line$grad_b * lr;
+        line[["W"]] = line$W - line$grad_W * lr / nrow(line$x);
+        line[["b"]] = line$b - line$grad_b * lr / nrow(line$x);
 	line;
 }
 
@@ -1081,8 +1081,8 @@ forward_xent <- function(xent, x, targets)
 ##	returns :	Numeric vector
 backward_xent <- function(xent, dy, targets)
 {
-	num_batches <- dim(dy)[1];
-	dx <- (1.0 / num_batches) * (dy - targets);
+	batch_size <- dim(dy)[1];
+	dx <- (1.0 / batch_size) * (dy - targets);
 	list(layer = xent, dx = dx);
 }
 
@@ -1179,18 +1179,19 @@ train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NUL
 	{
 		start_time <- Sys.time();
 
-		acc_loss <- NULL;		
+		acc_loss <- 0;
+		acc_class <- 0;	
 		for (j in 1:num_batches)
 		{
 			# Select mini-batch
 			idx <- ((j - 1) * batch_size + 1):(j * batch_size);
 			if (length(dim(training_x)) == 4)
 			{
-				batchdata <- training_x[idx,,,,drop = FALSE];		# [batch_size x n_channel x img_h x img_w]
+				batchdata <- training_x[idx,,,,drop = FALSE];		 # [batch_size x n_channel x img_h x img_w]
 			} else {
-				batchdata <- training_x[idx,,drop = FALSE];		# [batch_size x n_features]
+				batchdata <- training_x[idx,,drop = FALSE];		 # [batch_size x n_features]
 			}
-			targets <- if (!is.null(training_y)) training_y[idx] else NULL;	# [batch_size] or NULL
+			targets <- if (!is.null(training_y)) training_y[idx,] else NULL; # [batch_size x n_outputs] or NULL
 
 			# Forward
 			for (i in 1:length(layers))
@@ -1228,15 +1229,19 @@ train_cnn <- train.cnn <- function ( training_x, training_y = NULL, layers = NUL
 			{
 				layer <- layers[[i]];
 				get_updates <- layer$get_updates;
-
+				
 				layers[[i]] <- get_updates(layer, learning_rate);
 			}
 
-			acc_loss <- c(acc_loss, loss);
+			acc_loss <- acc_loss + loss;
+			acc_class <- if (!is.null(targets)) {
+				a <- apply(targets, 1, function(x) which(x == max(x))[1]);
+				b <- apply(output, 1, function(x) which(x == max(x))[1]);
+				acc_class + (sum(a - b == 0) / batch_size) } else NA;
 		}
 		if (epoch %% 1 == 0)
 		{
-			print(paste("Epoch", epoch, ": Mean Loss", mean(acc_loss, na.rm = TRUE), sep = " "));
+			print(paste("Epoch", epoch, ": Mean Loss", acc_loss / num_batches, "Accuracy :", acc_class / num_batches, sep = " "));
 		}
 		end_time <- Sys.time();
 		#print(paste('Epoch', epoch, 'took', difftime(end_time, start_time, units = "mins"), "minutes", sep=" "));
