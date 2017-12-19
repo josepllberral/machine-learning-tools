@@ -631,7 +631,7 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 #' newdata <- testing_x[1:1000,, drop=FALSE];
 #'
 #' prediction <- predict(mnist_mlp, newdata);
-predict.cnn <- function (cnn, newdata, rand_seed = floor(runif(1)*1000))
+predict.cnn <- function (cnn, newdata, rand_seed = as.integer(floor(runif(1)*1000)))
 {
 	if (!"cnn" %in% class(cnn))
 	{
@@ -639,7 +639,8 @@ predict.cnn <- function (cnn, newdata, rand_seed = floor(runif(1)*1000))
 		return(NULL);
 	}
 	
-	if (!is.integer(rand_seed))
+	rand_seed <- as.integer(rand_seed);
+	if (is.na(rand_seed))
 	{
 		message("Random seed is not an integer");
 		return(NULL);

@@ -4,7 +4,8 @@
 \alias{predict.cnn}
 \title{Predicting using a Convolutional Network or MultiLayer Perceptron Function}
 \usage{
-\method{predict}{cnn}(cnn, newdata, rand_seed = floor(runif(1) * 1000))
+\method{predict}{cnn}(cnn, newdata, rand_seed = as.integer(floor(runif(1) *
+  1000)))
 }
 \arguments{
 \item{cnn}{A trained CNN or MLP.}
