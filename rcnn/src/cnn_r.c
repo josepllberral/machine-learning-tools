@@ -813,7 +813,6 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
  	int basi = INTEGER_VALUE(batch_size);
  	int trep = INTEGER_VALUE(training_epochs);
- 	int rase = INTEGER_VALUE(rand_seed);
  	double lera = NUMERIC_VALUE(learning_rate);
  	double mome = NUMERIC_VALUE(momentum);
 
@@ -821,6 +820,9 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	
 	int rebuild = INTEGER_VALUE(is_init_cnn);
 
+ 	unsigned int rase = INTEGER_VALUE(rand_seed);
+	srand(rase);
+	
 	// Create Dataset Structure
 	gsl_matrix*** train_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
 	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
@@ -912,7 +914,7 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 }
 
 // Interface for Predicting and Reconstructing using a CNN
-SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
+SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers, SEXP rand_seed)
 {
  	int nrows = INTEGER(GET_DIM(newdata))[0];
  	int nchan = INTEGER(GET_DIM(newdata))[1];
@@ -922,6 +924,9 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers)
  	int nlay = INTEGER_VALUE(num_layers);
 
 	int basi = min(100, nrows);
+	
+	unsigned int rase = INTEGER_VALUE(rand_seed);
+	srand(rase);
 
 	// Re-assemble the CNN (build pipeline)
 	LAYER* pipeline = reassemble_CNN(layers, nlay, basi);
@@ -978,13 +983,15 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
  	int basi = INTEGER_VALUE(batch_size);
  	int trep = INTEGER_VALUE(training_epochs);
- 	int rase = INTEGER_VALUE(rand_seed);
  	double lera = NUMERIC_VALUE(learning_rate);
  	double mome = NUMERIC_VALUE(momentum);
 
 	int nlays = INTEGER_VALUE(num_layers);
 	
 	int rebuild = INTEGER_VALUE(is_init_cnn);
+
+ 	unsigned int rase = INTEGER_VALUE(rand_seed);
+	srand(rase);
 	
 	// Create Dataset Structure
 	gsl_matrix* train_X = gsl_matrix_alloc(nrows, ncols);
@@ -1064,7 +1071,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 }
 
 // Interface for Predicting and Reconstructing using a MLP
-SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
+SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers, SEXP rand_seed)
 {
  	int nrows = INTEGER(GET_DIM(newdata))[0];
  	int ncols = INTEGER(GET_DIM(newdata))[1];
@@ -1072,6 +1079,9 @@ SEXP _C_MLP_predict (SEXP newdata, SEXP layers, SEXP num_layers)
  	int nlay = INTEGER_VALUE(num_layers);
  	
 	int basi = min(100, nrows);
+	
+	unsigned int rase = INTEGER_VALUE(rand_seed);
+	srand(rase);
 
 	// Re-assemble the MLP (build pipeline)
 	LAYER* pipeline = reassemble_CNN(layers, nlay, basi);

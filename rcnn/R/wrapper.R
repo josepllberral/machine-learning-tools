@@ -631,11 +631,17 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 #' newdata <- testing_x[1:1000,, drop=FALSE];
 #'
 #' prediction <- predict(mnist_mlp, newdata);
-predict.cnn <- function (cnn, newdata)
+predict.cnn <- function (cnn, newdata, rand_seed = floor(runif(1)*1000))
 {
 	if (!"cnn" %in% class(cnn))
 	{
 		message("Input object is not a CNN nor a MLP");
+		return(NULL);
+	}
+	
+	if (!is.integer(rand_seed))
+	{
+		message("Random seed is not an integer");
 		return(NULL);
 	}
 		
@@ -648,7 +654,8 @@ predict.cnn <- function (cnn, newdata)
 		}
 
 		retval <- .Call("_C_CNN_predict", as.array(newdata), as.list(cnn$layers),
-			  as.integer(length(cnn$layers)), PACKAGE = "rcnn");
+			  as.integer(length(cnn$layers)), as.integer(rand_seed),
+			  PACKAGE = "rcnn");
 		
 	} else if (length(dim(newdata)) == 2)
 	{
@@ -659,7 +666,8 @@ predict.cnn <- function (cnn, newdata)
 		}
 
 		retval <- .Call("_C_MLP_predict", as.matrix(newdata), as.list(cnn$layers),
-			  as.integer(length(cnn$layers)), PACKAGE = "rcnn");
+			  as.integer(length(cnn$layers)), as.integer(rand_seed),
+			  PACKAGE = "rcnn");
 	} else
 	{
 		message("Error on Input dimensions: Must be a a (Samples x Features) 2D matrix or a (Samples x Image) 4D array");
