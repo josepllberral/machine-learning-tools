@@ -1132,7 +1132,7 @@ int check_grad_line (LINE* line, gsl_matrix* x0, int rand_seed, double eps, doub
 }
 
 /*---------------------------------------------------------------------------*/
-/* GRAD CHECK FOR SOFT AND CELL LAYERS                                       */
+/* GRAD CHECK FOR SOFT AND XENT LAYERS                                       */
 /*---------------------------------------------------------------------------*/
 
 // Return: 0 means OK, 1 means KO
@@ -1165,31 +1165,31 @@ int check_grad_soft (SOFT* soft, gsl_matrix* x0, int rand_seed, double eps, doub
 }
 
 // Return: 0 means OK, 1 means KO
-int check_grad_cell (CELL* cell, gsl_matrix* x0, gsl_matrix* y0, int rand_seed, double eps, double rtol, double atol)
+int check_grad_xent (XENT* xent, gsl_matrix* x0, gsl_matrix* y0, int rand_seed, double eps, double rtol, double atol)
 {
 	srand(rand_seed);
 
 	int retval = 0;
 
 	// Part 1: Checking Output
-	CELL cell_copy;
-	copy_CELL(&cell_copy, cell);
+	XENT xent_copy;
+	copy_XENT(&xent_copy, xent);
 
 	// Go forward
-	gsl_matrix* y = forward_cell(&cell_copy, x0, y0);
+	gsl_matrix* y = forward_xent(&xent_copy, x0, y0);
 
 	// Go backward
-	gsl_matrix* dx = backward_cell(&cell_copy, y, y0);
+	gsl_matrix* dx = backward_xent(&xent_copy, y, y0);
 
 	// Check output reconstruction
 	// ... actually, we don't check anything, just "valgrinding" the layer
-	printf("Loss : %f\n", cell_copy.loss);
+	printf("Loss : %f\n", xent_copy.loss);
 
 	// Free auxiliar structures
 	gsl_matrix_free(y);
 	gsl_matrix_free(dx);
 
-	free_CELL(&cell_copy);
+	free_XENT(&xent_copy);
 
 	return retval;
 }

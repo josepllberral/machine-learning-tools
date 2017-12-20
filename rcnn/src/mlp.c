@@ -38,8 +38,8 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 
 	int out_size = training_y->size2;
 
-	CELL loss_layer;
-	create_CELL(&loss_layer);
+	XENT loss_layer;
+	create_XENT(&loss_layer);
 
 	data batchdata;
 	int batch_chan = 0;
@@ -82,8 +82,8 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 
 			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
-			gsl_matrix* pred_y = forward_cell(&loss_layer, output, targets);
-			gsl_matrix* results = backward_cell(&loss_layer, output, targets);
+			gsl_matrix* pred_y = forward_xent(&loss_layer, output, targets);
+			gsl_matrix* results = backward_xent(&loss_layer, output, targets);
 
 			acc_loss += loss_layer.loss;
 			acc_class += classification_accuracy(pred_y, targets);
@@ -108,7 +108,7 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
 	}
 
-	free_CELL(&loss_layer);
+	free_XENT(&loss_layer);
 
 	return (acc_loss / num_batches);
 }

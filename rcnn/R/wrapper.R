@@ -197,13 +197,13 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 				return (FALSE);
 			}
 			input_dims[2] <- as.numeric(laux['n_hidden']);
-		} else if (laux['type'] == "GBRL")
+		} else if (laux['type'] == "RBML")
 		{
 			# Check for Visible units
 			if (input_dims[2] != as.numeric(laux['n_visible']))
 			{
 				message(paste("Error in layer ", i, sep = ""));
-				message("Current GBRL input (visible) do not match previous LAYER output (visible)");
+				message("Current RBML input (visible) do not match previous LAYER output (visible)");
 				message(paste("Expected dimensions ", paste(input_dims, collapse = " "), sep = ""));
 				return (FALSE);
 			}
@@ -231,10 +231,10 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 	}
 
 	# Check Last Layer
-	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH", "GBRL"))
+	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH", "RBML"))
 	{
 		message("Error in Output Layer");
-		message("Output layer must be a SOFT, SIGM, TANH, LINE, DIRE or GBRL");
+		message("Output layer must be a SOFT, SIGM, TANH, LINE, DIRE or RBML");
 		return (FALSE);
 	}
 
@@ -269,8 +269,8 @@ compose_layers <- function(descriptor, batch_size)
 			l <- c("FLAT", aux['n_channels']);
 		} else if (aux['type'] == "LINE") {
 			l <- c("LINE", aux['n_visible'], aux['n_hidden'], aux['scale']);
-		} else if (aux['type'] == "GBRL") {
-			l <- c("GBRL", aux['n_visible'], aux['n_hidden'], aux['scale'], aux['n_gibbs']);
+		} else if (aux['type'] == "RBML") {
+			l <- c("RBML", aux['n_visible'], aux['n_hidden'], aux['scale'], aux['n_gibbs']);
 		} else if (aux['type'] == "SOFT") {
 			l <- c("SOFT", aux['n_inputs']);
 		} else if (aux['type'] == "SIGM") {
@@ -330,7 +330,7 @@ compose_layers <- function(descriptor, batch_size)
 #'     \item Number of hidden units
 #'     \item Scale for initialization weights
 #'   }
-#'   \item GBRL: GB-RBM Layer. Requires, in the following order:
+#'   \item RBML: GB-RBM Layer. Requires, in the following order:
 #'   \enumerate{
 #'     \item Number of visible units
 #'     \item Number of hidden units
@@ -554,9 +554,9 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 			dataset <- t(apply(dataset, 1, as.numeric));
 		}	
 		
-		if (any(!sapply(layers, `[[`, 1) %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE","GBRL")))
+		if (any(!sapply(layers, `[[`, 1) %in% c("LINE","RELV","SOFT","SIGM","TANH","DIRE","RBML")))
 		{
-			message("For 2D matrix inputs, layers must be LINE, RELV, SOFT, SIGM, TANH, DIRE or GBRL");
+			message("For 2D matrix inputs, layers must be LINE, RELV, SOFT, SIGM, TANH, DIRE or RBML");
 			return(NULL);
 		}
 

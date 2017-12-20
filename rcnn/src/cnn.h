@@ -12,7 +12,7 @@
 // * Also from LeNet (deeplearning.net)
 //   http://deeplearning.net/tutorial/lenet.html
 
-// Compile using "gcc cell.c flat.c line.c mops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c tanh.c gbrl.c -lgsl -lgslcblas -lm -o cnn"
+// Compile using "gcc flat.c line.c mops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c dire.c tanh.c rbml.c xent.c -lgsl -lgslcblas -lm -o cnn"
 
 // Information for "Type" attributes:
 // Layer Type:
@@ -108,7 +108,7 @@ typedef struct {
 	gsl_vector* grad_vbias;
 	gsl_matrix* x;
 	gsl_matrix* ph_means;
-} GBRL;
+} RBML;
 
 typedef struct {
 	int batch_size;
@@ -136,7 +136,7 @@ typedef struct {
 
 typedef struct {
 	double loss;
-} CELL;
+} XENT;
 
 typedef struct {
 	double loss;
@@ -208,13 +208,13 @@ void copy_LINE (LINE*, LINE*);
 int compare_LINE (LINE*, LINE*);
 
 // GB-RBM Layer
-gsl_matrix* forward_gbrl (GBRL*, gsl_matrix*);
-gsl_matrix* backward_gbrl (GBRL*, gsl_matrix*);
-void get_updates_gbrl (GBRL*, double);
-void create_GBRL (GBRL*, int, int, double, int, int);
-void free_GBRL (GBRL*);
-void copy_GBRL (GBRL*, GBRL*);
-int compare_GBRL (GBRL*, GBRL*);
+gsl_matrix* forward_rbml (RBML*, gsl_matrix*);
+gsl_matrix* backward_rbml (RBML*, gsl_matrix*);
+void get_updates_rbml (RBML*, double);
+void create_RBML (RBML*, int, int, double, int, int);
+void free_RBML (RBML*);
+void copy_RBML (RBML*, RBML*);
+int compare_RBML (RBML*, RBML*);
 
 // SoftMax Layer
 gsl_matrix* forward_soft (SOFT*, gsl_matrix*);
@@ -253,13 +253,13 @@ void copy_TANH (TANH*, TANH*);
 int compare_TANH (TANH*, TANH*);
 
 // Cross-Entropy Layer
-gsl_matrix* forward_cell (CELL*, gsl_matrix*, gsl_matrix*);
-gsl_matrix* backward_cell (CELL*, gsl_matrix*, gsl_matrix*);
-void get_updates_cell (CELL*, double);
-void create_CELL (CELL*);
-void free_CELL (CELL*);
-void copy_CELL (CELL*, CELL*);
-int compare_CELL (CELL*, CELL*);
+gsl_matrix* forward_xent (XENT*, gsl_matrix*, gsl_matrix*);
+gsl_matrix* backward_xent (XENT*, gsl_matrix*, gsl_matrix*);
+void get_updates_xent (XENT*, double);
+void create_XENT (XENT*);
+void free_XENT (XENT*);
+void copy_XENT (XENT*, XENT*);
+int compare_XENT (XENT*, XENT*);
 
 // Mean-Squared Error Layer
 gsl_matrix* forward_msel (MSEL*, gsl_matrix*, gsl_matrix*);
@@ -316,7 +316,7 @@ int check_grad_flat (FLAT*, gsl_matrix***, int, double, double, double);
 int check_grad_relu (RELU*, gsl_matrix***, int, double, double, double);
 int check_grad_line (LINE*, gsl_matrix*, int, double, double, double);
 int check_grad_soft (SOFT*, gsl_matrix*, int, double, double, double);
-int check_grad_cell (CELL*, gsl_matrix*, gsl_matrix*, int, double, double, double);
+int check_grad_xent (XENT*, gsl_matrix*, gsl_matrix*, int, double, double, double);
 
 // Matrix Operations
 gsl_matrix* matrix_normal (int, int, double, double, double);
@@ -345,7 +345,7 @@ int main_flat();
 int main_relu();
 int main_line();
 int main_soft();
-int main_cell();
+int main_xent();
 int main_cnn();
 int main_mlp();
 

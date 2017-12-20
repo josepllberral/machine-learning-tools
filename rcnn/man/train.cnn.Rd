@@ -61,7 +61,7 @@ Possible layers are:
     \item Number of hidden units
     \item Scale for initialization weights
   }
-  \item GBRL: GB-RBM Layer. Requires, in the following order:
+  \item RBML: GB-RBM Layer. Requires, in the following order:
   \enumerate{
     \item Number of visible units
     \item Number of hidden units

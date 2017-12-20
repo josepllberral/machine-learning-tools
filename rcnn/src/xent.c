@@ -16,8 +16,8 @@
 //	param x       :	Numeric Matrix
 //	param targets : Matrix of Solutions, it could be a matrix (1,S)...
 //	returns       :	Numeric Matrix
-//      updates       : cell layer
-gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
+//      updates       : xent layer
+gsl_matrix* forward_xent (XENT* xent, gsl_matrix* x, gsl_matrix* targets)
 {
 	// Performs: l <- -1.0 * targets * log(x + 1e-08)
 	gsl_matrix* pre_log = gsl_matrix_calloc(x->size1, x->size2);
@@ -29,7 +29,7 @@ gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 	gsl_matrix_mul_elements(l, targets);
 
 	// Performs: mean(apply(l, MARGIN = 1, sum))
-	cell->loss = matrix_sum(l) / l->size1;
+	xent->loss = matrix_sum(l) / l->size1;
 
 	gsl_matrix_free(pre_log);
 	gsl_matrix_free(l);
@@ -43,7 +43,7 @@ gsl_matrix* forward_cell (CELL* cell, gsl_matrix* x, gsl_matrix* targets)
 //	param dy      :	Numeric Matrix
 //	param targets : Matrix of Solutions, it could be a matrix (1,S)...
 //	returns       :	Numeric Matrix
-gsl_matrix* backward_cell (CELL* cell, gsl_matrix* dy, gsl_matrix* targets)
+gsl_matrix* backward_xent (XENT* xent, gsl_matrix* dy, gsl_matrix* targets)
 {
 	// Performs: dx <- (1.0 / num_batches) * (dy - targets)
 	gsl_matrix* dx = gsl_matrix_calloc(dy->size1, dy->size2);
@@ -56,32 +56,32 @@ gsl_matrix* backward_cell (CELL* cell, gsl_matrix* dy, gsl_matrix* targets)
 }
 
 // Updates the C-E Loss Layer (Does Nothing)
-void get_updates_cell (CELL* cell, double lr)
+void get_updates_xent (XENT* xent, double lr)
 {
 	return;
 }
 
 // Initializes a C-E Loss layer
-void create_CELL (CELL* cell)
+void create_XENT (XENT* xent)
 {
-	cell->loss = 0;
+	xent->loss = 0;
 }
 
 // Destructor of C-E Loss Layer (Does Nothing)
-void free_CELL (CELL* cell)
+void free_XENT (XENT* xent)
 {
 	return;
 }
 
 // Function to copy a C-E Loss layer
 // Important: destination must NOT be initialized
-void copy_CELL (CELL* destination, CELL* origin)
+void copy_XENT (XENT* destination, XENT* origin)
 {
 	destination->loss = origin->loss;
 }
 
 // Function to compare a C-E Loss layer
-int compare_CELL (CELL* C1, CELL* C2)
+int compare_XENT (XENT* C1, XENT* C2)
 {
 	int equal = 1;
 

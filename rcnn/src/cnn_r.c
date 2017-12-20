@@ -5,7 +5,7 @@
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
 // File including R interface for CNNs
-// Compile using "R CMD SHLIB cnn_r.c cell.c dire.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c -lgsl -lgslcblas -lm -o cnn.so"
+// Compile using "R CMD SHLIB cnn_r.c dire.c flat.c line.c matrix_ops.c msel.c relu.c sigm.c test.c cnn.c conv.c grad_check.c mlp.c pool.c relv.c soft.c xent.c rbml.c -lgsl -lgslcblas -lm -o cnn.so"
 
 #include "cnn.h"
 
@@ -125,17 +125,17 @@ LAYER* build_pipeline (SEXP layers, int nlays, int batch_size)
 			create_TANH(tanh, nunits_tanh, batch_size);
 			retval[i].type = 12; retval[i].layer = (void*) tanh;
 		}
-		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "GBRL") == 0)
+		else if (strcmp(CHAR(STRING_ELT(laux, 0)), "RBML") == 0)
 		{
-			GBRL* gbrl = (GBRL*) malloc(sizeof(GBRL));
+			RBML* rbml = (RBML*) malloc(sizeof(RBML));
 
-			int nvis_gbrl = atoi(CHAR(STRING_ELT(laux, 1)));     // n_visible
-			int nhid_gbrl = atoi(CHAR(STRING_ELT(laux, 2)));     // n_hidden
-			double scale_gbrl = atof(CHAR(STRING_ELT(laux, 3))); // scale
-			int n_gibbs_gbrl = atof(CHAR(STRING_ELT(laux, 4)));  // n_gibbs
+			int nvis_rbml = atoi(CHAR(STRING_ELT(laux, 1)));     // n_visible
+			int nhid_rbml = atoi(CHAR(STRING_ELT(laux, 2)));     // n_hidden
+			double scale_rbml = atof(CHAR(STRING_ELT(laux, 3))); // scale
+			int n_gibbs_rbml = atof(CHAR(STRING_ELT(laux, 4)));  // n_gibbs
 
-			create_GBRL(gbrl, nvis_gbrl, nhid_gbrl, scale_gbrl, n_gibbs_gbrl, batch_size);
-			retval[i].type = 13; retval[i].layer = (void*) gbrl;
+			create_RBML(rbml, nvis_rbml, nhid_rbml, scale_rbml, n_gibbs_rbml, batch_size);
+			retval[i].type = 13; retval[i].layer = (void*) rbml;
 		}
 	}
 
@@ -156,7 +156,7 @@ void free_pipeline (LAYER* layers, int nlays)
 		else if (layers[i].type == 9) free_SIGM((SIGM*) layers[i].layer);
 		else if (layers[i].type == 11) free_DIRE((DIRE*) layers[i].layer);
 		else if (layers[i].type == 12) free_TANH((TANH*) layers[i].layer);
-		else if (layers[i].type == 13) free_GBRL((GBRL*) layers[i].layer);
+		else if (layers[i].type == 13) free_RBML((RBML*) layers[i].layer);
 		free(layers[i].layer);
 	}
 	free(layers);
@@ -449,14 +449,14 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
-		else if (pipeline[i].type == 13) // GBRL Layer
+		else if (pipeline[i].type == 13) // RBML Layer
 		{
-			GBRL* aux = (GBRL*) pipeline[i].layer;
+			RBML* aux = (RBML*) pipeline[i].layer;
 
 			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 10));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 0, allocVector(STRSXP, 1));
-			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("GBRL"));
+			SET_STRING_ELT(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i),0), 0, mkChar("RBML"));
 
 			SET_VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1, allocVector(INTSXP, 1));
 			INTEGER(VECTOR_ELT(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), 1))[0] = aux->n_visible;
@@ -503,7 +503,7 @@ void return_pipeline (SEXP* retval, LAYER* pipeline, int nlays)
 
 			setAttrib(VECTOR_ELT(VECTOR_ELT(*retval, 2), i), R_NamesSymbol, naux);	
 		}
-		else // CELL, MSEL, others...
+		else // XENT, MSEL, others...
 		{
 			SET_VECTOR_ELT(VECTOR_ELT(*retval, 2), i, allocVector(VECSXP, 2));
 
@@ -743,9 +743,9 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 			pipeline[i].type = 12;
 			pipeline[i].layer = (void*) aux;
 		}
-		else if (strcmp(s, "GBRL") == 0)
+		else if (strcmp(s, "RBML") == 0)
 		{
-			GBRL* aux = (GBRL*) malloc(sizeof(GBRL));
+			RBML* aux = (RBML*) malloc(sizeof(RBML));
 			
 			aux->batch_size = batch_size;
 			aux->n_visible = INTEGER(getListElement(VECTOR_ELT(layers, i), "n_visible"))[0];
@@ -790,7 +790,7 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 			pipeline[i].type = 13;
 			pipeline[i].layer = (void*) aux;
 		}
-		else // CELL, MSEL, others...
+		else // XENT, MSEL, others...
 		{
 			pipeline[i].type = 0;
 			pipeline[i].layer = NULL; // Let the system explode, for now...

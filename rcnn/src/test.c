@@ -266,7 +266,7 @@ int main_soft()
 }
 
 // Driver for Cross-Entropy Layer
-int main_cell()
+int main_xent()
 {
 	int batch_size = 10;
 	int n_units = 2;
@@ -284,13 +284,13 @@ int main_cell()
 
 	printf("Create Cross-Entropy Layer\n");
 
-	CELL cell;
-	create_CELL(&cell);
+	XENT xent;
+	create_XENT(&xent);
 
 	printf("Start Gradient Check\n");
 
 	// Gradient check
-	int a = check_grad_cell(&cell, x, y, 1234, -1, -1, -1);
+	int a = check_grad_xent(&xent, x, y, 1234, -1, -1, -1);
 	if (a == 0) printf("Gradient check passed\n");
 
 	printf("Fin Gradient Check\n");
@@ -298,7 +298,7 @@ int main_cell()
 	gsl_matrix_free(x);
 	gsl_matrix_free(y);
 
-	free_CELL(&cell);
+	free_XENT(&xent);
 
 	return 0;
 }

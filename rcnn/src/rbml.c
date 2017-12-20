@@ -13,15 +13,15 @@
 /*----------------------------------------------------------------------------*/
 
 // This function passes from Visible State to Hidden Probabilities
-void vs2hp_gbrl(GBRL* gbrl, gsl_matrix* v_sample, gsl_matrix** h_mean, gsl_matrix** h_sample)
+void vs2hp_rbml(RBML* rbml, gsl_matrix* v_sample, gsl_matrix** h_mean, gsl_matrix** h_sample)
 {
 	int nrow = v_sample->size1;
 
-	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, gbrl->n_hidden);
-	gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, v_sample, gbrl->W, 1.0, pre_sigmoid);
+	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, rbml->n_hidden);
+	gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, v_sample, rbml->W, 1.0, pre_sigmoid);
 
-	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, gbrl->n_hidden);
-	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, gbrl->hbias);
+	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, rbml->n_hidden);
+	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, rbml->hbias);
 	gsl_matrix_add(pre_sigmoid, M_bias);
 
 	matrix_sigmoid(pre_sigmoid, *h_mean);
@@ -32,15 +32,15 @@ void vs2hp_gbrl(GBRL* gbrl, gsl_matrix* v_sample, gsl_matrix** h_mean, gsl_matri
 }
 
 // This function passes from Hidden State to Visible Probabilities
-void hs2vp_gbrl(GBRL* gbrl, gsl_matrix* h_sample, gsl_matrix** v_mean, gsl_matrix** v_sample)
+void hs2vp_rbml(RBML* rbml, gsl_matrix* h_sample, gsl_matrix** v_mean, gsl_matrix** v_sample)
 {
 	int nrow = h_sample->size1;
 
-	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, gbrl->n_visible);
-	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, h_sample, gbrl->W, 1.0, pre_sigmoid);
+	gsl_matrix* pre_sigmoid = gsl_matrix_calloc(nrow, rbml->n_visible);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, h_sample, rbml->W, 1.0, pre_sigmoid);
 
-	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, gbrl->n_visible);
-	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, gbrl->vbias);
+	gsl_matrix * M_bias = gsl_matrix_calloc(nrow, rbml->n_visible);
+	for(int i = 0; i < nrow; i++) gsl_matrix_set_row(M_bias, i, rbml->vbias);
 	gsl_matrix_add(pre_sigmoid, M_bias);
 
 	gsl_matrix_memcpy(*v_mean, pre_sigmoid);
@@ -54,21 +54,21 @@ void hs2vp_gbrl(GBRL* gbrl, gsl_matrix* h_sample, gsl_matrix** v_mean, gsl_matri
 //	param x :	Numeric matrix (batch_size, n_visible)
 //	returns :	Numeric matrix (batch_size, n_hidden)
 //	updates :	gb-rbm_layer
-gsl_matrix* forward_gbrl(GBRL* gbrl, gsl_matrix* x)
+gsl_matrix* forward_rbml(RBML* rbml, gsl_matrix* x)
 {
 	// Positive Phase
-	gsl_matrix* ph_means = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_hidden);
-	gsl_matrix* ph_sample = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_hidden);
-	vs2hp_gbrl(gbrl, x, &ph_means, &ph_sample);
+	gsl_matrix* ph_means = gsl_matrix_calloc(rbml->batch_size, rbml->n_hidden);
+	gsl_matrix* ph_sample = gsl_matrix_calloc(rbml->batch_size, rbml->n_hidden);
+	vs2hp_rbml(rbml, x, &ph_means, &ph_sample);
 
 	// Save "x" and "ph_means" for back-propagation
-	gsl_matrix_free(gbrl->x);
-	gbrl->x = gsl_matrix_calloc(x->size1, x->size2);
-	gsl_matrix_memcpy(gbrl->x, x);
+	gsl_matrix_free(rbml->x);
+	rbml->x = gsl_matrix_calloc(x->size1, x->size2);
+	gsl_matrix_memcpy(rbml->x, x);
 
-	gsl_matrix_free(gbrl->ph_means);
-	gbrl->ph_means = gsl_matrix_calloc(ph_means->size1, ph_means->size2);
-	gsl_matrix_memcpy(gbrl->ph_means, ph_means);
+	gsl_matrix_free(rbml->ph_means);
+	rbml->ph_means = gsl_matrix_calloc(ph_means->size1, ph_means->size2);
+	gsl_matrix_memcpy(rbml->ph_means, ph_means);
 
 	gsl_matrix_free(ph_means);
 
@@ -79,50 +79,50 @@ gsl_matrix* forward_gbrl(GBRL* gbrl, gsl_matrix* x)
 //	param dy :	Numeric vector <n_hidden>
 //	returns  :	Numeric vector <n_visible>
 //	updates  :	gb-rbm_layer
-gsl_matrix* backward_gbrl(GBRL* gbrl, gsl_matrix* dy)
+gsl_matrix* backward_rbml(RBML* rbml, gsl_matrix* dy)
 {
 	// Negative Phase
-	gsl_matrix* nv_means = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_visible);
-	gsl_matrix* nv_sample = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_visible);
-	gsl_matrix* nh_means = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_hidden);
-	gsl_matrix* nh_sample = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_hidden);
+	gsl_matrix* nv_means = gsl_matrix_calloc(rbml->batch_size, rbml->n_visible);
+	gsl_matrix* nv_sample = gsl_matrix_calloc(rbml->batch_size, rbml->n_visible);
+	gsl_matrix* nh_means = gsl_matrix_calloc(rbml->batch_size, rbml->n_hidden);
+	gsl_matrix* nh_sample = gsl_matrix_calloc(rbml->batch_size, rbml->n_hidden);
 
 	gsl_matrix_memcpy(nh_sample, dy);
-	for (int step = 0; step < gbrl->n_gibbs; step++)
+	for (int step = 0; step < rbml->n_gibbs; step++)
 	{
-		hs2vp_gbrl(gbrl, nh_sample, &nv_means, &nv_sample);
-		vs2hp_gbrl(gbrl, nv_sample, &nh_means, &nh_sample);
+		hs2vp_rbml(rbml, nh_sample, &nv_means, &nv_sample);
+		vs2hp_rbml(rbml, nv_sample, &nh_means, &nh_sample);
 	}
 
 	// Compute gradients: Delta_W, Delta_h, Delta_v
-	gsl_matrix* identity_h = gsl_matrix_alloc(gbrl->n_hidden, gbrl->n_hidden);
+	gsl_matrix* identity_h = gsl_matrix_alloc(rbml->n_hidden, rbml->n_hidden);
 	gsl_matrix_set_all(identity_h, 1.0);
 	gsl_matrix_set_identity(identity_h);
 
-	gsl_matrix* identity_v = gsl_matrix_alloc(gbrl->n_visible, gbrl->n_visible);
+	gsl_matrix* identity_v = gsl_matrix_alloc(rbml->n_visible, rbml->n_visible);
 	gsl_matrix_set_all(identity_v, 1.0);
 	gsl_matrix_set_identity(identity_v);
 	
-	gsl_vector* ones = gsl_vector_alloc(gbrl->batch_size);
+	gsl_vector* ones = gsl_vector_alloc(rbml->batch_size);
 	gsl_vector_set_all(ones, 1.0);
 
-	gsl_matrix* delta_W = gsl_matrix_calloc(gbrl->n_hidden, gbrl->n_visible);
-	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, gbrl->ph_means, gbrl->x, 1.0, delta_W);
+	gsl_matrix* delta_W = gsl_matrix_calloc(rbml->n_hidden, rbml->n_visible);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, rbml->ph_means, rbml->x, 1.0, delta_W);
 	gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, nh_means, nv_sample, 1.0, delta_W);
-	gsl_matrix_memcpy(gbrl->grad_W, delta_W);
+	gsl_matrix_memcpy(rbml->grad_W, delta_W);
 
-	gsl_matrix* pre_delta_v = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_visible);
-	gsl_matrix* pre_delta_h = gsl_matrix_calloc(gbrl->batch_size, gbrl->n_hidden);
+	gsl_matrix* pre_delta_v = gsl_matrix_calloc(rbml->batch_size, rbml->n_visible);
+	gsl_matrix* pre_delta_h = gsl_matrix_calloc(rbml->batch_size, rbml->n_hidden);
 
-	gsl_vector* delta_v = gsl_vector_calloc(gbrl->n_visible);
-	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, gbrl->x, identity_v, -1.0, pre_delta_v);
+	gsl_vector* delta_v = gsl_vector_calloc(rbml->n_visible);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, rbml->x, identity_v, -1.0, pre_delta_v);
 	gsl_blas_dgemv(CblasTrans, 1.0, pre_delta_v, ones, 1.0, delta_v);
-	gsl_vector_memcpy(gbrl->grad_vbias, delta_v);
+	gsl_vector_memcpy(rbml->grad_vbias, delta_v);
 
-	gsl_vector* delta_h = gsl_vector_calloc(gbrl->n_hidden);
-	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, gbrl->ph_means, identity_h, -1.0, pre_delta_h);
+	gsl_vector* delta_h = gsl_vector_calloc(rbml->n_hidden);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, rbml->ph_means, identity_h, -1.0, pre_delta_h);
 	gsl_blas_dgemv(CblasTrans, 1.0, pre_delta_h, ones, 1.0, delta_h);
-	gsl_vector_memcpy(gbrl->grad_hbias, delta_h);
+	gsl_vector_memcpy(rbml->grad_hbias, delta_h);
 
 	// Free the used space
 	gsl_matrix_free(nh_means);
@@ -144,54 +144,54 @@ gsl_matrix* backward_gbrl(GBRL* gbrl, gsl_matrix* dy)
 }
 
 // Updates the GB-RBM Layer
-void get_updates_gbrl (GBRL* gbrl, double lr)
+void get_updates_rbml (RBML* rbml, double lr)
 {
-	double learn_factor = -1.0 * lr / gbrl->batch_size;
-	gsl_matrix_scale(gbrl->grad_W, learn_factor);
-	gsl_matrix_add(gbrl->W, gbrl->grad_W);
-	gsl_blas_daxpy(learn_factor, gbrl->grad_vbias, gbrl->vbias);
-	gsl_blas_daxpy(learn_factor, gbrl->grad_hbias, gbrl->hbias);
+	double learn_factor = -1.0 * lr / rbml->batch_size;
+	gsl_matrix_scale(rbml->grad_W, learn_factor);
+	gsl_matrix_add(rbml->W, rbml->grad_W);
+	gsl_blas_daxpy(learn_factor, rbml->grad_vbias, rbml->vbias);
+	gsl_blas_daxpy(learn_factor, rbml->grad_hbias, rbml->hbias);
 }
 
 // Initializes a GB-RBM layer
-void create_GBRL (GBRL* gbrl, int n_visible, int n_hidden, double scale, int n_gibbs, int batch_size)
+void create_RBML (RBML* rbml, int n_visible, int n_hidden, double scale, int n_gibbs, int batch_size)
 {
-	gbrl->batch_size = batch_size;
-	gbrl->n_hidden = n_hidden;
-	gbrl->n_visible = n_visible;
+	rbml->batch_size = batch_size;
+	rbml->n_hidden = n_hidden;
+	rbml->n_visible = n_visible;
 	
-	gbrl->n_gibbs = n_gibbs;
+	rbml->n_gibbs = n_gibbs;
 
-	gbrl->W = matrix_normal(n_hidden, n_visible, 0, 1, scale);
-	gbrl->grad_W = gsl_matrix_calloc(n_hidden, n_visible);
+	rbml->W = matrix_normal(n_hidden, n_visible, 0, 1, scale);
+	rbml->grad_W = gsl_matrix_calloc(n_hidden, n_visible);
 
-	gbrl->vbias = gsl_vector_calloc(n_visible);
-	gbrl->grad_vbias = gsl_vector_calloc(n_visible);
+	rbml->vbias = gsl_vector_calloc(n_visible);
+	rbml->grad_vbias = gsl_vector_calloc(n_visible);
 	
-	gbrl->hbias = gsl_vector_calloc(n_hidden);
-	gbrl->grad_hbias = gsl_vector_calloc(n_hidden);
+	rbml->hbias = gsl_vector_calloc(n_hidden);
+	rbml->grad_hbias = gsl_vector_calloc(n_hidden);
 
-	gbrl->x = gsl_matrix_calloc(batch_size, n_visible);
-	gbrl->ph_means = gsl_matrix_calloc(batch_size, n_hidden);
+	rbml->x = gsl_matrix_calloc(batch_size, n_visible);
+	rbml->ph_means = gsl_matrix_calloc(batch_size, n_hidden);
 }
 
 // Destructor of GB-RBM Layer
-void free_GBRL (GBRL* gbrl)
+void free_RBML (RBML* rbml)
 {
 	// Free weights matrix and bias
-	gsl_matrix_free(gbrl->W);
-	gsl_matrix_free(gbrl->grad_W);
-	gsl_vector_free(gbrl->vbias);
-	gsl_vector_free(gbrl->grad_vbias);
-	gsl_vector_free(gbrl->hbias);
-	gsl_vector_free(gbrl->grad_hbias);
-	gsl_matrix_free(gbrl->x);
-	gsl_matrix_free(gbrl->ph_means);
+	gsl_matrix_free(rbml->W);
+	gsl_matrix_free(rbml->grad_W);
+	gsl_vector_free(rbml->vbias);
+	gsl_vector_free(rbml->grad_vbias);
+	gsl_vector_free(rbml->hbias);
+	gsl_vector_free(rbml->grad_hbias);
+	gsl_matrix_free(rbml->x);
+	gsl_matrix_free(rbml->ph_means);
 }
 
 // Function to copy a GB-RBM layer
 // Important: destination must NOT be initialized
-void copy_GBRL (GBRL* destination, GBRL* origin)
+void copy_RBML (RBML* destination, RBML* origin)
 {
 	destination->batch_size = origin->batch_size;
 	destination->n_hidden = origin->n_hidden;
@@ -221,7 +221,7 @@ void copy_GBRL (GBRL* destination, GBRL* origin)
 }
 
 // Function to compare a GB-RBM layer
-int compare_GBRL (GBRL* C1, GBRL* C2)
+int compare_RBML (RBML* C1, RBML* C2)
 {
 	int equal = 1;
 

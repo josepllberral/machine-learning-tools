@@ -248,9 +248,9 @@ void forward (LAYER* layer, data* batchdata, int* batch_chan)
 			batchdata->matrix = y12;
 			break;
 		case 13: ;
-			GBRL* gbrl = (GBRL*) layer->layer;
+			RBML* rbml = (RBML*) layer->layer;
 			gsl_matrix* x13 = batchdata->matrix;
-			gsl_matrix* y13 = forward_gbrl(gbrl, x13);
+			gsl_matrix* y13 = forward_rbml(rbml, x13);
 			gsl_matrix_free(batchdata->matrix);
 			batchdata->matrix = y13;
 			break;
@@ -355,9 +355,9 @@ void backward (LAYER* layer, data* negdata, int* batch_chan)
 			negdata->matrix = x12;
 			break;
 		case 13: ;
-			GBRL* gbrl = (GBRL*) layer->layer;
+			RBML* rbml = (RBML*) layer->layer;
 			gsl_matrix* y13 = negdata->matrix;
-			gsl_matrix* x13 = backward_gbrl(gbrl, y13);
+			gsl_matrix* x13 = backward_rbml(rbml, y13);
 			gsl_matrix_free(negdata->matrix);
 			negdata->matrix = x13;
 			break;
@@ -403,7 +403,7 @@ void get_updates (LAYER* layer, double learning_rate)
 			get_updates_tanh((TANH*) layer->layer, learning_rate);
 			break;
 		case 13:
-			get_updates_gbrl((GBRL*) layer->layer, learning_rate);
+			get_updates_rbml((RBML*) layer->layer, learning_rate);
 			break;
 		default:
 			break;
@@ -440,8 +440,8 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 	int out_size = training_y->size2;
 
-	CELL loss_layer;
-	create_CELL(&loss_layer);
+	XENT loss_layer;
+	create_XENT(&loss_layer);
 
 	data batchdata;
 	int batch_chan;
@@ -481,8 +481,8 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 
 			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
-			gsl_matrix* pred_y = forward_cell(&loss_layer, output, targets);
-			gsl_matrix* results = backward_cell(&loss_layer, output, targets);
+			gsl_matrix* pred_y = forward_xent(&loss_layer, output, targets);
+			gsl_matrix* results = backward_xent(&loss_layer, output, targets);
 
 			acc_loss += loss_layer.loss;
 			acc_class += classification_accuracy(pred_y, targets);
@@ -509,9 +509,9 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 			free(batchdata.image);
 		}
 //		if (epoch % 1 == 0)
-			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
+			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f, [%f %f %d]\n", epoch, acc_loss / num_batches, acc_class / num_batches, acc_loss, acc_class, num_batches);
 	}
-	free_CELL(&loss_layer);
+	free_XENT(&loss_layer);
 	return (acc_loss / num_batches);
 }
 
@@ -537,8 +537,8 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 		num_outputs = ((DIRE*)(layers[num_layers - 1].layer))->n_units;
 	else if (layers[num_layers - 1].type == 12) // TANH
 		num_outputs = ((TANH*)(layers[num_layers - 1].layer))->n_units;
-	else if (layers[num_layers - 1].type == 13) // GBRL
-		num_outputs = ((GBRL*)(layers[num_layers - 1].layer))->n_hidden;
+	else if (layers[num_layers - 1].type == 13) // RBML
+		num_outputs = ((RBML*)(layers[num_layers - 1].layer))->n_hidden;
 
 	gsl_matrix* result = gsl_matrix_alloc(num_samples, num_outputs);
 
