@@ -86,8 +86,9 @@ binarization <- function(vec)
 #'	c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
 #'	c('type' = "SOFT", 'n_inputs' = 10)
 #' );
-#' is_valid <- check_layers (descriptor, dim(training_x), dim(training_y), batch_size = 10);
-check_layers <- function (layers, dim_dataset, dim_target, batch_size)
+#' evaluator <- c('type' = "XENT"); # Cross-Entropy evaluator
+#' is_valid <- check_layers (descriptor, evaluator, dim(training_x), dim(training_y), batch_size = 10);
+check_layers <- function (layers, evaluator, dim_dataset, dim_target, batch_size)
 {
 	# Input Dimensions
 	nrow <- dim_dataset[1];
@@ -105,14 +106,6 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 
 	nrow_y <- dim_target[1];
 	ncol_y <- dim_target[2];
-
-	# Check inputs vs outputs
-	if (nrow != nrow_y)
-	{
-		message(paste("Error in Inputs. Dataset:", nrow, "Target:", nrow_y, sep = " "));
-		message("Inputs and Output rows do not match");
-		return (FALSE);
-	}
 
 	# Check batch_size vs number of samples
 	if (batch_size > nrow)
@@ -231,21 +224,39 @@ check_layers <- function (layers, dim_dataset, dim_target, batch_size)
 	}
 
 	# Check Last Layer
-	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH", "RBML"))
+	if (!layers[[nlayers]]['type'] %in% c("SOFT","SIGM","LINE","DIRE","TANH","RBML"))
 	{
 		message("Error in Output Layer");
 		message("Output layer must be a SOFT, SIGM, TANH, LINE, DIRE or RBML");
 		return (FALSE);
 	}
 
-	# Check Output
-	if (all.equal(input_dims, c(batch_size, ncol_y)) != TRUE)
+	# Check Evaluator and Outputs
+	if (evaluator['type'] == 'XENT')
 	{
-		message("Error in Output Data");
-		message("Output data does not match with network output");
-		return (FALSE);
+		if (nrow != nrow_y)
+		{
+			message(paste("Error in Inputs. Dataset:", nrow, "Target:", nrow_y, sep = " "));
+			message("Inputs and Output rows do not match");
+			return (FALSE);
+		}
+		
+		if (all.equal(input_dims, c(batch_size, ncol_y)) != TRUE)
+		{
+			message("Error in Output Data");
+			message("Output data does not match with network output");
+			return (FALSE);
+		}
+	} else if (evaluator['type'] == 'RBML')
+	{
+		if (input_dims[2] != evaluator['n_visible'])
+		{
+			message("Error in Evaluator");
+			message("Output data does not match with evaluator input");
+			return (FALSE);
+		}
 	}
-
+	
 	return (TRUE);
 }
 
@@ -289,6 +300,22 @@ compose_layers <- function(descriptor, batch_size)
 		layers[[i]] <- l;
 	}
 	layers;
+}
+
+# Private function to convert the evaluator descriptor to evaluation layer for
+# train.cnn function for the C library
+compose_evaluator <- function(descriptor)
+{
+	aux <- descriptor;
+	if (aux['type'] == "XENT") {
+		evaluator <- c("XENT");
+	} else if (aux['type'] == "RBML") {
+		evaluator <- c("RBML", aux['n_visible'], aux['n_hidden'], aux['scale'], aux['n_gibbs']);
+	} else {
+		message("Error in Evaluator Descriptor, incorrect parameters");
+		return (NULL);
+	}
+	evaluator;
 }
 
 #' Training a Convolutional Neural Network or MultiLayer Perceptron Function
@@ -356,11 +383,30 @@ compose_layers <- function(descriptor, batch_size)
 #'     \item Number of visible units
 #'   }
 #' }
-#' The list of layers and dimensionsis checked before the process starts.
+#' The list of layers and dimensions is checked before the process starts.
 #' Convolutional, Pooling, Rectifiers and Flattening layers can only be used
 #' in CNNs. Other layers can be applied to CNNs and MLPs.
+#' Also, evaluators can be changed. By default Cross-Entropy is used, but RBMs
+#' can be specified to create Deep-Belief Networks.
+#' Possible evaluators are:
+#' \itemize{
+#'   \item XENT: Cross-Entropy Loss layer. Requires no parameters.
+#'   \enumerate{
+#'     \item This is the Default, if no evaluator parameter is introduced.
+#'   }
+#'   \item RBML: GB-RBM Layer. Requires, in the following order:
+#'   \enumerate{
+#'     \item Number of visible units
+#'     \item Number of hidden units
+#'     \item Scale for initialization weights
+#'     \item Number of Gibbs Samplings at Backwards
+#'   }
+#' }
+#' The evaluator is checked before the process starts.
 #' @param dataset A matrix with data, one example per row.
 #' @param targets A matrix with output labels, one set of targets per row.
+#' @param layers A list of layer descriptors (character vector).
+#' @param evaluator An evaluator descriptor (character vector). Default "XENT".
 #' @param batch_size Number of examples per training mini-batch. Default = 1.
 #' @param training_epochs Number of training epochs. Default = 1000.
 #' @param learning_rate The learning rate for training. Default = 0.01.
@@ -433,6 +479,19 @@ compose_layers <- function(descriptor, batch_size)
 #'
 #' prediction <- predict(mnist_cnn, newdata);
 #' 
+#' # Now introducing Evaluators (available for both CNNs and MLPs)
+#' # - By default, Cross-Entropy is used (XENT)
+#' 
+#' eval <- c('type' = "XENT");
+#' mnist_cnn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10,
+#'                        training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234);
+#' 
+#' # - Also RBMs can be used for Deep-Belief Networks
+#'
+#' eval <- c('type' = "RBML", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 4);
+#' mnist_dbn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10,
+#'                        training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234);
+#' 
 #' ## Simple example with MLPs
 #' train_X <- array(c(1, 1, 1, 0, 0, 0,
 #'                    1, 0, 1, 0, 0, 0,
@@ -492,13 +551,22 @@ compose_layers <- function(descriptor, batch_size)
 #'                        learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
 #'
 #' prediction <- predict(mnist_mlp, newdata);
-train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
-			training_epochs = 10, learning_rate = 1e-3,
-			momentum = 0.8, rand_seed = 1234, init_cnn = NULL)
+train.cnn <- function (dataset, targets, layers = NULL, evaluator = NULL,
+			batch_size = 10, training_epochs = 10,
+			learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234,
+			init_cnn = NULL)
 {
-	if (is.null(dataset) || is.null(targets) || (is.null(layers) && is.null(init_cnn)))
+	if (is.null(dataset) || (is.null(layers) && is.null(init_cnn)))
 	{
-		message("The input dataset, targets or layers/init_cnn are NULL");
+		message("The input dataset or layers/init_cnn are NULL");
+		return(NULL);
+	}
+	
+	if (is.null(evaluator)) evaluator <- c("type" = "XENT");
+	
+	if (is.null(targets) && (evaluator['type'] != 'GBRL'))
+	{
+		message(paste("Error: This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
 		return(NULL);
 	}
 	
@@ -511,7 +579,9 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 
 	if (is.null(init_cnn))
 	{
-		if (!check_layers(layers, dim(dataset), dim(targets), batch_size))
+		dim_x <- dim(dataset);
+		dim_y <- if (!is.null(targets)) dim(targets) else NULL;
+		if (!check_layers (layers, evaluator, dim_x, dim_y, batch_size))
 		{
 			message("Network does not match with data dimensions");
 			return(NULL);
@@ -532,6 +602,7 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 		prep_layers <- init_cnn$layers;
 		is_init_cnn <- 1;
 	}
+	prep_loss_layer <- compose_evaluator(evaluator);
 
 	if (length(dim(dataset)) == 4)
 	{
@@ -542,9 +613,10 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 		}
 			
 		retval <- .Call("_C_CNN_train", as.array(dataset), as.matrix(targets),
-			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
-			as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
-			as.integer(rand_seed), as.integer(is_init_cnn), PACKAGE = "rcnn");
+			as.list(prep_layers), as.integer(length(prep_layers)), as.character(prep_loss_layer),
+			as.integer(batch_size),	as.integer(training_epochs), as.double(learning_rate),
+			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn),
+			PACKAGE = "rcnn");
 
 	} else if (length(dim(dataset)) == 2)
 	{
@@ -561,9 +633,10 @@ train.cnn <- function (dataset, targets, layers = NULL,  batch_size = 10,
 		}
 
 		retval <- .Call("_C_MLP_train", as.matrix(dataset), as.matrix(targets),
-			as.list(prep_layers), as.integer(length(prep_layers)), as.integer(batch_size),
-			as.integer(training_epochs), as.double(learning_rate), as.double(momentum),
-			as.integer(rand_seed), as.integer(is_init_cnn), PACKAGE = "rcnn");		
+			as.list(prep_layers), as.integer(length(prep_layers)), as.vector(prep_loss_layer),
+			as.integer(batch_size), as.integer(training_epochs), as.double(learning_rate),
+			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn),
+			PACKAGE = "rcnn");
 	} else
 	{
 		message("Error on Input dimensions: Must be a (Samples x Features) 2D matrix or a (Samples x Image) 4D array");

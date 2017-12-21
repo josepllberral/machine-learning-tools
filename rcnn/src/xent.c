@@ -55,6 +55,29 @@ gsl_matrix* backward_xent (XENT* xent, gsl_matrix* dy, gsl_matrix* targets)
 	return dx;
 }
 
+// Evaluates a NN using Cross-Entropy for input and labels (forward and backward)
+//	param x       : Numeric matrix
+//	param targets : Numeric matrix
+//	param lr      : Number (standard interface, not used here -> NULL)
+//	param loss    : Number (pointer) for Loss
+//	param accl    : Number (pointer) for Accuracy
+//	returns       : Numeric matrix
+//	updates       : xent_layer
+gsl_matrix* evaluate_xent (XENT* xent, gsl_matrix* output, gsl_matrix* targets, double lr, double* loss, double* accl)
+{
+	// Calculate Forward Loss and Negdata
+	gsl_matrix* pred_y = forward_xent(xent, output, targets);
+	gsl_matrix* results = backward_xent(xent, output, targets);
+
+	*loss = xent->loss;
+	*accl = classification_accuracy(pred_y, targets);
+
+	gsl_matrix_free(pred_y);
+	gsl_matrix_free(targets);
+	
+	return results;
+}
+
 // Updates the C-E Loss Layer (Does Nothing)
 void get_updates_xent (XENT* xent, double lr)
 {

@@ -124,6 +124,17 @@ gsl_matrix* backward_rbml(RBML* rbml, gsl_matrix* dy)
 	gsl_blas_dgemv(CblasTrans, 1.0, pre_delta_h, ones, 1.0, delta_h);
 	gsl_vector_memcpy(rbml->grad_hbias, delta_h);
 
+	// approximation to the reconstruction error: sum over dimensions, mean over cases
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, rbml->x, identity_v, -1.0, nv_means); // we don't need nv_mean anymore
+	gsl_matrix* pow_res = gsl_matrix_alloc(rbml->batch_size, rbml->n_visible);
+	gsl_matrix_memcpy(pow_res, nv_means);
+	gsl_matrix_mul_elements(pow_res, nv_means);
+	gsl_vector* pow_sum = gsl_vector_calloc(rbml->n_visible);
+	gsl_blas_dgemv(CblasTrans, 1.0, pow_res, ones, 1.0, pow_sum);
+
+	for(int j = 0; j < rbml->n_visible; j++) rbml->loss += gsl_vector_get(pow_sum, j);
+	rbml->loss /= rbml->batch_size;
+	
 	// Free the used space
 	gsl_matrix_free(nh_means);
 	gsl_matrix_free(nh_sample);
@@ -140,6 +151,9 @@ gsl_matrix* backward_rbml(RBML* rbml, gsl_matrix* dy)
 	gsl_vector_free(delta_v);
 	gsl_vector_free(delta_h);
 
+	gsl_matrix_free(pow_res);
+	gsl_vector_free(pow_sum);
+	
 	return nv_sample;
 }
 
@@ -151,6 +165,29 @@ void get_updates_rbml (RBML* rbml, double lr)
 	gsl_matrix_add(rbml->W, rbml->grad_W);
 	gsl_blas_daxpy(learn_factor, rbml->grad_vbias, rbml->vbias);
 	gsl_blas_daxpy(learn_factor, rbml->grad_hbias, rbml->hbias);
+}
+
+// Evaluates a DBN using a RBM for input and labels (forward and backward)
+//	param x       : Numeric matrix
+//	param targets : Numeric matrix (standard interface, not used here)
+//	param lr      : Number 
+//	param loss    : Number (pointer) for Loss
+//	param accl    : Number (standard interface, not used here)
+//	returns       : Numeric matrix
+//	updates       : xent_layer
+gsl_matrix* evaluate_rbml (RBML* rbml, gsl_matrix* output, gsl_matrix* targets, double lr, double* loss, double* accl)
+{
+	gsl_matrix* pred_y = forward_rbml(rbml, output);
+	gsl_matrix* results = backward_rbml(rbml, pred_y);
+
+	get_updates_rbml(rbml, lr);
+
+	*(loss) = rbml->loss;
+
+	gsl_matrix_free(pred_y);
+	gsl_matrix_free(targets);
+	
+	return results;
 }
 
 // Initializes a GB-RBM layer
@@ -173,6 +210,8 @@ void create_RBML (RBML* rbml, int n_visible, int n_hidden, double scale, int n_g
 
 	rbml->x = gsl_matrix_calloc(batch_size, n_visible);
 	rbml->ph_means = gsl_matrix_calloc(batch_size, n_hidden);
+	
+	rbml->loss = -1;
 }
 
 // Destructor of GB-RBM Layer
@@ -198,6 +237,8 @@ void copy_RBML (RBML* destination, RBML* origin)
 	destination->n_visible = origin->n_visible;
 	
 	destination->n_gibbs = origin->n_gibbs;
+	
+	destination->loss = origin->loss;
 
 	destination->W = gsl_matrix_alloc(origin->n_hidden, origin->n_visible);
 	destination->grad_W = gsl_matrix_alloc(origin->n_hidden, origin->n_visible);
@@ -229,7 +270,8 @@ int compare_RBML (RBML* C1, RBML* C2)
 		C1->batch_size != C2->batch_size ||
 		C1->n_hidden != C2->n_hidden ||
 		C1->n_visible != C2->n_visible ||
-		C1->n_gibbs != C2->n_gibbs
+		C1->n_gibbs != C2->n_gibbs ||
+		C1->loss != C2->loss
 	) equal = 0;
 
 	equal += 1 - gsl_matrix_equal(C1->W, C2->W);

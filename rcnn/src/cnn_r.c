@@ -800,8 +800,41 @@ LAYER* reassemble_CNN (SEXP layers, int num_layers, int batch_size)
 	return pipeline;
 }
 
+LAYER* build_loss_layer(SEXP eval_layer, int batch_size)
+{
+	LAYER* retval = (LAYER*) malloc(sizeof(LAYER));
+	if (strcmp(CHAR(STRING_ELT(eval_layer, 0)), "XENT") == 0)
+	{
+		XENT* xent = (XENT*) malloc(sizeof(XENT));
+		create_XENT(xent);
+		retval->type = 7; retval->layer = (void*) xent;
+	}
+	else if (strcmp(CHAR(STRING_ELT(eval_layer, 0)), "RBML") == 0)
+	{
+		RBML* rbml = (RBML*) malloc(sizeof(RBML));
+
+		int nvis_rbml = atoi(CHAR(STRING_ELT(eval_layer, 1)));     // n_visible
+		int nhid_rbml = atoi(CHAR(STRING_ELT(eval_layer, 2)));     // n_hidden
+		double scale_rbml = atof(CHAR(STRING_ELT(eval_layer, 3))); // scale
+		int n_gibbs_rbml = atof(CHAR(STRING_ELT(eval_layer, 4)));  // n_gibbs
+
+		create_RBML(rbml, nvis_rbml, nhid_rbml, scale_rbml, n_gibbs_rbml, batch_size);
+		retval->type = 13; retval->layer = (void*) rbml;
+	}
+
+	return retval;
+}
+
+void free_loss_layer (LAYER* layer)
+{
+	if (layer->type == 7) free_XENT((XENT*) layer->layer);
+	else if (layer->type == 13) free_RBML((RBML*) layer->layer);
+	free(layer->layer);
+	free(layer);
+}
+
 // Interface for Training a CNN
-SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
+SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP eval_layer, SEXP batch_size,
 	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
 {
  	int nrows = INTEGER(GET_DIM(dataset))[0];
@@ -844,9 +877,12 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	LAYER* pipeline;
 	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
 	else pipeline = reassemble_CNN(layers, nlays, basi);
+	
+	// Build the Evaluation Layer
+	LAYER* loss_layer = build_loss_layer(eval_layer, basi);
 
 	// Train a CNN
-	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, trep, basi, lera, mome, rase);
+	double loss = train_cnn (train_X, train_Y, nrows, nchan, pipeline, nlays, loss_layer, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the CNN
 	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays, basi);
@@ -897,7 +933,8 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	UNPROTECT(2 + nlays);
 
 	// Free basic structures
-	free_pipeline (pipeline, nlays);
+	free_pipeline(pipeline, nlays);
+	free_loss_layer(loss_layer);
 
 	for (int i = 0; i < nrows; i++)
 	{
@@ -973,7 +1010,7 @@ SEXP _C_CNN_predict (SEXP newdata, SEXP layers, SEXP num_layers, SEXP rand_seed)
 }
 
 // Interface for Training a MLP
-SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP batch_size,
+SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP eval_layer, SEXP batch_size,
 	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
 {
  	int nrows = INTEGER(GET_DIM(dataset))[0];
@@ -1010,8 +1047,11 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	if (rebuild == 0) pipeline = build_pipeline(layers, nlays, basi);
 	else pipeline = reassemble_CNN(layers, nlays, basi);
 
+	// Build the Evaluation Layer
+	LAYER* loss_layer = build_loss_layer(eval_layer, basi);
+
 	// Train a MLP
-	double loss = train_mlp(train_X, train_Y, pipeline, nlays, trep, basi, lera, mome, rase);
+	double loss = train_mlp(train_X, train_Y, pipeline, nlays, loss_layer, trep, basi, lera, mome, rase);
 
 	// Pass the Training set through the MLP
 	gsl_matrix* predictions = prediction_mlp(train_X, pipeline, nlays, basi);
@@ -1061,6 +1101,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	// Free basic structures
 	free_pipeline (pipeline, nlays);
+	free_loss_layer(loss_layer);
 
 	gsl_matrix_free(train_X);
 	gsl_matrix_free(train_Y);

@@ -20,6 +20,7 @@
 //  param training_y      : loaded labels (binarized vector into rows = examples, cols = labels)
 //  param layers          : array of layers
 //  param num_layers      : number of layers in array
+//  param loss_layer      : evaluation layer
 //  param training_epochs : number of epochs used for training
 //  param batch_size      : size of a batch used to train the MLP
 //  param learning_rate   : learning rate used for training the MLP
@@ -27,8 +28,8 @@
 //  param rand_seed       : random seed for training
 //  returns               : average loss in minibatches
 double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
-	int num_layers, int training_epochs, int batch_size, double learning_rate,
-	double momentum, int rand_seed)
+	int num_layers, LAYER* loss_layer, int training_epochs, int batch_size,
+	double learning_rate, double momentum, int rand_seed)
 {
 	srand(rand_seed);
 
@@ -37,9 +38,6 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 	int num_batches = num_samples / batch_size;
 
 	int out_size = training_y->size2;
-
-	XENT loss_layer;
-	create_XENT(&loss_layer);
 
 	data batchdata;
 	int batch_chan = 0;
@@ -61,36 +59,40 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 			if (idx_fin >= num_samples) break;
 
 			gsl_matrix* minibatch = gsl_matrix_alloc(batch_size, num_columns);
-			gsl_matrix* targets = gsl_matrix_alloc(batch_size, out_size);
 			for (int b = 0; b < batch_size; b++)
 			{
-				gsl_vector* aux1 = gsl_vector_alloc(num_columns);
-				gsl_matrix_get_row(aux1, training_x, idx_ini + b);
-				gsl_matrix_set_row(minibatch, b, aux1);
-				gsl_vector_free(aux1);
-
-				gsl_vector* aux2 = gsl_vector_alloc(out_size);
-				gsl_matrix_get_row(aux2, training_y, idx_ini + b);
-				gsl_matrix_set_row(targets, b, aux2);
-				gsl_vector_free(aux2);
+				gsl_vector* aux = gsl_vector_alloc(num_columns);
+				gsl_matrix_get_row(aux, training_x, idx_ini + b);
+				gsl_matrix_set_row(minibatch, b, aux);
+				gsl_vector_free(aux);
 			}
+			
+			gsl_matrix* targets = NULL;
+			if (training_y)
+			{
+				targets = gsl_matrix_alloc(batch_size, out_size);
+				for (int b = 0; b < batch_size; b++)
+				{
+					gsl_vector* aux = gsl_vector_alloc(out_size);
+					gsl_matrix_get_row(aux, training_y, idx_ini + b);
+					gsl_matrix_set_row(targets, b, aux);
+					gsl_vector_free(aux);
+				}
+			}
+			
 
 			// Forward through layers
 			batchdata.matrix = minibatch;
 			for (int i = 0; i < num_layers; i++)
 				forward(&(layers[i]), &batchdata, &batch_chan);
-
-			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
-			gsl_matrix* pred_y = forward_xent(&loss_layer, output, targets);
-			gsl_matrix* results = backward_xent(&loss_layer, output, targets);
 
-			acc_loss += loss_layer.loss;
-			acc_class += classification_accuracy(pred_y, targets);
-
-			gsl_matrix_free(pred_y);
+			// Calculate Loss
+			double loss = 0, accl = 0;
+			gsl_matrix* results = evaluate_loss(loss_layer, output, targets, learning_rate, &loss, &accl);
+			acc_loss += loss;
+			acc_class += accl;
 			gsl_matrix_free(output);
-			gsl_matrix_free(targets);
 
 			// Backward through layers
 			batchdata.matrix = results;
@@ -107,8 +109,6 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 //		if (epoch % 1 == 0)
 			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
 	}
-
-	free_XENT(&loss_layer);
 
 	return (acc_loss / num_batches);
 }

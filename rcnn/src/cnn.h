@@ -108,6 +108,7 @@ typedef struct {
 	gsl_vector* grad_vbias;
 	gsl_matrix* x;
 	gsl_matrix* ph_means;
+	double loss;
 } RBML;
 
 typedef struct {
@@ -210,6 +211,7 @@ int compare_LINE (LINE*, LINE*);
 // GB-RBM Layer
 gsl_matrix* forward_rbml (RBML*, gsl_matrix*);
 gsl_matrix* backward_rbml (RBML*, gsl_matrix*);
+gsl_matrix* evaluate_rbml (RBML*, gsl_matrix*, gsl_matrix*, double, double*, double*);
 void get_updates_rbml (RBML*, double);
 void create_RBML (RBML*, int, int, double, int, int);
 void free_RBML (RBML*);
@@ -255,6 +257,7 @@ int compare_TANH (TANH*, TANH*);
 // Cross-Entropy Layer
 gsl_matrix* forward_xent (XENT*, gsl_matrix*, gsl_matrix*);
 gsl_matrix* backward_xent (XENT*, gsl_matrix*, gsl_matrix*);
+gsl_matrix* evaluate_xent (XENT*, gsl_matrix*, gsl_matrix*, double, double*, double*);
 void get_updates_xent (XENT*, double);
 void create_XENT (XENT*);
 void free_XENT (XENT*);
@@ -283,8 +286,9 @@ int compare_RELV (RELV*, RELV*);
 void forward (LAYER*, data*, int*);
 void backward (LAYER*, data*, int*);
 void get_updates (LAYER*, double);
-double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, int, int, double, double, int);
-double train_mlp (gsl_matrix*, gsl_matrix*, LAYER*, int, int, int, double, double, int);
+gsl_matrix* evaluate_loss (LAYER*, gsl_matrix*, gsl_matrix*, double, double*, double*);
+double train_cnn (gsl_matrix***, gsl_matrix*, int, int, LAYER*, int, LAYER*, int, int, double, double, int);
+double train_mlp (gsl_matrix*, gsl_matrix*, LAYER*, int, LAYER*, int, int, double, double, int);
 gsl_matrix* prediction_mlp (gsl_matrix* , LAYER*, int, int);
 gsl_matrix* prediction_cnn (gsl_matrix***, int, int, LAYER*, int, int);
 double classification_accuracy (gsl_matrix*, gsl_matrix*);

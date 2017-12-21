@@ -440,7 +440,7 @@ int main_cnn()
 	double momentum = 1;
 
 	double loss = train_cnn (training_x, training_y, nrow, num_channels,
-		layers, num_layers, training_epochs, batch_size, learning_rate, momentum, 1234);
+		layers, num_layers, NULL, training_epochs, batch_size, learning_rate, momentum, 1234);
 
 	printf("CNN trained\n");
 
@@ -584,7 +584,7 @@ int main_mlp()
 	double learning_rate = 1e-2;
 	double momentum = 1;
 
-	double loss = train_mlp (training_x, training_y, layers, 4,
+	double loss = train_mlp (training_x, training_y, layers, 4, NULL,
 		training_epochs, batch_size, learning_rate, momentum, 1234);
 
 	printf("MLP trained\n");

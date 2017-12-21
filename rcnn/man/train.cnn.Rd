@@ -4,9 +4,9 @@
 \alias{train.cnn}
 \title{Training a Convolutional Neural Network or MultiLayer Perceptron Function}
 \usage{
-train.cnn(dataset, targets, layers = NULL, batch_size = 10,
-  training_epochs = 10, learning_rate = 0.001, momentum = 0.8,
-  rand_seed = 1234, init_cnn = NULL)
+train.cnn(dataset, targets, layers = NULL, evaluator = NULL,
+  batch_size = 10, training_epochs = 10, learning_rate = 0.001,
+  momentum = 0.8, rand_seed = 1234, init_cnn = NULL)
 }
 \arguments{
 \item{dataset}{A matrix with data, one example per row.}

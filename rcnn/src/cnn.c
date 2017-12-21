@@ -217,8 +217,6 @@ void forward (LAYER* layer, data* batchdata, int* batch_chan)
 			gsl_matrix_free(batchdata->matrix);
 			batchdata->matrix = y6;
 			break;
-		case 7: ;
-			break;
 		case 8: ;
 			RELV* relv = (RELV*) layer->layer;
 			gsl_matrix* x8 = batchdata->matrix;
@@ -324,8 +322,6 @@ void backward (LAYER* layer, data* negdata, int* batch_chan)
 			gsl_matrix_free(negdata->matrix);
 			negdata->matrix = x6;
 			break;
-		case 7: ;
-			break;
 		case 8: ;
 			RELV* relv = (RELV*) layer->layer;
 			gsl_matrix* y8 = negdata->matrix;
@@ -388,8 +384,6 @@ void get_updates (LAYER* layer, double learning_rate)
 		case 6:
 			get_updates_soft((SOFT*) layer->layer, learning_rate);
 			break;
-		case 7:
-			break;
 		case 8:
 			get_updates_relv((RELV*) layer->layer, learning_rate);
 			break;
@@ -410,6 +404,24 @@ void get_updates (LAYER* layer, double learning_rate)
 	}
 }
 
+gsl_matrix* evaluate_loss (LAYER* layer, gsl_matrix* output, gsl_matrix* targets,
+			   double learning_rate, double* loss, double* accl)
+{
+	gsl_matrix* results = NULL;
+	switch (layer->type)
+	{
+		case 7:
+			results = evaluate_xent((XENT*) layer->layer, output, targets, learning_rate, loss, accl);
+			break;
+		case 13:
+			results = evaluate_rbml((RBML*) layer->layer, output, targets, learning_rate, loss, accl);
+			break;
+		default:
+			break;
+	}
+	return results;
+}
+
 /*---------------------------------------------------------------------------*/
 /* HOW TO TRAIN YOUR CNN                                                     */
 /*---------------------------------------------------------------------------*/
@@ -421,6 +433,7 @@ void get_updates (LAYER* layer, double learning_rate)
 //  param num_channels    : number of channels per image
 //  param layers          : array of layers
 //  param num_layers      : number of layers in array
+//  param loss_layer      : evaluation layer
 //  param training_epochs : number of epochs used for training
 //  param batch_size      : size of a batch used to train the CNN
 //  param learning_rate   : learning rate used for training the CNN
@@ -428,7 +441,7 @@ void get_updates (LAYER* layer, double learning_rate)
 //  param rand_seed       : random seed for training
 //  returns               : average loss in minibatches
 double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samples,
-	int num_channels, LAYER* layers, int num_layers, int training_epochs,
+	int num_channels, LAYER* layers, int num_layers, LAYER* loss_layer, int training_epochs,
 	int batch_size, double learning_rate, double momentum, int rand_seed)
 {
 	srand(rand_seed);
@@ -439,9 +452,6 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 	int img_w = training_x[0][0]->size2;
 
 	int out_size = training_y->size2;
-
-	XENT loss_layer;
-	create_XENT(&loss_layer);
 
 	data batchdata;
 	int batch_chan;
@@ -458,7 +468,6 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 		{
 			// Select mini_batch
 			gsl_matrix*** minibatch = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
-			gsl_matrix* targets = gsl_matrix_alloc(batch_size, out_size);
 			for (int b = 0, idx = idx_ini; b < batch_size; b++, idx++)
 			{
 				minibatch[b] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
@@ -467,29 +476,34 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 					minibatch[b][c] = gsl_matrix_alloc(img_h, img_w);
 					gsl_matrix_memcpy(minibatch[b][c], training_x[idx][c]);
 				}
-				gsl_vector* aux = gsl_vector_alloc(out_size);
-				gsl_matrix_get_row(aux, training_y, idx);
-				gsl_matrix_set_row(targets, b, aux);
-				gsl_vector_free(aux);
 			}
-
+			
+			gsl_matrix* targets = NULL;
+			if (training_y)
+			{
+				targets = gsl_matrix_alloc(batch_size, out_size);
+				for (int b = 0, idx = idx_ini; b < batch_size; b++, idx++)
+				{
+					gsl_vector* aux = gsl_vector_alloc(out_size);
+					gsl_matrix_get_row(aux, training_y, idx);
+					gsl_matrix_set_row(targets, b, aux);
+					gsl_vector_free(aux);
+				}
+			}
+			
 			// Forward through layers
 			batchdata.image = minibatch;
 			batch_chan = num_channels;
 			for (int i = 0; i < num_layers; i++)
 				forward(&(layers[i]), &batchdata, &batch_chan);
-
-			// Calculate Forward Loss and Negdata
 			gsl_matrix* output = batchdata.matrix;
-			gsl_matrix* pred_y = forward_xent(&loss_layer, output, targets);
-			gsl_matrix* results = backward_xent(&loss_layer, output, targets);
 
-			acc_loss += loss_layer.loss;
-			acc_class += classification_accuracy(pred_y, targets);
-
-			gsl_matrix_free(pred_y);
+			// Calculate Loss
+			double loss = 0, accl = 0;
+			gsl_matrix* results = evaluate_loss(loss_layer, output, targets, learning_rate, &loss, &accl);
+			acc_loss += loss;
+			acc_class += accl;
 			gsl_matrix_free(output);
-			gsl_matrix_free(targets);
 
 			// Backward through layers, and update them
 			batchdata.matrix = results;
@@ -511,7 +525,6 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 //		if (epoch % 1 == 0)
 			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f, [%f %f %d]\n", epoch, acc_loss / num_batches, acc_class / num_batches, acc_loss, acc_class, num_batches);
 	}
-	free_XENT(&loss_layer);
 	return (acc_loss / num_batches);
 }
 

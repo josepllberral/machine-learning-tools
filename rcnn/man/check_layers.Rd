@@ -4,7 +4,7 @@
 \alias{check_layers}
 \title{Function to check the basic shape of data between Layers}
 \usage{
-check_layers(layers, dim_dataset, dim_target, batch_size)
+check_layers(layers, evaluator, dim_dataset, dim_target, batch_size)
 }
 \arguments{
 \item{layers}{A list of descriptors}
@@ -38,6 +38,7 @@ c('type' = "RELV"),
 c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 10, 'scale' = 0.1),
 c('type' = "SOFT", 'n_inputs' = 10)
 );
-is_valid <- check_layers (descriptor, dim(training_x), dim(training_y), batch_size = 10);
+evaluator <- c('type' = "XENT"); # Cross-Entropy evaluator
+is_valid <- check_layers (descriptor, evaluator, dim(training_x), dim(training_y), batch_size = 10);
 }
 \keyword{MLP}
