@@ -13,6 +13,10 @@ train.cnn(dataset, targets, layers = NULL, evaluator = NULL,
 
 \item{targets}{A matrix with output labels, one set of targets per row.}
 
+\item{layers}{A list of layer descriptors (character vector).}
+
+\item{evaluator}{An evaluator descriptor (character vector). Default "XENT".}
+
 \item{batch_size}{Number of examples per training mini-batch. Default = 1.}
 
 \item{training_epochs}{Number of training epochs. Default = 1000.}
@@ -87,9 +91,26 @@ Possible layers are:
     \item Number of visible units
   }
 }
-The list of layers and dimensionsis checked before the process starts.
+The list of layers and dimensions is checked before the process starts.
 Convolutional, Pooling, Rectifiers and Flattening layers can only be used
 in CNNs. Other layers can be applied to CNNs and MLPs.
+Also, evaluators can be changed. By default Cross-Entropy is used, but RBMs
+can be specified to create Deep-Belief Networks.
+Possible evaluators are:
+\itemize{
+  \item XENT: Cross-Entropy Loss layer. Requires no parameters.
+  \enumerate{
+    \item This is the Default, if no evaluator parameter is introduced.
+  }
+  \item RBML: GB-RBM Layer. Requires, in the following order:
+  \enumerate{
+    \item Number of visible units
+    \item Number of hidden units
+    \item Scale for initialization weights
+    \item Number of Gibbs Samplings at Backwards
+  }
+}
+The evaluator is checked before the process starts.
 }
 \examples{
 ## Simple example with CNN
@@ -155,6 +176,19 @@ mnist_cnn <- train.cnn(dataset, targets, layers, batch_size = 10, training_epoch
                        learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
 
 prediction <- predict(mnist_cnn, newdata);
+
+# Now introducing Evaluators (available for both CNNs and MLPs)
+# - By default, Cross-Entropy is used (XENT)
+
+eval <- c('type' = "XENT");
+mnist_cnn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10,
+                       training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234);
+
+# - Also RBMs can be used for Deep-Belief Networks
+
+eval <- c('type' = "RBML", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 4);
+mnist_dbn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10,
+                       training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234);
 
 ## Simple example with MLPs
 train_X <- array(c(1, 1, 1, 0, 0, 0,

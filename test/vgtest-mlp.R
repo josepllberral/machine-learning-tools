@@ -1,4 +1,4 @@
-## R -d "valgrind --tool=memcheck --leak-check=full" --vanilla < vgtest-mlp.R > log2.txt 2>&1
+## R -d "valgrind --tool=memcheck --leak-check=full" --vanilla < vgtest-mlp.R > log-mlp.txt 2>&1
 
 library(rcnn)
 
@@ -39,8 +39,13 @@ layers <- list(
 );
 
 mnist_mlp <- train.cnn(dataset, targets, layers, batch_size = 10, training_epochs = 3, learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
+mnist_mlp_up <- mnist_mlp;
+
+mnist_mlp_up <- train.cnn(dataset, targets, layers = NULL, batch_size = 10, training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234, init_cnn = mnist_mlp_up);
 
 prediction <- predict(mnist_mlp, newdata);
+
+rebuild <- pass_through.cnn(mnist_mlp, newdata);
 
 # MLP MNIST WITH EVALUATOR
 data(mnist)

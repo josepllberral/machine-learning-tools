@@ -750,3 +750,87 @@ predict.cnn <- function (cnn, newdata, rand_seed = as.integer(floor(runif(1)*100
 
 	list(score = retval, class = max.col(retval));
 }
+
+#' Pass data forth and back through a Convolutional Network or MultiLayer
+#' Perceptron Function
+#'
+#' This function predicts and reconstructs a dataset using a trained CNN (or
+#' MLP). Admits as parameters the testing dataset, and a trained CNN/MLP.
+#' Returns a list with the predicted outputs matrix and the reconstructed matrix
+#' or array.
+#' @param cnn A trained CNN or MLP.
+#' @param newdata A matrix/array with data, one example per row.
+#' @keywords CNN MLP
+#' @export
+#' @examples
+#' ## The MNIST example with MLPs
+#' data(mnist)
+#'
+#' train <- mnist$train;
+#' training_x <- train$x / 255;
+#' training_y <- binarization(train$y);
+#'
+#' test <- mnist$test;
+#' testing_x <- test$x / 255;
+#' testing_y <- binarization(test$y);
+#'
+#' dataset <- training_x[1:1000,, drop=FALSE];
+#' targets <- training_y[1:1000,, drop=FALSE];
+#'
+#' newdata <- testing_x[1:1000,, drop=FALSE];
+#'
+#' layers <- list(
+#'    c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 10, 'scale' = 0.1)
+#' );
+#' eval <- c('type' = "RBML", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 4);
+#'
+#' mnist_dbn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10,
+#'                        training_epochs = 3, learning_rate = 1e-3, rand_seed = 1234);
+#'
+#' rebuild <- pass_through.cnn(mnist_dbn, newdata);
+pass_through.cnn <- function (cnn, newdata, rand_seed = as.integer(floor(runif(1)*1000)))
+{
+	if (!"cnn" %in% class(cnn))
+	{
+		message("Input object is not a CNN nor a MLP");
+		return(NULL);
+	}
+	
+	rand_seed <- as.integer(rand_seed);
+	if (is.na(rand_seed))
+	{
+		message("Random seed is not an integer");
+		return(NULL);
+	}
+		
+	if (length(dim(newdata)) == 4)
+	{	
+		if ("integer" %in% class(newdata[1,1,1,1]))
+		{
+			message("Input matrix is Integer: Coercing to Numeric.");
+			newdata <- 1.0 * newdata;
+		}
+
+		retval <- .Call("_C_CNN_pass_through", as.array(newdata), as.list(cnn$layers),
+			  as.integer(length(cnn$layers)), as.integer(rand_seed),
+			  PACKAGE = "rcnn");
+		
+	} else if (length(dim(newdata)) == 2)
+	{
+		if ("integer" %in% class(newdata[1,1]))
+		{
+			message("Input matrix is Integer: Coercing to Numeric.");
+			newdata <- t(apply(newdata, 1, as.numeric));
+		}
+
+		retval <- .Call("_C_MLP_pass_through", as.matrix(newdata), as.list(cnn$layers),
+			  as.integer(length(cnn$layers)), as.integer(rand_seed),
+			  PACKAGE = "rcnn");
+	} else
+	{
+		message("Error on Input dimensions: Must be a a (Samples x Features) 2D matrix or a (Samples x Image) 4D array");
+		return(NULL);
+	}
+
+	retval;
+}

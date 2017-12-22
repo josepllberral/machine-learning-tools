@@ -1,6 +1,6 @@
-/*---------------------------------------------------------------------------*/
-/* CONVOLUTIONAL NETWORKS in C for R                                         */
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* CONVOLUTIONAL NETWORKS in C for R                                          */
+/*----------------------------------------------------------------------------*/
 
 // @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
@@ -8,9 +8,9 @@
 
 #include "cnn.h"
 
-/*---------------------------------------------------------------------------*/
-/* AUXILIAR FUNCTIONS                                                        */
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* AUXILIAR FUNCTIONS                                                         */
+/*----------------------------------------------------------------------------*/
 
 void replace_image(gsl_matrix**** destination, gsl_matrix**** newimage, int size1, int size2)
 {
@@ -143,9 +143,9 @@ void print_image00 (gsl_matrix*** x, int a, int b)
 	printf("-------------\n");
 }
 
-/*---------------------------------------------------------------------------*/
-/* PIPELINE LAYER HANDLER                                                    */
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* PIPELINE LAYER HANDLER                                                     */
+/*----------------------------------------------------------------------------*/
 
 void forward (LAYER* layer, data* batchdata, int* batch_chan)
 {
@@ -422,9 +422,9 @@ gsl_matrix* evaluate_loss (LAYER* layer, gsl_matrix* output, gsl_matrix* targets
 	return results;
 }
 
-/*---------------------------------------------------------------------------*/
-/* HOW TO TRAIN YOUR CNN                                                     */
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* HOW TO TRAIN YOUR CNN                                                      */
+/*----------------------------------------------------------------------------*/
 
 // Function to train the CNN
 //  param training_x      : loaded dataset (rows = examples, cols = features)
@@ -528,9 +528,9 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 	return (acc_loss / num_batches);
 }
 
-/*---------------------------------------------------------------------------*/
-/* PREDICTION USING THE CNN                                                  */
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* PREDICTION USING THE CNN                                                   */
+/*----------------------------------------------------------------------------*/
 
 // Function to predict the results of a matrix
 gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
@@ -594,8 +594,6 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 		batch_chan = num_channels;
 		for (int i = 0; i < num_layers; i++)
 			forward(&(layers[i]), &batchdata, &batch_chan);
-
-		// Calculate Forward Loss and Negdata
 		gsl_matrix* output = batchdata.matrix;
 
 		// Add output to results
@@ -613,3 +611,100 @@ gsl_matrix* prediction_cnn (gsl_matrix*** testing_x, int num_samples,
 	return result;
 }
 
+// Function to produce output features and rebuild inputs
+void pass_through_cnn (gsl_matrix*** testing_x, int num_samples,
+	int num_channels, LAYER* layers, int num_layers, int batch_size,
+	gsl_matrix** features, gsl_matrix**** rebuild)
+{
+	int num_batches = num_samples / batch_size;
+	if (num_samples % batch_size > 0) num_batches++;
+
+	int num_outputs = 1;
+	if (layers[num_layers - 1].type == 5) // LINE
+		num_outputs = ((LINE*)(layers[num_layers - 1].layer))->n_hidden;
+	else if (layers[num_layers - 1].type == 6) // SOFT
+		num_outputs = ((SOFT*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 9) // SIGM
+		num_outputs = ((SIGM*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 11) // DIRE
+		num_outputs = ((DIRE*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 12) // TANH
+		num_outputs = ((TANH*)(layers[num_layers - 1].layer))->n_units;
+	else if (layers[num_layers - 1].type == 13) // RBML
+		num_outputs = ((RBML*)(layers[num_layers - 1].layer))->n_hidden;
+
+	int img_h = testing_x[0][0]->size1;
+	int img_w = testing_x[0][0]->size2;
+
+	(*features) = gsl_matrix_alloc(num_samples, num_outputs);
+	(*rebuild) = (gsl_matrix***) malloc(num_samples * sizeof(gsl_matrix**));
+
+	data batchdata;
+	int batch_chan;
+
+	// Loop through examples
+	for (int idx_ini = 0; idx_ini < num_samples; idx_ini += batch_size)
+	{
+		// Uneven rows are considered (not like in training)
+		int real_batch_size = batch_size;
+		if (idx_ini + batch_size > num_samples) real_batch_size = num_samples % batch_size;
+
+		// Select mini_batch
+		gsl_matrix*** minibatch = (gsl_matrix***) malloc(batch_size * sizeof(gsl_matrix**));
+		for (int b = 0, idx = idx_ini; b < real_batch_size; b++, idx++)
+		{
+			minibatch[b] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
+			for (int c = 0; c < num_channels; c++)
+			{
+				minibatch[b][c] = gsl_matrix_alloc(img_h, img_w);
+				gsl_matrix_memcpy(minibatch[b][c], testing_x[idx][c]);
+			}
+		}
+
+		// Complete the uneven Mini-Batch
+		if (batch_size > real_batch_size)
+			for (int b = real_batch_size ; b < batch_size; b++)
+			{
+				minibatch[b] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
+				for (int c = 0; c < num_channels; c++)
+					minibatch[b][c] = gsl_matrix_calloc(img_h, img_w);
+			}
+
+		// Forward through layers
+		batchdata.image = minibatch;
+		batch_chan = num_channels;
+		for (int i = 0; i < num_layers; i++)
+			forward(&(layers[i]), &batchdata, &batch_chan);
+
+		// Add output to features
+		for (int b = 0, idx = idx_ini; b < real_batch_size; b++, idx++)
+		{
+			gsl_vector* aux = gsl_vector_alloc(num_outputs);
+			gsl_matrix_get_row(aux, batchdata.matrix, b);
+			gsl_matrix_set_row((*features), idx, aux);
+			gsl_vector_free(aux);
+		}
+
+		// Backward through layers
+		batch_chan = 0;
+		for (int i = num_layers - 1; i >= 0; i--)
+			backward(&(layers[i]), &batchdata, &batch_chan);
+
+		// Add reinput to rebuild
+		for (int b = 0, idx = idx_ini; b < real_batch_size; b++, idx++)
+		{
+			(*rebuild)[idx] = (gsl_matrix**) malloc(num_channels * sizeof(gsl_matrix*));
+			for (int c = 0; c < num_channels; c++)
+			{
+				(*rebuild)[idx][c] = gsl_matrix_alloc(img_h, img_w);
+				gsl_matrix_memcpy((*rebuild)[idx][c], batchdata.image[b][c]);
+				gsl_matrix_free(batchdata.image[b][c]);
+			}
+			free(batchdata.image[b]);
+			
+		}
+		free(batchdata.image);
+	}
+
+	return;
+}

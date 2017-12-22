@@ -293,6 +293,8 @@ gsl_matrix* prediction_mlp (gsl_matrix* , LAYER*, int, int);
 gsl_matrix* prediction_cnn (gsl_matrix***, int, int, LAYER*, int, int);
 double classification_accuracy (gsl_matrix*, gsl_matrix*);
 gsl_matrix* classification_matrix (gsl_matrix*, gsl_matrix*);
+void pass_through_cnn (gsl_matrix***, int, int, LAYER*, int, int, gsl_matrix**, gsl_matrix****);
+void pass_through_mlp (gsl_matrix*, LAYER*, int, int, gsl_matrix**, gsl_matrix**);
 
 // Gradiend Check Functions
 int gradclose (gsl_matrix***, gsl_matrix***, int, int, double, double);
