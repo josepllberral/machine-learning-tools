@@ -1,4 +1,4 @@
-## R --vanilla < build-rbm.R
+## R --vanilla < test/build-rbm.R
 
 library(devtools)
 library(roxygen2)

@@ -108,7 +108,7 @@ gsl_matrix* backward_rbml(RBML* rbml, gsl_matrix* dy)
 
 	gsl_matrix* delta_W = gsl_matrix_calloc(rbml->n_hidden, rbml->n_visible);
 	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, rbml->ph_means, rbml->x, 1.0, delta_W);
-	gsl_blas_dgemm(CblasTrans, CblasNoTrans, -1.0, nh_means, nv_sample, 1.0, delta_W);
+	gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, nh_means, nv_sample, -1.0, delta_W);
 	gsl_matrix_memcpy(rbml->grad_W, delta_W);
 
 	gsl_matrix* pre_delta_v = gsl_matrix_calloc(rbml->batch_size, rbml->n_visible);
@@ -139,21 +139,21 @@ gsl_matrix* backward_rbml(RBML* rbml, gsl_matrix* dy)
 	gsl_matrix_free(nh_means);
 	gsl_matrix_free(nh_sample);
 	gsl_matrix_free(nv_means);
-
+	
 	gsl_matrix_free(identity_h);
 	gsl_matrix_free(identity_v);
 	gsl_vector_free(ones);
 
 	gsl_matrix_free(pre_delta_v);
 	gsl_matrix_free(pre_delta_h);
-
+	
 	gsl_matrix_free(delta_W);
 	gsl_vector_free(delta_v);
 	gsl_vector_free(delta_h);
 
 	gsl_matrix_free(pow_res);
 	gsl_vector_free(pow_sum);
-	
+
 	return nv_sample;
 }
 

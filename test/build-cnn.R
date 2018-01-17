@@ -1,4 +1,4 @@
-## R --vanilla < build-cnn.R
+## R --vanilla < test/build-cnn.R
 
 library(devtools)
 library(roxygen2)

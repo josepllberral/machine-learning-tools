@@ -22,3 +22,4 @@ vector1 <- as.integer((rnorm(1000, 0, 1)  \%\% 1) * 10);
 targets <- binarize(vector1);
 }
 \keyword{Confusion-Matrix}
+

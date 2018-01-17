@@ -18,3 +18,4 @@ targets <- binarize(vector1);
 }
 \keyword{Binarization}
 \keyword{One-Hot-Encode}
+

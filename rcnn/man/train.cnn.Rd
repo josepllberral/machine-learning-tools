@@ -252,3 +252,4 @@ prediction <- predict(mnist_mlp, newdata);
 }
 \keyword{CNN}
 \keyword{MLP}
+

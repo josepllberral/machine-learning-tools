@@ -42,3 +42,4 @@ evaluator <- c('type' = "XENT"); # Cross-Entropy evaluator
 is_valid <- check_layers (descriptor, evaluator, dim(training_x), dim(training_y), batch_size = 10);
 }
 \keyword{MLP}
+

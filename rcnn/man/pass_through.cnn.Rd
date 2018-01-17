@@ -47,3 +47,4 @@ rebuild <- pass_through.cnn(mnist_dbn, newdata);
 }
 \keyword{CNN}
 \keyword{MLP}
+
