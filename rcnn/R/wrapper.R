@@ -564,7 +564,7 @@ train.cnn <- function (dataset, targets, layers = NULL, evaluator = NULL,
 	
 	if (is.null(evaluator)) evaluator <- c("type" = "XENT");
 	
-	if (is.null(targets) && (evaluator['type'] != 'GBRL'))
+	if (is.null(targets) && (evaluator['type'] != 'RBML'))
 	{
 		message(paste("Error: This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
 		return(NULL);
