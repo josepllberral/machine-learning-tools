@@ -10,7 +10,6 @@ layers <- list(
     c('type' = "POOL", 'n_channels' = 4, 'scale' = 0.1, 'win_size' = 3, 'stride' = 2),
     c('type' = "RELU", 'n_channels' = 4),
     c('type' = "FLAT", 'n_channels' = 4),
-    #c('type' = "LINE", 'n_visible' = 8, 'n_hidden' = 6, 'scale' = 0.1),
     c('type' = "RBML", 'n_visible' = 8, 'n_hidden' = 6, 'scale' = 0.1, 'n_gibbs' = 3),
     c('type' = "LINE", 'n_visible' = 6, 'n_hidden' = 2, 'scale' = 0.1),
     c('type' = "SOFT", 'n_inputs' = 2)
@@ -44,7 +43,6 @@ layers <- list(
     c('type' = "RELU", 'n_channels' = 4),
     c('type' = "FLAT", 'n_channels' = 4),
     c('type' = "LINE", 'n_visible' = 784, 'n_hidden' = 64, 'scale' = 0.1),
-    #c('type' = "LINE", 'n_visible' = 64, 'n_hidden' = 32, 'scale' = 0.1),
     c('type' = "RBML", 'n_visible' = 64, 'n_hidden' = 32, 'scale' = 0.1, 'n_gibbs' = 4),
     c('type' = "RELV"),
     c('type' = "LINE", 'n_visible' = 32, 'n_hidden' = 10, 'scale' = 0.1),
@@ -120,7 +118,7 @@ layers <- list(
 );
 eval <- c('type' = "RBML", 'n_visible' = 10, 'n_hidden' = 5, 'scale' = 0.1, 'n_gibbs' = 4);
 
-mnist_dbn <- train.cnn(dataset, targets, layers, evaluator = eval, batch_size = 10, training_epochs = 3, learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
+mnist_dbn <- train.cnn(dataset, NULL, layers, evaluator = eval, batch_size = 10, training_epochs = 3, learning_rate = 1e-3, momentum = 0.8, rand_seed = 1234);
 
 prediction <- predict(mnist_dbn, newdata);
 

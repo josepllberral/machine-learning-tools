@@ -843,7 +843,7 @@ void free_loss_layer (LAYER* layer)
 
 // Interface for Training a CNN
 SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP eval_layer, SEXP batch_size,
-	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
+	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn, SEXP is_dbn)
 {
  	int nrows = INTEGER(GET_DIM(dataset))[0];
  	int nchan = INTEGER(GET_DIM(dataset))[1];
@@ -860,10 +860,11 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	int nlays = INTEGER_VALUE(num_layers);
 	
 	int rebuild = INTEGER_VALUE(is_init_cnn);
+	int no_cmat = INTEGER_VALUE(is_dbn);
 
  	unsigned int rase = INTEGER_VALUE(rand_seed);
 	srand(rase);
-	
+
 	// Create Dataset Structure
 	gsl_matrix*** train_X = (gsl_matrix***) malloc(nrows * sizeof(gsl_matrix**));
 	gsl_matrix* train_Y = gsl_matrix_alloc(nrows, nouts);
@@ -894,7 +895,9 @@ SEXP _C_CNN_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	// Pass the Training set through the CNN
 	gsl_matrix* predictions = prediction_cnn (train_X, nrows, nchan, pipeline, nlays, basi);
-	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
+	gsl_matrix* confusion;
+	if (no_cmat == 0) confusion = classification_matrix(predictions, train_Y);
+	else confusion = gsl_matrix_calloc(nouts,nouts);
 
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));
@@ -1113,7 +1116,7 @@ SEXP _C_CNN_pass_through (SEXP newdata, SEXP layers, SEXP num_layers, SEXP rand_
 
 // Interface for Training a MLP
 SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEXP eval_layer, SEXP batch_size,
-	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn)
+	SEXP training_epochs, SEXP learning_rate, SEXP momentum, SEXP rand_seed, SEXP is_init_cnn, SEXP is_dbn)
 {
  	int nrows = INTEGER(GET_DIM(dataset))[0];
  	int ncols = INTEGER(GET_DIM(dataset))[1];
@@ -1128,6 +1131,7 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 	int nlays = INTEGER_VALUE(num_layers);
 	
 	int rebuild = INTEGER_VALUE(is_init_cnn);
+	int no_cmat = INTEGER_VALUE(is_dbn);
 
  	unsigned int rase = INTEGER_VALUE(rand_seed);
 	srand(rase);
@@ -1157,7 +1161,9 @@ SEXP _C_MLP_train (SEXP dataset, SEXP targets, SEXP layers, SEXP num_layers, SEX
 
 	// Pass the Training set through the MLP
 	gsl_matrix* predictions = prediction_mlp(train_X, pipeline, nlays, basi);
-	gsl_matrix* confusion = classification_matrix(predictions, train_Y);
+	gsl_matrix* confusion;
+	if (no_cmat == 0) confusion = classification_matrix(predictions, train_Y);
+	else confusion = gsl_matrix_calloc(nouts,nouts);
 
 	// Return Structure
 	SEXP retval = PROTECT(allocVector(VECSXP, 7));

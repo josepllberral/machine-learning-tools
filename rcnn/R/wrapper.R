@@ -566,10 +566,19 @@ train.cnn <- function (dataset, targets, layers = NULL, evaluator = NULL,
 	
 	if (is.null(targets) && (evaluator['type'] != 'RBML'))
 	{
-		message(paste("Error: This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
+		message(paste("This evaluator: ", evaluator['type'], "expects Output Labels", sep=""));
 		return(NULL);
 	}
 	
+	if (evaluator['type'] == 'RBML')
+	{
+		if (!is.null(targets)) message(paste("Ignoring targets for evaluator ", evaluator['type'], sep=""));
+		targets <- array(0, c(dim(dataset)[1],1,1,1));
+		is.dbn <- 1;
+	} else {
+		is.dbn <- 0;
+	}
+
 	if (is.null(batch_size) || is.null(training_epochs)
 	|| is.null(learning_rate) || is.null(momentum) | is.null(rand_seed))
 	{
@@ -615,7 +624,7 @@ train.cnn <- function (dataset, targets, layers = NULL, evaluator = NULL,
 		retval <- .Call("_C_CNN_train", as.array(dataset), as.matrix(targets),
 			as.list(prep_layers), as.integer(length(prep_layers)), as.character(prep_loss_layer),
 			as.integer(batch_size),	as.integer(training_epochs), as.double(learning_rate),
-			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn),
+			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn), as.integer(is.dbn),
 			PACKAGE = "rcnn");
 
 	} else if (length(dim(dataset)) == 2)
@@ -635,7 +644,7 @@ train.cnn <- function (dataset, targets, layers = NULL, evaluator = NULL,
 		retval <- .Call("_C_MLP_train", as.matrix(dataset), as.matrix(targets),
 			as.list(prep_layers), as.integer(length(prep_layers)), as.vector(prep_loss_layer),
 			as.integer(batch_size), as.integer(training_epochs), as.double(learning_rate),
-			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn),
+			as.double(momentum), as.integer(rand_seed), as.integer(is_init_cnn), as.integer(is.dbn),
 			PACKAGE = "rcnn");
 	} else
 	{
