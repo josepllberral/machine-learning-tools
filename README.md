@@ -1,33 +1,10 @@
 # Machine Learning Tools
 
-Machine Learning tools and functions in R, for educational and academic purposes.
+Machine Learning tools and functions in R and Python + Tensorflow, for educational and academic purposes.
 
-## R Packages (Using GSL)
+## R Tools
 
-You can find the (C)RBMs, MLPs and CNNs ready to install and use, in the **packages** folder.
-
-* Package **rrbm** : contains RBM and CRBM implementations, with training, predict and forecasting functions. Also MNIST and Motion (fragment) datasets are included ("mnist" and "motionfrag").
-
-* Package **rcnn** : contains a MLP modular implementation, with different layer definitions like *Linear*, *Convolutional*, *Pooling*, *Flattening*, *Linear Rectifier*, *Softmax*, etc. Also contains training and predict functions. Also MNIST datasets is included ("mnist").
-
-As the packaged tools use a GSL implementation as kernel (written in C, but interfaced to R), installing the GSL development libraries is required. Further, you can install "OpenBLAS" (optional) to let GSL use multi-processor computation:
-
-> apt-get install libgsl-dev
-
-> apt-get install libopenblas-base
-
-Once "gsl" libraries are installed, just do in R:
-
-> install.packages("rrbm_0.0.X.tar.gz", repos = NULL, type="source")
-
-> install.packages("rcnn_0.0.X.tar.gz", repos = NULL, type="source")
-
-
-In case you don't want to install GSL or use C code, you can just download the **pure-R** implementation from the *.R files in this same repository. They do exactly the same than the GSL-core functions, but (often) slower.
-
-## Tools Description
-
-Here you can find (C)RBMs, and configurable MLP (including Convolutional layers) implemented in R.
+Here you can find (C)RBMs, and configurable MLP (including Convolutional layers) implemented in R, in the **R** folder.
 
 ### Feed-Forward MultiLayer Perceptron Networks
 
@@ -47,18 +24,47 @@ Here you can find an implementation of RBMs and CRBMs in R. The code comes with 
 
 ### Kalman Filters
 
-An implementation of Kalman Filters in R (because not everything is going to be neural networks!). The code comes with an example for time series.
+An implementation of Kalman Filters in R. The code comes with an example for time series.
 
 * **kalman_filter.R**: Version in R.
 
-## Example Notebooks
+## Packages
 
-In the "notebooks" folder you can find the R code, detailed and executed. Notebooks are in _jupyter_ format.
+You can find the (C)RBMs, MLPs and CNNs ready to install and use in R, in the **packages** folder.
 
+* Package **rrbm** : contains RBM and CRBM implementations, with training, predict and forecasting functions. Also MNIST and Motion (fragment) datasets are included ("mnist" and "motionfrag").
+
+* Package **rcnn** : contains a MLP modular implementation, with different layer definitions like *Linear*, *Convolutional*, *Pooling*, *Flattening*, *Linear Rectifier*, *Softmax*, etc. Also contains training and predict functions. Also MNIST datasets is included ("mnist").
+
+As the packaged tools use a GSL implementation as kernel (written in C, but interfaced to R), installing the GSL development libraries is required. Further, you can install "OpenBLAS" (optional) to let GSL use multi-processor computation:
+
+> apt-get install libgsl-dev
+
+> apt-get install libopenblas-base
+
+Once "gsl" libraries are installed, just do in R:
+
+> install.packages("rrbm_0.0.X.tar.gz", repos = NULL, type="source")
+
+> install.packages("rcnn_0.0.X.tar.gz", repos = NULL, type="source")
+
+In case you don't want to install GSL or use C code, you can just download the **pure-R** implementation from the \*.R files in this same repository. They do exactly the same than the GSL-core functions, but (often) slower.
+
+
+## TensorFlow Tools
+
+You can find (C)RBMs implemented in Python + TensorFlow, in the **tensorflow** folder.
+
+* **tf_rbm.py**: RBMs in TensorFlow
+* **tf_crbm.py**: CRBMs in TensorFlow
+
+## Notebooks
+
+You can find "notebooks" (in _jupyter_ format) explaining the R and TF code in detail, also examples of use for them, in the **notebooks** folder.
 
 ## Datasets
 
-Example datasets for the here found tools:
+In the **datasets** folder, you can find the example datasets for the here found tools:
 
 * **motion.rds**: version of the motion.mat dataset in RDS format. This dataset is a fragment of Eugene Hsu [Styles of Human Motion](http://people.csail.mit.edu/ehsu/work/sig05stf/), taken by Graham Taylor for his works [here](http://www.uoguelph.ca/~gwtaylor/publications/nips2006mhmublv/motion.mat) .
 
