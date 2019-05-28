@@ -1,15 +1,20 @@
-###############################################################################
-# HIDDEN MARKOV MODELS in R                                                   #
-###############################################################################
+################################################################################
+# HIDDEN MARKOV MODELS in R                                                    #
+################################################################################
 
 ## @author Josep Ll. Berral (Barcelona Supercomputing Center)
 
-## @date 16 May 2018
+## @date 12 June 2018
 
 ## References:
-## * Approach inspured on Chi-En Wu also Vince Buffalo implementations
+## * Approach inspired on Chi-En Wu and Vince Buffalo implementations
 ##   https://github.com/jason2506/PythonHMM
 ##   https://github.com/vsbuffalo/hmmr
+##   http://modelai.gettysburg.edu/2017/hmm/
+##
+## Lectures:
+##   http://mlg.eng.cam.ac.uk/zoubin/course05/lect4time.pdf
+##   http://karlstratos.com/notes/em_hmm_formulation.pdf
 
 ################################################################################
 # HMM FUNCTIONS                                                                #
@@ -47,9 +52,13 @@ create_hmm <- function(states, symbols, states_dict, symbols_dict,
 }
 
 ## Forwards a SINGLE SYMBOL SEQUENCE through the HMM
+#  alpha = likelihood of being in state i at time t given symb_sequence
+#  alpha(1,i)   <- SP[i] * EP[i,symb_1]
+#  alpha(t+1,k) <- SUM_i(alpha(t,i) * TP[i,k]) * EP[k,symb_t+1]
+#
 #  param hmm           : the HMM to be used
 #  param symb_sequence : vector, single sequence of symbols
-#  returns             : matrix [Seq_Length x States]
+#  returns alpha       : matrix [Seq_Length x States]
 forward_hmm <- function(hmm, symb_sequence)
 {
 	slen <- length(symb_sequence);
@@ -67,9 +76,13 @@ forward_hmm <- function(hmm, symb_sequence)
 }
 
 ## Backwards a SINGLE SYMBOL SEQUENCE through the HMM
+#  beta = probability of having symb_sequence when being in state i at time t
+#  beta(L,j) <- 1
+#  beta(t,j)   <- SUM_k(TP[k,j] * beta(t+1,k) * EP[k,symb_t+1])
+#
 #  param hmm           : the HMM to be used
 #  param symb_sequence : vector, single sequence of symbols
-#  returns             : matrix [Seq_Length x States]
+#  returns beta        : matrix [Seq_Length x States]
 backward_hmm <- function(hmm, symb_sequence)
 {
 	slen <- length(symb_sequence);
@@ -87,13 +100,12 @@ backward_hmm <- function(hmm, symb_sequence)
 }
 
 ## Create initial Markov Chain from sample sequences
-#  param sequences : list with two elements:
-#       - stat_seq : list { vector of state sequences }
-#       - symb_seq : list { vector of symbol sequences }
-initialize_markov <- function(sequences)
+#  param symb_sequences : list { vector of symbol sequences }
+#  param stat_sequences : list { vector of state sequences }
+initialize_markov <- function(symb_sequences, stat_sequences)
 {
-	stat_seq <- sequences$states;
-	symb_seq <- sequences$symbols;
+	stat_seq <- stat_sequences;
+	symb_seq <- symb_sequences;
 	
 	nseq <- length(stat_seq);
 	states <- unique(unlist(stat_seq));
@@ -148,88 +160,96 @@ evaluate_hmm <- function(hmm, symb_sequence)
 # HOW TO TRAIN YOUR HMM                                                        #
 ################################################################################
 
-## Function to train the HMM (Interface for Supervised/Unsupervised)
-#  param sequences  : list { states  = list{ state sequences },
-#                           symbols = list{ symbol sequences } }
-#  param supervised : whether the sequences contain symbols. Default = TRUE
-#  param ...        : other parameters for training
-#  returns          : trained HMM
-train_hmm <- train.hmm <- function(sequences, supervised = TRUE, ...)
-{
-	f <- if (supervised) supervised_hmm else unsupervised_hmm;
-	f(sequences, ...);
-}
-
-## Function to train the HMM Unsupervised
-#  TODO -
-unsupervised_hmm <- function(sequences, delta = 1e-4, smoothing = 0)
-{										# TODO - Complete this functionality
-	# ...
-}
-
-## Function to train the HMM Supervised. Supervised training function for HMM
-#  using the Expectation-Maximization algorithm.
-#  param sequences : list { states  = list{ state sequences },
-#                           symbols = list{ symbol sequences } }
-#  param delta     : specifies that the learning algorithm will stop when the
-#                    difference of the log-likelihood between two consecutive
-#                    iterations is less than delta. default = 0.0001
-#  param smoothing : argument is used to avoid zero probability. default = 0
-#  param rand_seed : random seed. Default = 1234
-#  return          : a trained HMM
-supervised_hmm <- function(sequences, delta = 1e-4, smoothing = 0,
-	rand_seed = 1234)
+## Function to train the Hidden Markov Model.
+#  - Supervised: Given a corpus (list of observations with known state
+#    sequences), train an HMM using the Expectation-Maximization algorithm.
+#  - Unsupervised: Given a corpus (list of observations with unknown state,
+#    sequences), train an HMM using initial clustering, and the Baum-Welch
+#    Expectation-Maximization algorithm maximizing the likelihood.
+#  param symb_sequences : list { symbol sequences }
+#  param stat_sequences : list { state sequences }. If NULL (default),
+#                         unsupervised learning is performed. Default = NULL
+#  param num_states     : in case of unsupervised learning, num_states is the
+#                         number of states to infer. Default = 3
+#  param delta          : specifies that the learning algorithm will stop when
+#                         the difference of the log-likelihood between two
+#                         consecutive iterations is less than delta.
+#                         Default = 0.0001
+#  param smoothing      : argument is used to avoid zero probability.
+#                         default = 0
+#  param rand_seed      : random seed. Default = 1234
+#  return               : a trained HMM
+train_hmm <- train.hmm <- function(symb_sequences, stat_sequences = NULL,
+	num_states = 3, delta = 1e-4, smoothing = 0, rand_seed = 1234)
 {
 	set.seed(rand_seed);
 	start_time <- Sys.time();
 	
-	# Input checks for coherence in sequences
-	if (length(sequences$states) != length(sequences$symbols))
+	if (!is.null(stat_sequences))
 	{
-		message("Error: Different number of state and symbol sequences");
-		return(NULL);
+		# Input checks for coherence in sequences
+		if (length(stat_sequences) != length(symb_sequences))
+		{
+			message("Error: Different number of state and symbol sequences");
+			return(NULL);
+		}
+		if (!all(sapply(symb_sequences, length) == sapply(stat_sequences, length)))
+		{
+			message("Error: Different lenght on a state/symbol sequences");
+			return(NULL);
+		}
+		
+	} else {
+		if (is.na(num_states) || !is.numeric(num_states))
+		{
+			message("Error: Incorrect number of inferred states");
+			return(NULL);
+		}
+		
+		# Initial Dependent Mixture Model
+		stat_sequences <- NULL; 					# TODO - Gausian Mixture/k-means/...?
 	}
-	if (!all(sapply(sequences$symbols, length) == sapply(sequences$states, length)))
-	{
-		message("Error: Different lenght on a state/symbol sequences");
-		return(NULL);
-	}
-
+	symb_sequences <- lapply(symb_sequences, as.character);
+	stat_sequences <- lapply(stat_sequences, as.character);
+	
 	# Obtain initial Markov chain from sequences
-	init_model <- initialize_markov(sequences);
+	init_model <- initialize_markov(symb_sequences, stat_sequences);
 	
 	# Create the HMM object with initial matrices
 	hmm <- create_hmm(init_model$states, init_model$symbols,
 		init_model$states_dict, init_model$symbols_dict,
 		init_model$start_prob, init_model$trans_prob,
-		init_model$emit_prob);
+		init_model$emit_prob);	
 	
 	# Iterate to fit the HMM into training data
-	old_likelihood <- mean(sapply(sequences$symbols, function(x) log(evaluate_hmm(hmm, x))));
+	old_likelihood <- mean(sapply(symb_sequences, function(x) log(evaluate_hmm(hmm, x))));
 	while (TRUE)
 	{
 		new_likelihood <- 0;
-		for (symb in sequences$symbols)
+		for (symb in symb_sequences)
 		{
-			hmm <- learn_hmm(hmm, symb, smoothing);
+			hmm <- learn_unsup_hmm(hmm, symb, smoothing);
 			new_likelihood <- new_likelihood + log(evaluate_hmm(hmm, symb));
 		}
-		new_likelihood <- new_likelihood / length(sequences$states);
+		new_likelihood <- new_likelihood / length(symb_sequences);
 
 		if (abs(new_likelihood - old_likelihood) < delta) break;
 		old_likelihood <- new_likelihood;
 	}
-
+	hmm$likelyhood <- old_likelihood;
+	
 	end_time <- Sys.time();
 	print(paste('Training took', (end_time - start_time), sep = " "));
 
 	# Return the trained HMM
 	class(hmm) <- c("hmm", class(hmm));
 	hmm;
+	
 }
 
 ## Function to find the best state transition and emission probabilities, given
-#  a sequence of symbols, updating the HMM.
+#  a sequence of symbols, updating the HMM {start_probs, transition_matrix,
+#  emision_matrix}.
 #  param hmm            : the HMM to be trained
 #  param symb_sequence  : vector of symbols
 #  param smoothing      : additive smoothing. Default = 0
@@ -239,38 +259,84 @@ learn_hmm <- function(hmm, symb_sequence, smoothing = 0)
 	slen <- length(symb_sequence);
 	seq_aux <- hmm$symbols_dict[symb_sequence];
 	
-	alpha <- forward.hmm(hmm, seq_aux);
-	beta  <- backward.hmm(hmm, seq_aux);
+	# E-Step
+	# alpha = likelihood of being in state i at time t given symbol_sequence_1:t
+	# beta  = likelihood of producing symbol_sequence_t+1:L from state i at time t
+	# gamma = probability of being in state i at time t given the symbol_sequence
+	#
+	# 	P^(symb_1:t | state_t = i) = alpha(t,i)
+	# 	P^(symb_t+1:L | state_t = i) = beta(t,i)
+	# 	P^(symb_1:L, state_t = i) = P^(symb_1:t, symb_t+1:L, state_t = i) = alpha(t,i) * beta(t,i) = gamma(t,i)
+	#
+	#	alpha(1,i)   <- SP[i] * EP[i,symb_1]
+	#	alpha(t+1,i) <- SUM_k=[state](alpha(t,k) * TP[k,i]) * EP[i,symb_t+1]
+	#	beta (t,i)   <- SUM_k=[state](TP[k,i] * beta(t+1,k) * EP[i,symb_t+1])
+	# 	gamma(t,i)   <- alpha(t,i) * beta(t,i) / RS
+
+	alpha <- forward_hmm(hmm, seq_aux);
+	beta  <- backward_hmm(hmm, seq_aux);
 	gamma <- t(apply(alpha * beta, 1, function(x) { s <- sum(x); if (s > 0) x / s else x }));
 
-	maux <- array(0, c(slen - 1, hmm$nstates, hmm$nstates));
+	# M-Step
+	# M  = probability of moving from state i to j at time t and then emitting symbol_t+1
+	# xi = expected number of transitions from state i to j being at time t
+	#
+	# 	P^(state_t+1 = j | state_t = i) * P^(symb_t+1 | state_t+1 = j) = TP[i,j] * EP[j,symb_t+1] = M_t[i,j]
+	# 	P^(symb_1:L, state_t = i, state_t+1 = j) = 
+	#	= P^(symb_1:t, symb_t+1:L, state_t = i, state_t+1 = j) =
+	#	= P^(symb_1:t | state_t = i) * M_t[i,j] * P^(symb_t+2:L | state_t+1 = j) =
+	#	= alpha(t,i) * M_t[i,j] * beta(t+1,j) = xi(t,i,j)
+	#
+	#	xi(t,i,j) <- alpha(t,i) * M_t[i,j] * beta(t+1,j) / RS
+	
+	xi <- array(0, c(slen - 1, hmm$nstates, hmm$nstates));
 	for (index in 1:(slen - 1))
 	{
 		for (sfrom in 1:hmm$nstates)
 			for (sto in 1:hmm$nstates)
-				maux[index, sfrom, sto] <- alpha[index, sfrom] * beta[index + 1, sto] * hmm$TP[sfrom, sto] * hmm$EP[sto, seq_aux[index + 1]];
-		s <- sum(maux[index,,]);
-		if (s > 0) maux[index,,] <- maux[index,,] / s;
+				xi[index, sfrom, sto] <- alpha[index, sfrom] * hmm$TP[sfrom, sto] * hmm$EP[sto, seq_aux[index + 1]] * beta[index + 1, sto];
+		xi[index,,] <- xi[index,,] / { s <- sum(xi[index,,]); if (s > 0) s else 1 };
 	}
 
-	# Update Start, Transition and Emission Probability vector and matrices
+	# Expected Counts to Update the Start, Transition and Emission Probs.
+	#
+	# As this happens for each sequence, one by one:
+	# -> [seq] = symb_sequence; #seq = 1; P^(seq = s) = 1
+	#
+	# P^(state_1 = i | seq = s) = P^(state_1 = i, seq = s) / P^(seq = s) = alpha(1,i) * beta(1,i) / P^(seq = s) = gamma(1,i) / P^(seq = s)
+	# P^(state_t = i, state_t+1 = j | seq = s) = P^(state_t = i, state_t+1 = j, seq = s) / P^(seq = s) = xi(t,i,j) / P^(seq = s)
+	# P^(state_t = i, symb_t = x | seq = s) = P^(state_t = i, symb_t = x, seq = s) / P^(seq = s) = SUM_t=[symb_t=x] gamma(t,i) / P^(seq = s)
+	#
+	# C^(state_1 = i) = SUM_s=[seq] P^(state_1 = i | seq = s) = gamma(1,i)
+	# C^(state = i, state' = j) = SUM_s=[seq] SUM_t=1:L-1 P^(state_t = i, state_t+1 = j | seq = s) = SUM_t=1:L-1 xi(t,i,j)
+	# C^(state = i, symb = x) = SUM_s=[seq] SUM_t=1:L P^(state_t = i, symb_t = x | seq = s) = SUM_t=[symb_t=x] gamma(t,i)
+	#
+	# C^(state_1) = SUM_h=[state] C^(state_1 = h) = #seq					Number of starts
+	# C^(state = i)* = SUM_s=[seq] C^(state = i, seq = s) = SUM_t=1:L-1 gamma(t,i)		Expected number of emissions from state i to another state
+	# C^(state = i)** = SUM_h=[state] C^(state = i, state' = h) = SUM_t=1:L gamma(t,i)	Expected number of emissions from state i
+	#
+	# SP[i]   <- P^(state_1 = i) = C^(state_1 = i) / C^(state_1) = gamma(1,i) / #seq
+	# TP[i,j] <- P^(state' = j | state = i) = C^(state = i, state' = j) / C^(state = i)* = SUM_t=1:L-1 xi(t,i,j) / SUM_t=1:L-1 gamma(t,i)
+	# EP[i,x] <- P^(symb = x | state = i) = C^(state = i, symb = x) / C^(state = i)** = SUM_t=[symb_t=x] gamma(t,i) / SUM_t=1:L gamma(t,i)
+	
 	for (state in 1:hmm$nstates)
 	{
+		# SP[i] = gamma(1,i)
 		hmm$SP[state] <- smoothing + gamma[1, state] / (1 + hmm$nstates * smoothing);
 
+		# TP[i,j] = SUM_t=1:L-1 xi(t,i,j) / SUM_t=1:L-1 gamma(i,t)
 		gamma_sum <- sum(gamma[1:(slen - 1), state]);
 		hmm$TP[state, ] <- if (gamma_sum > 0)
 		{
 			denominator <- gamma_sum + hmm$nstates * smoothing;
-			sapply(1:hmm$nstates, function(s) smoothing + sum(maux[1:(slen - 1), state, s]) / denominator);			
+			sapply(1:hmm$nstates, function(s) smoothing + sum(xi[1:(slen - 1), state, s]) / denominator);			
 		} else rep(0, hmm$nstates);
 		
-		gamma_sum <- gamma_sum + gamma[slen, state];
-
+		# EP[i,x] = SUM_t=[symb_t=x] gamma(t,i) / SUM_t=1:L gamma(t,i)
 		emit_sum <- rep(0, hmm$nsymbols);
 		for (index in 1:slen)
 			emit_sum[seq_aux[index]] <- emit_sum[seq_aux[index]] + gamma[index, state];
-
+		gamma_sum <- gamma_sum + gamma[slen, state];
 		hmm$EP[state, ] <- if (gamma_sum > 0)
 		{
 			denominator <- gamma_sum + hmm$nsymbols * smoothing;
@@ -380,13 +446,12 @@ decode_hmm <- decode.hmm <- function(hmm, symb_sequence)
 main <- function()
 {
 	# Dummy Example
-	ta <- tb <- list();
-	ta[[1]] <- c("A","C","B","A","C","D"); tb[[1]] <- c("Z","X","Z","Y","Y","Z");
-	ta[[2]] <- c("C","A","A","B","D");     tb[[2]] <- c("X","X","Z","Y","Z");
-	ta[[3]] <- c("B","E","D","D");         tb[[3]] <- c("X","Y","Z","Y")
-	s_aux <- list(states = ta, symbols = tb);
+	st <- sy <- list();
+	st[[1]] <- c("A","C","B","A","C","D"); sy[[1]] <- c("Z","X","Z","Y","Y","Z");
+	st[[2]] <- c("C","A","A","B","D");     sy[[2]] <- c("X","X","Z","Y","Z");
+	st[[3]] <- c("B","E","D","D");         sy[[3]] <- c("X","Y","Z","Y")
 	
-	hmm1 <- train_hmm(sequences = s_aux, supervised = TRUE);
+	hmm1 <- train_hmm(symb_sequences = sy, stat_sequences = st);
 	print(hmm1);
 
 	tc <- list();
