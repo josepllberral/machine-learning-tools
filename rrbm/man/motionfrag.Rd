@@ -33,11 +33,11 @@ batchdata <- motionfrag$batchdata;
 seqlen <- motionfrag$seqlen;
 
 idx <- 1;
-first.sequence <- batchdata[idx:(idx + seqlen[1]),];
+first.sequence <- batchdata[idx:(idx + seqlen[1] - 1),];
 idx <- idx + seqlen[1];
-second.sequence <- batchdata[idx:(idx + seqlen[2]),];
+second.sequence <- batchdata[idx:(idx + seqlen[2] - 1),];
 idx <- idx + seqlen[2];
-third.sequence <- batchdata[idx:(idx + seqlen[3],];
+third.sequence <- batchdata[idx:(idx + seqlen[3] - 1),];
 
 data_mean <- motionfrag$data_mean;
 data_std <- motionfrag$data_std;
