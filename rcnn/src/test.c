@@ -406,6 +406,8 @@ int main_cnn()
 	int win_size = 3;
 	int stride = 2;
 
+	int num_layers = 11;
+
 	CONV conv1; create_CONV(&conv1, 1, 4, filter_size, 0.1, border_mode, batch_size);
 	POOL pool1; create_POOL(&pool1, 4, 0.1, batch_size, win_size, stride);
 	RELU relu1; create_RELU(&relu1, 4, batch_size);
@@ -418,7 +420,6 @@ int main_cnn()
 	LINE line2; create_LINE(&line2, 64, 10, 0.1, batch_size);
 	SOFT soft1; create_SOFT(&soft1, 10, batch_size);
 
-	int num_layers = 11;
 	LAYER* layers = (LAYER*) malloc(num_layers * sizeof(LAYER));
 	layers[0].type = 1; layers[0].layer = (void*) &conv1;
 	layers[1].type = 2; layers[1].layer = (void*) &pool1;
@@ -432,6 +433,10 @@ int main_cnn()
 	layers[9].type = 5; layers[9].layer = (void*) &line2;
 	layers[10].type = 6; layers[10].layer = (void*) &soft1;
 
+	XENT xent1; create_XENT(&xent1);
+	LAYER* eval_layer = (LAYER*) malloc(sizeof(LAYER));
+	eval_layer->type = 7; eval_layer->layer = (void*) &xent1;
+
 	printf("CNN created\n");
 
 	// Train a CNN to learn MNIST
@@ -440,7 +445,7 @@ int main_cnn()
 	double momentum = 1;
 
 	double loss = train_cnn (training_x, training_y, nrow, num_channels,
-		layers, num_layers, NULL, training_epochs, batch_size, learning_rate, momentum, 1234);
+		layers, num_layers, eval_layer, training_epochs, batch_size, learning_rate, momentum, 1234);
 
 	printf("CNN trained\n");
 
@@ -456,8 +461,10 @@ int main_cnn()
 	free_RELV(&relv1);
 	free_LINE(&line2);
 	free_SOFT(&soft1);
+	free_XENT(&xent1);
 
 	free(layers);
+	free(eval_layer);
 
 	// Free the data
 	if (line) free(line);
@@ -489,7 +496,6 @@ int main_mlp()
 	int nrow = 60000;
 	int ncol = 784;
 
-	int num_channels = 1;
 	int img_h = 28;
 	int img_w = 28;
 
@@ -565,26 +571,31 @@ int main_mlp()
 
 	// Prepare the MLP
 	int batch_size = 10;
+	int num_layers = 4;
 
 	LINE line1; create_LINE(&line1, 784, 64, 0.01, batch_size);
 	RELV relv1; create_RELV(&relv1, batch_size);
 	LINE line2; create_LINE(&line2, 64, 10, 0.1, batch_size);
 	SOFT soft1; create_SOFT(&soft1, 10, batch_size);
 
-	LAYER* layers = (LAYER*) malloc(4 * sizeof(LAYER));
+	LAYER* layers = (LAYER*) malloc(num_layers * sizeof(LAYER));
 	layers[0].type = 5; layers[0].layer = (void*) &line1;
 	layers[1].type = 8; layers[1].layer = (void*) &relv1;
 	layers[2].type = 5; layers[2].layer = (void*) &line2;
 	layers[3].type = 6; layers[3].layer = (void*) &soft1;
 
+	XENT xent1; create_XENT(&xent1);
+	LAYER* eval_layer = (LAYER*) malloc(sizeof(LAYER));
+	eval_layer->type = 7; eval_layer->layer = (void*) &xent1;
+
 	printf("MLP created\n");
 
 	// Train a MLP to learn MNIST
-	int training_epochs = 20;
+	int training_epochs = 10;
 	double learning_rate = 1e-2;
 	double momentum = 1;
 
-	double loss = train_mlp (training_x, training_y, layers, 4, NULL,
+	double loss = train_mlp (training_x, training_y, layers, num_layers, eval_layer,
 		training_epochs, batch_size, learning_rate, momentum, 1234);
 
 	printf("MLP trained\n");
@@ -594,8 +605,10 @@ int main_mlp()
 	free_RELV(&relv1);
 	free_LINE(&line2);
 	free_SOFT(&soft1);
+	free_XENT(&xent1);
 
 	free(layers);
+	free(eval_layer);
 
 	// Free the data
 	if (line) free(line);
