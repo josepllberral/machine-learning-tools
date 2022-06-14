@@ -49,8 +49,8 @@ gsl_matrix*** backward_flat (FLAT* flat, gsl_matrix* dy)
 			int offset = flat->img_h * flat->img_w * c;
 			for (int p = 0, idx = offset; p < flat->img_h * flat->img_w; p++, idx++)
 			{
-				int p_x = p % flat->img_h;
-				int p_y = p / flat->img_h;
+				int p_x = p / flat->img_w;
+				int p_y = p % flat->img_w;
 				gsl_matrix_set(out[b][c], p_x, p_y, gsl_matrix_get(dy, b, idx));
 			}
 		}
