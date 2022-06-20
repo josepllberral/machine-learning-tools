@@ -289,8 +289,15 @@ int main_mlp (char* filename_tr, char* filename_label, char* filename_test, char
 // This MAIN function trains a MNIST in a MLP and a CNN
 int main(int argc, char** argv)
 {
-	// MNIST Files
+	if (argc < 2)
+	{
+		printf("Usage: cnn <train data> <train labels> <test data> <test labels>\n");
+		printf("\tThis main is configured to run MNIST as an example\n");
+		printf("Example: cnn ../datasets/mnist_trainx.data ../datasets/mnist_trainy.data ../datasets/mnist_testx.data ../datasets/mnist_testy.data\n");
+		return -1;
+	}
 	
+	// MNIST Files
 	char* filename_tr = argv[1];		// "../datasets/mnist_trainx.data";
 	char* filename_label = argv[2];		// "../datasets/mnist_trainy.data";
 	char* filename_ts = argv[3];		// "../datasets/mnist_testx.data";

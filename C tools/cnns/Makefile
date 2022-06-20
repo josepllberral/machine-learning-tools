@@ -15,7 +15,7 @@ all: test cnn
 
 test:
 	${CC} ${LAYERS} ${LIBRARIES} grad_check.c test.c ${LIBS} -o test
-	
+
 cnn:
 	${CC} ${LAYERS} ${NETWORKS} ${LIBRARIES} main.c ${LIBS} -o cnn
 

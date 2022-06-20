@@ -6,15 +6,218 @@
 
 // File including Function Implementations
 
+// Reference for FFT Convolution:
+// * URL: https://github.com/jeremyfix/FFTConvolution
+
+// Reference for Factorization code:
+// * Code adapted from gsl/fft/factorize.c
+
 #include "cnn.h"
 
 /*---------------------------------------------------------------------------*/
-/* AUXILIAR FUNCTIONS                                                        */
+/* AUXILIAR FUNCTIONS FOR FFT CONVOLUTION                                    */
+/*---------------------------------------------------------------------------*/
+
+void factorize (const int n, int* n_factors, int factors[], int* implemented_factors)
+{
+	int i = 0;
+	int nf = 0;
+	int ntest = n;
+	int factor;
+
+	int product = 1;
+
+	if (n == 0)
+	{
+		printf("Length n must be positive integer\n");
+		return;
+	}
+	if (n == 1)
+	{
+		factors[0] = 1;
+		*n_factors = 1;
+		return;
+	}
+
+	while (implemented_factors[i] && ntest != 1)
+	{
+		factor = implemented_factors[i];
+		while ((ntest % factor) == 0)
+		{
+			ntest = ntest / factor;
+			factors[nf] = factor;
+			nf++;
+		}
+		i++;
+	}
+
+	if(ntest != 1)
+	{
+		factors[nf] = ntest;
+		nf++;
+	}
+
+	for (i = 0; i < nf; i++) product *= factors[i];
+	if (product != n) printf("Factorization failed!\n");
+
+	*n_factors = nf;
+}
+
+int is_optimal(int n, int* implemented_factors)
+{
+	int i = 0;
+	int nf = 0;
+	int factors[64];
+
+	// Check that N is not multiple of 4*4*4*2
+	if (n % 4*4*4*2 == 0) return 0;
+
+	// Check if last factor belongs to GSL_FACTORS
+	factorize(n, &nf, factors, implemented_factors);
+	while (implemented_factors[i])
+	{
+		if (factors[nf - 1] == implemented_factors[i]) return 1;
+		i++;
+	}
+	return 0;
+}
+
+int find_closest_factor(int n, int* implemented_factor)
+{
+	int j = n + 1;
+
+	if (is_optimal(n, implemented_factor) == 1) return n;
+	else
+	{
+		while(is_optimal(j, implemented_factor) == 0) j++;
+		return j;
+	}
+}
+
+// Function to perform the convolution, using FFT
+//  param mode : 1 = "valid"
+gsl_matrix* conv2D_fft (gsl_matrix* mat, gsl_matrix* k, int mode)
+{
+	// Get matrices sizes
+	int mrow = mat->size1;
+	int mcol = mat->size2;
+	int krow = k->size1;
+	int kcol = k->size2;
+
+	gsl_fft_complex_workspace *ws_column, *ws_line;
+	gsl_fft_complex_wavetable *wv_column, *wv_line;
+
+	gsl_matrix* fft;
+	gsl_matrix* fft_copy;
+	int frow, fcol;
+
+	gsl_matrix* out;
+	int drow, dcol;
+
+	// Auxiliar vars
+	double re_h, im_h, re_hs, im_hs;
+	int ii, jj;
+	int GSL_FACTORS[7] = {7,6,5,4,3,2,0};
+
+	if (mode == 1)
+	{
+		if(krow > mrow || kcol > mcol) return NULL;
+		else
+		{
+			frow = find_closest_factor(mrow, GSL_FACTORS);
+			fcol = find_closest_factor(mcol, GSL_FACTORS);
+			drow = mrow - krow + 1;
+			dcol = mcol - kcol + 1;
+		}
+	}
+	else
+	{
+		printf("Warning: Mode %d not implemented yet. Performing classic Convolution.", mode);
+		return conv2D(mat, k, mode);
+	}
+
+	// FFT Matrices are x2 (real, imaginary)
+	fft       = gsl_matrix_alloc(frow, 2 * fcol);
+	fft_copy  = gsl_matrix_alloc(frow, 2 * fcol);
+	ws_column = gsl_fft_complex_workspace_alloc(frow);
+	ws_line   = gsl_fft_complex_workspace_alloc(fcol);
+	wv_column = gsl_fft_complex_wavetable_alloc(frow);
+	wv_line   = gsl_fft_complex_wavetable_alloc(fcol);
+	out       = gsl_matrix_calloc(drow, dcol);
+
+	gsl_matrix_set_zero(fft);
+
+	// Perform FFT Convolution (Input = Real part, Kernel = Imaginary part)
+	for(int i = 0 ; i < mrow ; i++)
+	{
+		ii = i % frow;
+		for(int j = 0 ; j < mcol ; j++)
+		{
+			jj = (j % fcol) * 2;
+			gsl_matrix_set(fft, ii, jj, gsl_matrix_get(fft, ii, jj) + gsl_matrix_get(mat, i, j));
+		}
+	}
+	for(int i = 0 ; i < krow ; i++)
+	{
+		ii = i % frow;
+		for(int j = 0 ; j < kcol ; j++)
+		{
+			jj = (j % fcol) * 2 + 1;
+			gsl_matrix_set(fft, ii, jj, gsl_matrix_get(fft, ii, jj) + gsl_matrix_get(k, i, j));
+		}
+	}
+
+	// FFT Forward
+	for(int i = 0 ; i < frow ; i++)
+		gsl_fft_complex_forward(&fft->data[i * 2 * fcol], 1, fcol, wv_line, ws_line);
+	for(int j = 0 ; j < fcol ; j++)
+		gsl_fft_complex_forward(&fft->data[2 * j], fcol, frow, wv_column, ws_column);
+
+	// Element-wise product
+	for(int i = 0 ; i < frow ; i++)
+	{
+		ii = (frow - i) % frow;
+		for(int j = 0 ; j < fcol ; j++)
+		{
+			jj    = (2 * (fcol - j)) % (2 * fcol);
+			re_h  = gsl_matrix_get(fft, i, 2 * j);
+			im_h  = gsl_matrix_get(fft, i, 2 * j + 1);
+			re_hs = gsl_matrix_get(fft, ii, jj);
+			im_hs = -1 * gsl_matrix_get(fft, ii, jj + 1);
+
+			gsl_matrix_set(fft_copy, i, 2 * j, 0.5 * ((re_h * im_h) - (re_hs * im_hs)));
+			gsl_matrix_set(fft_copy, i, 2 * j + 1, -0.25 * ((re_h * re_h) - (im_h * im_h) - (re_hs * re_hs) + (im_hs * im_hs)));
+		}
+	}
+
+	// Inverse FFT
+	for(int i = 0 ; i < frow ; i++)
+		gsl_fft_complex_inverse(&fft_copy->data[i * 2 * fcol], 1, fcol, wv_line, ws_line);
+	for(int j = 0 ; j < fcol ; j++)
+		gsl_fft_complex_inverse(&fft_copy->data[2 * j], fcol, frow, wv_column, ws_column);
+
+	// Prepare Results Matrix ([drow x dcol], starting by [krow-1, kcol-1])
+	for(int i = 0 ; i < drow ; i++) for(int j = 0 ; j < dcol ; j++)
+		gsl_matrix_set(out, i, j, gsl_matrix_get(fft_copy, (i + krow - 1), 2 * (j + kcol - 1)));
+
+	// Free Temporary Elements
+	gsl_fft_complex_workspace_free(ws_column);
+	gsl_fft_complex_workspace_free(ws_line);
+	gsl_fft_complex_wavetable_free(wv_column);
+	gsl_fft_complex_wavetable_free(wv_line);
+	gsl_matrix_free(fft);
+	gsl_matrix_free(fft_copy);
+
+	return out;
+}
+
+/*---------------------------------------------------------------------------*/
+/* AUXILIAR FUNCTIONS FOR TRUE CONVOLUTION                                   */
 /*---------------------------------------------------------------------------*/
 
 // Function to perform the convolution
 //  param mode : 1 = "valid"
-gsl_matrix* conv2D(gsl_matrix* mat, gsl_matrix* k, int mode)
+gsl_matrix* conv2D (gsl_matrix* mat, gsl_matrix* k, int mode)
 {
 	// Get matrices sizes
 	int mrow = mat->size1;
@@ -136,7 +339,8 @@ gsl_matrix*** conv_op (	gsl_matrix*** imgs, int batch_size, int n_channels_img,
 			out[b][f] = gsl_matrix_calloc(out_h, out_w);
 			for (int c = 0; c < n_channels; c++)
 			{
-				gsl_matrix* conv_aux = conv2D(imgs_pad[c], filters[f][c], 1);
+				//gsl_matrix* conv_aux = conv2D(imgs_pad[c], filters[f][c], 1);		// True Convolutional
+				gsl_matrix* conv_aux = conv2D_fft(imgs_pad[c], filters[f][c], 1);	// FFT Approximation
 				gsl_matrix_add(out[b][f], conv_aux);
 				gsl_matrix_free(conv_aux);
 			}
