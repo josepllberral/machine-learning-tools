@@ -148,24 +148,13 @@ gsl_matrix* conv2D_fft (gsl_matrix* mat, gsl_matrix* k, int mode)
 	gsl_matrix_set_zero(fft);
 
 	// Perform FFT Convolution (Input = Real part, Kernel = Imaginary part)
-	for(int i = 0 ; i < mrow ; i++)
-	{
-		ii = i % frow;
-		for(int j = 0 ; j < mcol ; j++)
-		{
-			jj = (j % fcol) * 2;
-			gsl_matrix_set(fft, ii, jj, gsl_matrix_get(fft, ii, jj) + gsl_matrix_get(mat, i, j));
-		}
-	}
-	for(int i = 0 ; i < krow ; i++)
-	{
-		ii = i % frow;
-		for(int j = 0 ; j < kcol ; j++)
-		{
-			jj = (j % fcol) * 2 + 1;
-			gsl_matrix_set(fft, ii, jj, gsl_matrix_get(fft, ii, jj) + gsl_matrix_get(k, i, j));
-		}
-	}
+	for(int i = 0, ii = 0 ; i < mrow ; i++, ii = (ii + 1) % frow)
+		for(int j = 0, jj = 0 ; j < mcol ; j++, jj = (jj + 1) % fcol)
+			gsl_matrix_set(fft, ii, jj * 2, gsl_matrix_get(fft, ii, jj * 2) + gsl_matrix_get(mat, i, j));
+
+	for(int i = 0, ii = 0; i < krow ; i++, ii = (ii + 1) % frow)
+		for(int j = 0, jj = 0; j < kcol ; j++, jj = (jj + 1) % fcol)
+			gsl_matrix_set(fft, ii, jj * 2 + 1, gsl_matrix_get(fft, ii, jj * 2 + 1) + gsl_matrix_get(k, i, j));
 
 	// FFT Forward
 	for(int i = 0 ; i < frow ; i++)
