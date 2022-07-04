@@ -38,6 +38,8 @@
 #include <math.h>
 #include <string.h>
 
+#include <time.h>
+
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 

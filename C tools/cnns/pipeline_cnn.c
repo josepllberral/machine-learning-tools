@@ -324,10 +324,14 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 	double acc_loss = 0;
 	double acc_class = 0;
 
+	time_t time_start, time_end;
+
 	for (int epoch = 0; epoch < training_epochs; epoch++)
 	{
 		acc_loss = 0;
 		acc_class = 0;
+
+		time_start = clock();
 
 		for (int idx_ini = 0; idx_ini < num_samples - batch_size + 1; idx_ini += batch_size)
 		{
@@ -387,8 +391,10 @@ double train_cnn (gsl_matrix*** training_x, gsl_matrix* training_y, int num_samp
 			}
 			free(batchdata.image);
 		}
+
+		time_end = clock();
 //		if (epoch % 1 == 0)
-			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
+			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f, Time Spent %f\n", epoch, acc_loss / num_batches, acc_class / num_batches, (double)(time_end - time_start) / (double)CLOCKS_PER_SEC);
 	}
 	return (acc_loss / num_batches);
 }

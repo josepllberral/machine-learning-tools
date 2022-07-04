@@ -45,10 +45,14 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 	double acc_loss = 0;
 	double acc_class = 0;
 
+	time_t time_start, time_end;
+
 	for (int epoch = 0; epoch < training_epochs; epoch++)
 	{
 		acc_loss = 0;
 		acc_class = 0;
+
+		time_start = clock();
 
 		for (int j = 0; j < num_batches; j++)
 		{
@@ -105,8 +109,9 @@ double train_mlp (gsl_matrix* training_x, gsl_matrix* training_y, LAYER* layers,
 			gsl_matrix_free(batchdata.matrix);
 		}
 
+		time_end = clock();
 //		if (epoch % 1 == 0)
-			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f\n", epoch, acc_loss / num_batches, acc_class / num_batches);
+			printf("Epoch %d: Mean Loss %f, Classification Accuracy %f, Time Spent %f\n", epoch, acc_loss / num_batches, acc_class / num_batches, (double)(time_end - time_start) / (double)CLOCKS_PER_SEC);
 	}
 
 	return (acc_loss / num_batches);
